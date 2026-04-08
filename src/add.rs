@@ -46,14 +46,7 @@ impl From<AddArgs> for ParsedExpense {
 }
 
 fn is_date(s: &str) -> bool {
-    let parts: Vec<&str> = s.split('-').collect();
-    if parts.len() != 3 {
-        return false;
-    }
-    parts[0].len() == 4
-        && (1..=2).contains(&parts[1].len())
-        && (1..=2).contains(&parts[2].len())
-        && parts.iter().all(|p| p.parse::<u32>().is_ok())
+    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok()
 }
 
 fn is_currency(s: &str) -> bool {
