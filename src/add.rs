@@ -1,0 +1,241 @@
+use clap::Args;
+
+#[derive(Args, Debug)]
+pub struct AddArgs {
+    #[arg(long)]
+    pub name: Option<String>,
+    #[arg(long)]
+    pub amount: Option<f64>,
+    #[arg(long)]
+    pub category: Option<String>,
+    #[arg(long)]
+    pub currency: Option<String>,
+    #[arg(long)]
+    pub date: Option<String>,
+
+    /// Positional args parsed implicitly by format
+    pub args: Vec<String>,
+}
+
+pub struct ParsedExpense {
+    pub name: Option<String>,
+    pub amount: Option<f64>,
+    pub category: Option<String>,
+    pub currency: Option<String>,
+    pub first_payment_date: Option<String>,
+}
+
+impl From<AddArgs> for ParsedExpense {
+    fn from(add: AddArgs) -> Self {
+        let implicit = parse_implicit_args(&add.args);
+
+        ParsedExpense {
+            name: add.name.or(implicit.name),
+            amount: add.amount.or(implicit.amount),
+            category: add.category.or(implicit.category),
+            currency: add.currency.map(|c| c.to_lowercase()).or(implicit.currency),
+            first_payment_date: add.date.or(implicit.first_payment_date),
+        }
+    }
+}
+
+fn is_date(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.len() != 3 {
+        return false;
+    }
+    parts[0].len() == 4
+        && (1..=2).contains(&parts[1].len())
+        && (1..=2).contains(&parts[2].len())
+        && parts.iter().all(|p| p.parse::<u32>().is_ok())
+}
+
+fn is_currency(s: &str) -> bool {
+    matches!(
+        s.to_lowercase().as_str(),
+        "usd" | "eur" | "gbp" | "pln" | "chf" | "jpy" | "cad" | "aud"
+    )
+}
+
+fn parse_implicit_args(args: &[String]) -> ParsedExpense {
+    let mut expense = ParsedExpense {
+        name: None,
+        amount: None,
+        category: None,
+        currency: None,
+        first_payment_date: None,
+    };
+    let mut name_parts: Vec<&str> = Vec::new();
+
+    for arg in args {
+        if expense.first_payment_date.is_none() && is_date(arg) {
+            expense.first_payment_date = Some(arg.clone());
+        } else if expense.category.is_none() && arg.starts_with('@') {
+            expense.category = Some(arg[1..].to_string());
+        } else if expense.currency.is_none() && is_currency(arg) {
+            expense.currency = Some(arg.to_lowercase());
+        } else if expense.amount.is_none() && arg.parse::<f64>().is_ok() {
+            expense.amount = Some(arg.parse().unwrap());
+        } else {
+            name_parts.push(arg);
+        }
+    }
+
+    if !name_parts.is_empty() {
+        expense.name = Some(name_parts.join(" "));
+    }
+
+    expense
+}
+
+pub fn execute(add: AddArgs) {
+    let expense = ParsedExpense::from(add);
+    println!("Adding expense:");
+    if let Some(name) = &expense.name {
+        println!("  Name: {}", name);
+    }
+    if let Some(amount) = expense.amount {
+        println!("  Amount: {}", amount);
+    }
+    if let Some(category) = &expense.category {
+        println!("  Category: {}", category);
+    }
+    if let Some(currency) = &expense.currency {
+        println!("  Currency: {}", currency);
+    }
+    if let Some(date) = &expense.first_payment_date {
+        println!("  First payment: {}", date);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn implicit(strs: &[&str]) -> ParsedExpense {
+        let args: Vec<String> = strs.iter().map(|s| s.to_string()).collect();
+        parse_implicit_args(&args)
+    }
+
+    fn add_args(flags: AddArgs) -> ParsedExpense {
+        ParsedExpense::from(flags)
+    }
+
+    fn default_add() -> AddArgs {
+        AddArgs {
+            name: None,
+            amount: None,
+            category: None,
+            currency: None,
+            date: None,
+            args: vec![],
+        }
+    }
+
+    #[test]
+    fn parses_all_fields_implicitly() {
+        let expense = implicit(&["Netflix", "9.99", "@entertainment", "usd", "2024-01-15"]);
+        assert_eq!(expense.name.as_deref(), Some("Netflix"));
+        assert_eq!(expense.amount, Some(9.99));
+        assert_eq!(expense.category.as_deref(), Some("entertainment"));
+        assert_eq!(expense.currency.as_deref(), Some("usd"));
+        assert_eq!(expense.first_payment_date.as_deref(), Some("2024-01-15"));
+    }
+
+    #[test]
+    fn parses_name_and_amount_only() {
+        let expense = implicit(&["Gym", "50"]);
+        assert_eq!(expense.name.as_deref(), Some("Gym"));
+        assert_eq!(expense.amount, Some(50.0));
+        assert_eq!(expense.category, None);
+        assert_eq!(expense.currency, None);
+        assert_eq!(expense.first_payment_date, None);
+    }
+
+    #[test]
+    fn joins_multi_word_name() {
+        let expense = implicit(&["NY", "Times", "15.99"]);
+        assert_eq!(expense.name.as_deref(), Some("NY Times"));
+        assert_eq!(expense.amount, Some(15.99));
+    }
+
+    #[test]
+    fn args_order_does_not_matter() {
+        let expense = implicit(&["2024-06-01", "@music", "EUR", "9.99", "Spotify"]);
+        assert_eq!(expense.name.as_deref(), Some("Spotify"));
+        assert_eq!(expense.amount, Some(9.99));
+        assert_eq!(expense.category.as_deref(), Some("music"));
+        assert_eq!(expense.currency.as_deref(), Some("eur"));
+        assert_eq!(expense.first_payment_date.as_deref(), Some("2024-06-01"));
+    }
+
+    #[test]
+    fn currency_is_case_insensitive() {
+        let expense = implicit(&["Test", "USD"]);
+        assert_eq!(expense.currency.as_deref(), Some("usd"));
+
+        let expense = implicit(&["Test", "eur"]);
+        assert_eq!(expense.currency.as_deref(), Some("eur"));
+    }
+
+    #[test]
+    fn category_strips_at_sign() {
+        let expense = implicit(&["Test", "@bills"]);
+        assert_eq!(expense.category.as_deref(), Some("bills"));
+    }
+
+    #[test]
+    fn decimal_amount() {
+        let expense = implicit(&["Test", "49.99"]);
+        assert_eq!(expense.amount, Some(49.99));
+    }
+
+    #[test]
+    fn name_only() {
+        let expense = implicit(&["Netflix"]);
+        assert_eq!(expense.name.as_deref(), Some("Netflix"));
+        assert_eq!(expense.amount, None);
+    }
+
+    #[test]
+    fn flags_override_implicit_args() {
+        let expense = add_args(AddArgs {
+            name: Some("Override".into()),
+            currency: Some("GBP".into()),
+            args: vec!["Netflix".into(), "9.99".into(), "usd".into()],
+            ..default_add()
+        });
+        assert_eq!(expense.name.as_deref(), Some("Override"));
+        assert_eq!(expense.amount, Some(9.99));
+        assert_eq!(expense.currency.as_deref(), Some("gbp"));
+    }
+
+    #[test]
+    fn flags_only() {
+        let expense = add_args(AddArgs {
+            name: Some("Spotify".into()),
+            amount: Some(9.99),
+            category: Some("music".into()),
+            currency: Some("EUR".into()),
+            date: Some("2024-01-15".into()),
+            args: vec![],
+        });
+        assert_eq!(expense.name.as_deref(), Some("Spotify"));
+        assert_eq!(expense.amount, Some(9.99));
+        assert_eq!(expense.category.as_deref(), Some("music"));
+        assert_eq!(expense.currency.as_deref(), Some("eur"));
+        assert_eq!(expense.first_payment_date.as_deref(), Some("2024-01-15"));
+    }
+
+    #[test]
+    fn flags_fill_gaps_in_implicit() {
+        let expense = add_args(AddArgs {
+            currency: Some("PLN".into()),
+            args: vec!["Netflix".into(), "9.99".into()],
+            ..default_add()
+        });
+        assert_eq!(expense.name.as_deref(), Some("Netflix"));
+        assert_eq!(expense.amount, Some(9.99));
+        assert_eq!(expense.currency.as_deref(), Some("pln"));
+    }
+}
