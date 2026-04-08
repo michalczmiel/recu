@@ -89,22 +89,26 @@ fn parse_implicit_args(args: &[String]) -> ParsedExpense {
 }
 
 pub fn execute(add: AddArgs) {
-    let expense = ParsedExpense::from(add);
-    println!("Adding expense:");
-    if let Some(name) = &expense.name {
-        println!("  Name: {}", name);
-    }
-    if let Some(amount) = expense.amount {
-        println!("  Amount: {}", amount);
-    }
-    if let Some(category) = &expense.category {
-        println!("  Category: {}", category);
-    }
-    if let Some(currency) = &expense.currency {
-        println!("  Currency: {}", currency);
-    }
-    if let Some(date) = &expense.first_payment_date {
-        println!("  First payment: {}", date);
+    let parsed = ParsedExpense::from(add);
+
+    let name = match &parsed.name {
+        Some(n) => n.clone(),
+        None => {
+            eprintln!("Error: name is required");
+            std::process::exit(1);
+        }
+    };
+
+    let expense = crate::storage::Expense {
+        amount: parsed.amount,
+        currency: parsed.currency,
+        category: parsed.category,
+        first_payment_date: parsed.first_payment_date,
+    };
+
+    match crate::storage::save(&name, &expense) {
+        Ok(path) => println!("Saved: {}", path.display()),
+        Err(e) => eprintln!("Error saving expense: {}", e),
     }
 }
 

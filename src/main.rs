@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 mod add;
+mod storage;
 
 #[derive(Parser, Debug)]
 #[command(name = "recu")]
@@ -21,7 +22,27 @@ fn main() {
     let cli = Cli::parse();
     match cli.command {
         Commands::Ls => {
-            println!("Listing recurring expenses...");
+            match storage::list() {
+                Ok(expenses) if expenses.is_empty() => {
+                    println!("No recurring expenses found.");
+                }
+                Ok(expenses) => {
+                    for (name, expense) in &expenses {
+                        let amount = expense
+                            .amount
+                            .map(|a| a.to_string())
+                            .unwrap_or("-".into());
+                        let currency = expense.currency.as_deref().unwrap_or("");
+                        let category = expense
+                            .category
+                            .as_ref()
+                            .map(|c| format!("@{}", c))
+                            .unwrap_or_default();
+                        println!("  {} {} {} {}", name, amount, currency, category);
+                    }
+                }
+                Err(e) => eprintln!("Error listing expenses: {}", e),
+            }
         }
         Commands::Add(args) => add::execute(args),
     }
