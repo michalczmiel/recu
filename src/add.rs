@@ -1,4 +1,5 @@
 use clap::Args;
+use rusty_money::iso;
 
 #[derive(Args, Debug)]
 pub struct AddArgs {
@@ -50,10 +51,7 @@ fn is_date(s: &str) -> bool {
 }
 
 fn is_currency(s: &str) -> bool {
-    matches!(
-        s.to_lowercase().as_str(),
-        "usd" | "eur" | "gbp" | "pln" | "chf" | "jpy" | "cad" | "aud"
-    )
+    iso::find(&s.to_uppercase()).is_some()
 }
 
 fn parse_implicit_args(args: &[String]) -> ParsedExpense {
