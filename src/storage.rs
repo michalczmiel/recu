@@ -6,7 +6,7 @@ use std::path::PathBuf;
 pub struct Expense {
     pub amount: Option<f64>,
     pub currency: Option<String>,
-    pub category: Option<String>,
+    pub tags: Option<Vec<String>>,
     pub first_payment_date: Option<String>,
 }
 

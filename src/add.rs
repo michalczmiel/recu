@@ -7,7 +7,7 @@ pub struct AddArgs {
     #[arg(long)]
     pub amount: Option<f64>,
     #[arg(long)]
-    pub category: Option<String>,
+    pub tags: Option<Vec<String>>,
     #[arg(long)]
     pub currency: Option<String>,
     #[arg(long)]
@@ -20,7 +20,7 @@ pub struct AddArgs {
 pub struct ParsedExpense {
     pub name: Option<String>,
     pub amount: Option<f64>,
-    pub category: Option<String>,
+    pub tags: Option<Vec<String>>,
     pub currency: Option<String>,
     pub first_payment_date: Option<String>,
 }
@@ -32,7 +32,13 @@ impl From<AddArgs> for ParsedExpense {
         ParsedExpense {
             name: add.name.or(implicit.name),
             amount: add.amount.or(implicit.amount),
-            category: add.category.or(implicit.category),
+            tags: match (add.tags, implicit.tags) {
+                (Some(mut f), Some(i)) => {
+                    f.extend(i);
+                    Some(f)
+                }
+                (a, b) => a.or(b),
+            },
             currency: add.currency.map(|c| c.to_lowercase()).or(implicit.currency),
             first_payment_date: add.date.or(implicit.first_payment_date),
         }
@@ -61,7 +67,7 @@ fn parse_implicit_args(args: &[String]) -> ParsedExpense {
     let mut expense = ParsedExpense {
         name: None,
         amount: None,
-        category: None,
+        tags: None,
         currency: None,
         first_payment_date: None,
     };
@@ -70,8 +76,11 @@ fn parse_implicit_args(args: &[String]) -> ParsedExpense {
     for arg in args {
         if expense.first_payment_date.is_none() && is_date(arg) {
             expense.first_payment_date = Some(arg.clone());
-        } else if expense.category.is_none() && arg.starts_with('@') {
-            expense.category = Some(arg[1..].to_string());
+        } else if arg.starts_with('#') {
+            expense
+                .tags
+                .get_or_insert_with(Vec::new)
+                .push(arg[1..].to_string());
         } else if expense.currency.is_none() && is_currency(arg) {
             expense.currency = Some(arg.to_lowercase());
         } else if expense.amount.is_none() && arg.parse::<f64>().is_ok() {
@@ -102,7 +111,7 @@ pub fn execute(add: AddArgs) {
     let expense = crate::storage::Expense {
         amount: parsed.amount,
         currency: parsed.currency,
-        category: parsed.category,
+        tags: parsed.tags,
         first_payment_date: parsed.first_payment_date,
     };
 
@@ -129,7 +138,7 @@ mod tests {
         AddArgs {
             name: None,
             amount: None,
-            category: None,
+            tags: None,
             currency: None,
             date: None,
             args: vec![],
@@ -138,10 +147,10 @@ mod tests {
 
     #[test]
     fn parses_all_fields_implicitly() {
-        let expense = implicit(&["Netflix", "9.99", "@entertainment", "usd", "2024-01-15"]);
+        let expense = implicit(&["Netflix", "9.99", "#entertainment", "usd", "2024-01-15"]);
         assert_eq!(expense.name.as_deref(), Some("Netflix"));
         assert_eq!(expense.amount, Some(9.99));
-        assert_eq!(expense.category.as_deref(), Some("entertainment"));
+        assert_eq!(expense.tags, Some(vec!["entertainment".to_string()]));
         assert_eq!(expense.currency.as_deref(), Some("usd"));
         assert_eq!(expense.first_payment_date.as_deref(), Some("2024-01-15"));
     }
@@ -151,7 +160,7 @@ mod tests {
         let expense = implicit(&["Gym", "50"]);
         assert_eq!(expense.name.as_deref(), Some("Gym"));
         assert_eq!(expense.amount, Some(50.0));
-        assert_eq!(expense.category, None);
+        assert_eq!(expense.tags, None);
         assert_eq!(expense.currency, None);
         assert_eq!(expense.first_payment_date, None);
     }
@@ -165,10 +174,10 @@ mod tests {
 
     #[test]
     fn args_order_does_not_matter() {
-        let expense = implicit(&["2024-06-01", "@music", "EUR", "9.99", "Spotify"]);
+        let expense = implicit(&["2024-06-01", "#music", "EUR", "9.99", "Spotify"]);
         assert_eq!(expense.name.as_deref(), Some("Spotify"));
         assert_eq!(expense.amount, Some(9.99));
-        assert_eq!(expense.category.as_deref(), Some("music"));
+        assert_eq!(expense.tags, Some(vec!["music".to_string()]));
         assert_eq!(expense.currency.as_deref(), Some("eur"));
         assert_eq!(expense.first_payment_date.as_deref(), Some("2024-06-01"));
     }
@@ -183,9 +192,18 @@ mod tests {
     }
 
     #[test]
-    fn category_strips_at_sign() {
-        let expense = implicit(&["Test", "@bills"]);
-        assert_eq!(expense.category.as_deref(), Some("bills"));
+    fn tags_strip_hash() {
+        let expense = implicit(&["Test", "#bills"]);
+        assert_eq!(expense.tags, Some(vec!["bills".to_string()]));
+    }
+
+    #[test]
+    fn multiple_tags() {
+        let expense = implicit(&["Netflix", "9.99", "#entertainment", "#streaming"]);
+        assert_eq!(
+            expense.tags,
+            Some(vec!["entertainment".to_string(), "streaming".to_string()])
+        );
     }
 
     #[test]
@@ -219,14 +237,14 @@ mod tests {
         let expense = add_args(AddArgs {
             name: Some("Spotify".into()),
             amount: Some(9.99),
-            category: Some("music".into()),
+            tags: Some(vec!["music".into()]),
             currency: Some("EUR".into()),
             date: Some("2024-01-15".into()),
             args: vec![],
         });
         assert_eq!(expense.name.as_deref(), Some("Spotify"));
         assert_eq!(expense.amount, Some(9.99));
-        assert_eq!(expense.category.as_deref(), Some("music"));
+        assert_eq!(expense.tags, Some(vec!["music".to_string()]));
         assert_eq!(expense.currency.as_deref(), Some("eur"));
         assert_eq!(expense.first_payment_date.as_deref(), Some("2024-01-15"));
     }

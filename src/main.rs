@@ -33,12 +33,12 @@ fn main() {
                             .map(|a| a.to_string())
                             .unwrap_or("-".into());
                         let currency = expense.currency.as_deref().unwrap_or("");
-                        let category = expense
-                            .category
+                        let tags = expense
+                            .tags
                             .as_ref()
-                            .map(|c| format!("@{}", c))
+                            .map(|t| t.iter().map(|t| format!("#{}", t)).collect::<Vec<_>>().join(" "))
                             .unwrap_or_default();
-                        println!("  {} {} {} {}", name, amount, currency, category);
+                        println!("  {} {} {} {}", name, amount, currency, tags);
                     }
                 }
                 Err(e) => eprintln!("Error listing expenses: {}", e),
