@@ -26,7 +26,7 @@ fn main() {
                 println!("No recurring expenses found.");
             }
             Ok(expenses) => {
-                for (name, expense) in &expenses {
+                for (index, (name, expense)) in expenses.iter().enumerate() {
                     let amount = expense.amount.map(|a| a.to_string()).unwrap_or("-".into());
                     let currency = expense.currency.as_deref().unwrap_or("");
                     let tags = expense
@@ -39,7 +39,7 @@ fn main() {
                                 .join(" ")
                         })
                         .unwrap_or_default();
-                    println!("  {} {} {} {}", name, amount, currency, tags);
+                    println!("@{} {} {} {} {}", index + 1, name, amount, currency, tags);
                 }
             }
             Err(e) => eprintln!("Error listing expenses: {}", e),
