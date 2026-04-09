@@ -3,18 +3,24 @@ use rusty_money::iso;
 
 #[derive(Args, Debug)]
 pub struct AddArgs {
+    /// Expense name
     #[arg(long)]
     pub name: Option<String>,
+    /// Amount (e.g. 9.99)
     #[arg(long)]
     pub amount: Option<f64>,
-    #[arg(long)]
+    /// Tags (e.g. --tags entertainment,streaming)
+    #[arg(long, value_delimiter = ',')]
     pub tags: Option<Vec<String>>,
+    /// ISO 4217 currency code (e.g. usd, eur)
     #[arg(long)]
     pub currency: Option<String>,
+    /// First payment date (YYYY-MM-DD)
     #[arg(long)]
     pub date: Option<String>,
+    /// Billing interval
     #[arg(long)]
-    pub interval: Option<String>,
+    pub interval: Option<crate::storage::Interval>,
 
     /// Positional args parsed implicitly by format
     pub args: Vec<String>,
@@ -45,10 +51,7 @@ impl From<AddArgs> for ParsedExpense {
             },
             currency: add.currency.map(|c| c.to_lowercase()).or(implicit.currency),
             first_payment_date: add.date.or(implicit.first_payment_date),
-            interval: add
-                .interval
-                .and_then(|i| parse_interval(&i))
-                .or(implicit.interval),
+            interval: add.interval.or(implicit.interval),
         }
     }
 }

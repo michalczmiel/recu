@@ -1,9 +1,10 @@
 use chrono::NaiveDate;
+use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum Interval {
     Weekly,

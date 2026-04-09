@@ -5,7 +5,7 @@ mod rm;
 mod storage;
 
 #[derive(Parser, Debug)]
-#[command(name = "recu")]
+#[command(name = "recu", version, about = "Track recurring expenses")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
