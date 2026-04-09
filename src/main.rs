@@ -8,7 +8,7 @@ mod storage;
 #[command(name = "recu")]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -24,11 +24,12 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Ls => match storage::list() {
+        None | Some(Commands::Ls) => match storage::list() {
             Ok(expenses) if expenses.is_empty() => {
                 println!("No recurring expenses found.");
             }
             Ok(expenses) => {
+                let today = chrono::Local::now().date_naive();
                 for (index, (name, expense)) in expenses.iter().enumerate() {
                     let amount = expense.amount.map(|a| a.to_string()).unwrap_or("-".into());
                     let currency = expense.currency.as_deref().unwrap_or("");
@@ -42,12 +43,35 @@ fn main() {
                                 .join(" ")
                         })
                         .unwrap_or_default();
-                    println!("@{} {} {} {} {}", index + 1, name, amount, currency, tags);
+                    let days_left = expense
+                        .first_payment_date
+                        .as_ref()
+                        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+                        .zip(expense.interval.as_ref())
+                        .map(|(first, interval)| {
+                            let next = interval.next_payment(first, today);
+                            let days = (next - today).num_days();
+                            if days == 0 {
+                                "today".to_string()
+                            } else {
+                                format!("in {} days", days)
+                            }
+                        });
+                    let days_str = days_left.as_deref().unwrap_or("");
+                    println!(
+                        "@{} {} {} {} {} {}",
+                        index + 1,
+                        name,
+                        amount,
+                        currency,
+                        tags,
+                        days_str
+                    );
                 }
             }
             Err(e) => eprintln!("Error listing expenses: {}", e),
         },
-        Commands::Add(args) => add::execute(args),
-        Commands::Rm(args) => rm::execute(args),
+        Some(Commands::Add(args)) => add::execute(args),
+        Some(Commands::Rm(args)) => rm::execute(args),
     }
 }

@@ -48,6 +48,7 @@ mod tests {
                 currency: Some(currency.to_string()),
                 tags: None,
                 first_payment_date: None,
+                interval: None,
             };
             storage::save_to(dir, name, &expense).unwrap();
         }

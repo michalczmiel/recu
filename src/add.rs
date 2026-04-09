@@ -13,6 +13,8 @@ pub struct AddArgs {
     pub currency: Option<String>,
     #[arg(long)]
     pub date: Option<String>,
+    #[arg(long)]
+    pub interval: Option<String>,
 
     /// Positional args parsed implicitly by format
     pub args: Vec<String>,
@@ -24,6 +26,7 @@ pub struct ParsedExpense {
     pub tags: Option<Vec<String>>,
     pub currency: Option<String>,
     pub first_payment_date: Option<String>,
+    pub interval: Option<crate::storage::Interval>,
 }
 
 impl From<AddArgs> for ParsedExpense {
@@ -42,12 +45,26 @@ impl From<AddArgs> for ParsedExpense {
             },
             currency: add.currency.map(|c| c.to_lowercase()).or(implicit.currency),
             first_payment_date: add.date.or(implicit.first_payment_date),
+            interval: add
+                .interval
+                .and_then(|i| parse_interval(&i))
+                .or(implicit.interval),
         }
     }
 }
 
 fn is_date(s: &str) -> bool {
     chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok()
+}
+
+fn parse_interval(s: &str) -> Option<crate::storage::Interval> {
+    match s.to_lowercase().as_str() {
+        "weekly" => Some(crate::storage::Interval::Weekly),
+        "monthly" => Some(crate::storage::Interval::Monthly),
+        "quarterly" => Some(crate::storage::Interval::Quarterly),
+        "yearly" => Some(crate::storage::Interval::Yearly),
+        _ => None,
+    }
 }
 
 fn is_currency(s: &str) -> bool {
@@ -61,11 +78,14 @@ fn parse_implicit_args(args: &[String]) -> ParsedExpense {
         tags: None,
         currency: None,
         first_payment_date: None,
+        interval: None,
     };
     let mut name_parts: Vec<&str> = Vec::new();
 
     for arg in args {
-        if expense.first_payment_date.is_none() && is_date(arg) {
+        if expense.interval.is_none() && parse_interval(arg).is_some() {
+            expense.interval = parse_interval(arg);
+        } else if expense.first_payment_date.is_none() && is_date(arg) {
             expense.first_payment_date = Some(arg.clone());
         } else if arg.starts_with('#') {
             expense
@@ -104,6 +124,7 @@ pub fn execute(add: AddArgs) {
         currency: parsed.currency,
         tags: parsed.tags,
         first_payment_date: parsed.first_payment_date,
+        interval: parsed.interval,
     };
 
     match crate::storage::save(&name, &expense) {
@@ -132,6 +153,7 @@ mod tests {
             tags: None,
             currency: None,
             date: None,
+            interval: None,
             args: vec![],
         }
     }
@@ -221,6 +243,7 @@ mod tests {
         let expense = add_args(AddArgs {
             name: Some("Override".into()),
             currency: Some("GBP".into()),
+            interval: None,
             args: vec!["Netflix".into(), "9.99".into(), "usd".into()],
             ..default_add()
         });
@@ -237,6 +260,7 @@ mod tests {
             tags: Some(vec!["music".into()]),
             currency: Some("EUR".into()),
             date: Some("2024-01-15".into()),
+            interval: None,
             args: vec![],
         });
         assert_eq!(expense.name.as_deref(), Some("Spotify"));

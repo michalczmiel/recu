@@ -1,6 +1,72 @@
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Interval {
+    Weekly,
+    Monthly,
+    Quarterly,
+    Yearly,
+}
+
+impl Interval {
+    pub fn next_payment(&self, first: NaiveDate, today: NaiveDate) -> NaiveDate {
+        match self {
+            Interval::Weekly => {
+                let days_since = (today - first).num_days().rem_euclid(7);
+                if days_since == 0 {
+                    today
+                } else {
+                    today + chrono::Days::new((7 - days_since) as u64)
+                }
+            }
+            Interval::Monthly => advance_months(first, today, 1),
+            Interval::Quarterly => advance_months(first, today, 3),
+            Interval::Yearly => advance_months(first, today, 12),
+        }
+    }
+}
+
+fn advance_months(first: NaiveDate, today: NaiveDate, step: u32) -> NaiveDate {
+    use chrono::Datelike;
+    let mut year = first.year();
+    let mut month = first.month();
+    let day = first.day();
+
+    loop {
+        let candidate = NaiveDate::from_ymd_opt(year, month, day)
+            .or_else(|| {
+                // handle day overflow (e.g. Jan 31 -> Feb 28)
+                let last = last_day_of_month(year, month);
+                NaiveDate::from_ymd_opt(year, month, last)
+            })
+            .unwrap();
+        if candidate >= today {
+            return candidate;
+        }
+        month += step;
+        while month > 12 {
+            month -= 12;
+            year += 1;
+        }
+    }
+}
+
+fn last_day_of_month(year: i32, month: u32) -> u32 {
+    use chrono::Datelike;
+    if month == 12 {
+        31
+    } else {
+        NaiveDate::from_ymd_opt(year, month + 1, 1)
+            .unwrap()
+            .pred_opt()
+            .unwrap()
+            .day()
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Expense {
@@ -8,6 +74,7 @@ pub struct Expense {
     pub currency: Option<String>,
     pub tags: Option<Vec<String>>,
     pub first_payment_date: Option<String>,
+    pub interval: Option<Interval>,
 }
 
 fn storage_dir() -> PathBuf {
