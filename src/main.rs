@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 mod add;
+mod rm;
 mod storage;
 
 #[derive(Parser, Debug)]
@@ -16,6 +17,8 @@ enum Commands {
     Ls,
     /// Add a recurring expense
     Add(add::AddArgs),
+    /// Remove a recurring expense
+    Rm(rm::RmArgs),
 }
 
 fn main() {
@@ -45,5 +48,6 @@ fn main() {
             Err(e) => eprintln!("Error listing expenses: {}", e),
         },
         Commands::Add(args) => add::execute(args),
+        Commands::Rm(args) => rm::execute(args),
     }
 }
