@@ -74,8 +74,8 @@ fn parse_implicit_args(args: &[String]) -> ParsedExpense {
                 .push(arg[1..].to_string());
         } else if expense.currency.is_none() && is_currency(arg) {
             expense.currency = Some(arg.to_lowercase());
-        } else if expense.amount.is_none() && arg.parse::<f64>().is_ok() {
-            expense.amount = Some(arg.parse().unwrap());
+        } else if expense.amount.is_none() && arg.replace(',', ".").parse::<f64>().is_ok() {
+            expense.amount = Some(arg.replace(',', ".").parse().unwrap());
         } else {
             name_parts.push(arg);
         }
@@ -200,6 +200,12 @@ mod tests {
     #[test]
     fn decimal_amount() {
         let expense = implicit(&["Test", "49.99"]);
+        assert_eq!(expense.amount, Some(49.99));
+    }
+
+    #[test]
+    fn comma_decimal_separator() {
+        let expense = implicit(&["Test", "49,99"]);
         assert_eq!(expense.amount, Some(49.99));
     }
 
