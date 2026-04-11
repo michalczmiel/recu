@@ -109,6 +109,13 @@ pub(crate) fn save_to(
     let slug = slugify(name);
     let path = dir.join(format!("{}.md", slug));
 
+    if path.exists() {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("expense '{}' already exists", name),
+        ));
+    }
+
     let frontmatter = serde_yaml::to_string(expense)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     let content = format!("---\n{}---\n# {}\n", frontmatter, name);
@@ -206,5 +213,26 @@ mod tests {
     #[test]
     fn slugify_special_chars() {
         assert_eq!(slugify("Gym & Spa!"), "gym--spa");
+    }
+
+    #[test]
+    fn save_rejects_duplicate_slug() {
+        let dir = std::env::temp_dir().join("recu-test-storage-dup");
+        let _ = fs::remove_dir_all(&dir);
+
+        let expense = Expense {
+            amount: Some(9.99),
+            currency: Some("usd".into()),
+            tags: None,
+            first_payment_date: None,
+            interval: None,
+        };
+
+        save_to(&dir, "Netflix", &expense).unwrap();
+
+        let err = save_to(&dir, "netflix", &expense).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
+
+        assert_eq!(list_from(&dir).unwrap().len(), 1);
     }
 }
