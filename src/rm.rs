@@ -8,14 +8,10 @@ pub struct RmArgs {
     pub target: String,
 }
 
-pub fn execute(args: RmArgs) {
-    match storage::remove(&args.target) {
-        Ok(()) => println!("Removed '{}'", args.target),
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            std::process::exit(1);
-        }
-    }
+pub fn execute(args: RmArgs) -> std::io::Result<()> {
+    storage::remove(&args.target)?;
+    println!("Removed '{}'", args.target);
+    Ok(())
 }
 
 #[cfg(test)]

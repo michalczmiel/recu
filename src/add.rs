@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use clap::Args;
 use rusty_money::iso;
 
@@ -17,7 +18,7 @@ pub struct AddArgs {
     pub currency: Option<String>,
     /// First payment date (YYYY-MM-DD)
     #[arg(long)]
-    pub date: Option<String>,
+    pub date: Option<NaiveDate>,
     /// Billing interval
     #[arg(long)]
     pub interval: Option<crate::storage::Interval>,
@@ -31,7 +32,7 @@ pub struct ParsedExpense {
     pub amount: Option<f64>,
     pub tags: Option<Vec<String>>,
     pub currency: Option<String>,
-    pub first_payment_date: Option<String>,
+    pub first_payment_date: Option<NaiveDate>,
     pub interval: Option<crate::storage::Interval>,
 }
 
@@ -54,10 +55,6 @@ impl From<AddArgs> for ParsedExpense {
             interval: add.interval.or(implicit.interval),
         }
     }
-}
-
-fn is_date(s: &str) -> bool {
-    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok()
 }
 
 fn parse_interval(s: &str) -> Option<crate::storage::Interval> {
@@ -86,22 +83,36 @@ fn parse_implicit_args(args: &[String]) -> ParsedExpense {
     let mut name_parts: Vec<&str> = Vec::new();
 
     for arg in args {
-        if expense.interval.is_none() && parse_interval(arg).is_some() {
-            expense.interval = parse_interval(arg);
-        } else if expense.first_payment_date.is_none() && is_date(arg) {
-            expense.first_payment_date = Some(arg.clone());
-        } else if arg.starts_with('#') {
+        if expense.interval.is_none() {
+            if let Some(iv) = parse_interval(arg) {
+                expense.interval = Some(iv);
+                continue;
+            }
+        }
+        if expense.first_payment_date.is_none() {
+            if let Ok(d) = NaiveDate::parse_from_str(arg, "%Y-%m-%d") {
+                expense.first_payment_date = Some(d);
+                continue;
+            }
+        }
+        if let Some(tag) = arg.strip_prefix('#') {
             expense
                 .tags
                 .get_or_insert_with(Vec::new)
-                .push(arg[1..].to_string());
-        } else if expense.currency.is_none() && is_currency(arg) {
-            expense.currency = Some(arg.to_lowercase());
-        } else if expense.amount.is_none() && arg.replace(',', ".").parse::<f64>().is_ok() {
-            expense.amount = Some(arg.replace(',', ".").parse().unwrap());
-        } else {
-            name_parts.push(arg);
+                .push(tag.to_string());
+            continue;
         }
+        if expense.currency.is_none() && is_currency(arg) {
+            expense.currency = Some(arg.to_lowercase());
+            continue;
+        }
+        if expense.amount.is_none() {
+            if let Ok(val) = arg.replace(',', ".").parse::<f64>() {
+                expense.amount = Some(val);
+                continue;
+            }
+        }
+        name_parts.push(arg);
     }
 
     if !name_parts.is_empty() {
@@ -111,16 +122,12 @@ fn parse_implicit_args(args: &[String]) -> ParsedExpense {
     expense
 }
 
-pub fn execute(add: AddArgs) {
+pub fn execute(add: AddArgs) -> std::io::Result<()> {
     let parsed = ParsedExpense::from(add);
 
-    let name = match &parsed.name {
-        Some(n) => n.clone(),
-        None => {
-            eprintln!("Error: name is required");
-            std::process::exit(1);
-        }
-    };
+    let name = parsed.name.ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "name is required")
+    })?;
 
     let expense = crate::storage::Expense {
         amount: parsed.amount,
@@ -130,10 +137,9 @@ pub fn execute(add: AddArgs) {
         interval: parsed.interval,
     };
 
-    match crate::storage::save(&name, &expense) {
-        Ok(path) => println!("Saved: {}", path.display()),
-        Err(e) => eprintln!("Error saving expense: {}", e),
-    }
+    let path = crate::storage::save(&name, &expense)?;
+    println!("Saved: {}", path.display());
+    Ok(())
 }
 
 #[cfg(test)]
@@ -161,6 +167,10 @@ mod tests {
         }
     }
 
+    fn date(s: &str) -> NaiveDate {
+        NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
+    }
+
     #[test]
     fn parses_all_fields_implicitly() {
         let expense = implicit(&["Netflix", "9.99", "#entertainment", "usd", "2024-01-15"]);
@@ -168,7 +178,7 @@ mod tests {
         assert_eq!(expense.amount, Some(9.99));
         assert_eq!(expense.tags, Some(vec!["entertainment".to_string()]));
         assert_eq!(expense.currency.as_deref(), Some("usd"));
-        assert_eq!(expense.first_payment_date.as_deref(), Some("2024-01-15"));
+        assert_eq!(expense.first_payment_date, Some(date("2024-01-15")));
     }
 
     #[test]
@@ -195,7 +205,7 @@ mod tests {
         assert_eq!(expense.amount, Some(9.99));
         assert_eq!(expense.tags, Some(vec!["music".to_string()]));
         assert_eq!(expense.currency.as_deref(), Some("eur"));
-        assert_eq!(expense.first_payment_date.as_deref(), Some("2024-06-01"));
+        assert_eq!(expense.first_payment_date, Some(date("2024-06-01")));
     }
 
     #[test]
@@ -262,7 +272,7 @@ mod tests {
             amount: Some(9.99),
             tags: Some(vec!["music".into()]),
             currency: Some("EUR".into()),
-            date: Some("2024-01-15".into()),
+            date: Some(date("2024-01-15")),
             interval: None,
             args: vec![],
         });
@@ -270,7 +280,7 @@ mod tests {
         assert_eq!(expense.amount, Some(9.99));
         assert_eq!(expense.tags, Some(vec!["music".to_string()]));
         assert_eq!(expense.currency.as_deref(), Some("eur"));
-        assert_eq!(expense.first_payment_date.as_deref(), Some("2024-01-15"));
+        assert_eq!(expense.first_payment_date, Some(date("2024-01-15")));
     }
 
     #[test]

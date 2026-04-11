@@ -1,7 +1,8 @@
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io;
 use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, ValueEnum)]
@@ -32,41 +33,29 @@ impl Interval {
 }
 
 fn advance_months(first: NaiveDate, today: NaiveDate, step: u32) -> NaiveDate {
-    use chrono::Datelike;
-    let mut year = first.year();
-    let mut month = first.month();
-    let day = first.day();
-
+    let step = step as i32;
+    let diff = (today.year() - first.year()) * 12
+        + (today.month() as i32 - first.month() as i32);
+    let mut k = (diff.max(0) / step) * step;
     loop {
-        let candidate = NaiveDate::from_ymd_opt(year, month, day)
-            .or_else(|| {
-                // handle day overflow (e.g. Jan 31 -> Feb 28)
-                let last = last_day_of_month(year, month);
-                NaiveDate::from_ymd_opt(year, month, last)
-            })
-            .unwrap();
+        let candidate = month_offset(first, k);
         if candidate >= today {
             return candidate;
         }
-        month += step;
-        while month > 12 {
-            month -= 12;
-            year += 1;
-        }
+        k += step;
     }
 }
 
-fn last_day_of_month(year: i32, month: u32) -> u32 {
-    use chrono::Datelike;
-    if month == 12 {
-        31
-    } else {
-        NaiveDate::from_ymd_opt(year, month + 1, 1)
-            .unwrap()
-            .pred_opt()
-            .unwrap()
-            .day()
+fn month_offset(first: NaiveDate, months: i32) -> NaiveDate {
+    let total = first.year() * 12 + (first.month() as i32 - 1) + months;
+    let year = total.div_euclid(12);
+    let month = total.rem_euclid(12) as u32 + 1;
+    for day in (1..=first.day()).rev() {
+        if let Some(d) = NaiveDate::from_ymd_opt(year, month, day) {
+            return d;
+        }
     }
+    first
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -74,13 +63,26 @@ pub struct Expense {
     pub amount: Option<f64>,
     pub currency: Option<String>,
     pub tags: Option<Vec<String>>,
-    pub first_payment_date: Option<String>,
+    pub first_payment_date: Option<NaiveDate>,
     pub interval: Option<Interval>,
 }
 
-fn storage_dir() -> PathBuf {
-    let home = std::env::var("HOME").expect("HOME not set");
-    PathBuf::from(home).join(".cache").join("recu")
+impl Expense {
+    pub fn next_payment(&self, today: NaiveDate) -> Option<NaiveDate> {
+        let first = self.first_payment_date?;
+        let interval = self.interval.as_ref()?;
+        Some(interval.next_payment(first, today))
+    }
+
+    pub fn days_until_next(&self, today: NaiveDate) -> Option<i64> {
+        Some((self.next_payment(today)? - today).num_days())
+    }
+}
+
+fn storage_dir() -> io::Result<PathBuf> {
+    let home = std::env::var("HOME")
+        .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "HOME not set"))?;
+    Ok(PathBuf::from(home).join(".cache").join("recu"))
 }
 
 fn slugify(name: &str) -> String {
@@ -93,32 +95,33 @@ fn slugify(name: &str) -> String {
         .collect()
 }
 
-pub fn save(name: &str, expense: &Expense) -> std::io::Result<PathBuf> {
-    save_to(&storage_dir(), name, expense)
+pub fn save(name: &str, expense: &Expense) -> io::Result<PathBuf> {
+    save_to(&storage_dir()?, name, expense)
 }
 
 pub(crate) fn save_to(
     dir: &std::path::Path,
     name: &str,
     expense: &Expense,
-) -> std::io::Result<PathBuf> {
+) -> io::Result<PathBuf> {
     fs::create_dir_all(dir)?;
 
     let slug = slugify(name);
     let path = dir.join(format!("{}.md", slug));
 
-    let frontmatter = serde_yaml::to_string(expense).expect("failed to serialize expense");
+    let frontmatter = serde_yaml::to_string(expense)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     let content = format!("---\n{}---\n# {}\n", frontmatter, name);
 
     fs::write(&path, content)?;
     Ok(path)
 }
 
-pub fn list() -> std::io::Result<Vec<(String, Expense)>> {
-    list_from(&storage_dir())
+pub fn list() -> io::Result<Vec<(String, Expense)>> {
+    list_from(&storage_dir()?)
 }
 
-pub(crate) fn list_from(dir: &std::path::Path) -> std::io::Result<Vec<(String, Expense)>> {
+pub(crate) fn list_from(dir: &std::path::Path) -> io::Result<Vec<(String, Expense)>> {
     if !dir.exists() {
         return Ok(vec![]);
     }
@@ -133,23 +136,23 @@ pub(crate) fn list_from(dir: &std::path::Path) -> std::io::Result<Vec<(String, E
             }
         }
     }
+    expenses.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(expenses)
 }
 
-pub fn remove(target: &str) -> std::io::Result<()> {
-    remove_from(&storage_dir(), target)
+pub fn remove(target: &str) -> io::Result<()> {
+    remove_from(&storage_dir()?, target)
 }
 
-pub(crate) fn remove_from(dir: &std::path::Path, target: &str) -> std::io::Result<()> {
-    // Handle @id syntax
+pub(crate) fn remove_from(dir: &std::path::Path, target: &str) -> io::Result<()> {
     if let Some(id_str) = target.strip_prefix('@') {
         let id: usize = id_str
             .parse()
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid id"))?;
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid id"))?;
         let entries = list_from(dir)?;
         if id == 0 || id > entries.len() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
                 format!("no expense at @{}", id),
             ));
         }
@@ -163,8 +166,8 @@ pub(crate) fn remove_from(dir: &std::path::Path, target: &str) -> std::io::Resul
         return fs::remove_file(path);
     }
 
-    Err(std::io::Error::new(
-        std::io::ErrorKind::NotFound,
+    Err(io::Error::new(
+        io::ErrorKind::NotFound,
         format!("expense '{}' not found", target),
     ))
 }
