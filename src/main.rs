@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
 
 mod add;
+mod edit;
+mod expense;
 mod rm;
 mod storage;
 
@@ -17,6 +19,8 @@ enum Commands {
     Ls,
     /// Add a recurring expense
     Add(add::AddArgs),
+    /// Edit a recurring expense
+    Edit(edit::EditArgs),
     /// Remove a recurring expense
     Rm(rm::RmArgs),
 }
@@ -66,6 +70,7 @@ fn main() -> std::io::Result<()> {
             }
         }
         Some(Commands::Add(args)) => add::execute(args)?,
+        Some(Commands::Edit(args)) => edit::execute(args)?,
         Some(Commands::Rm(args)) => rm::execute(args)?,
     }
     Ok(())
