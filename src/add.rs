@@ -13,37 +13,35 @@ pub struct AddArgs {
     pub args: Vec<String>,
 }
 
-pub struct ParsedExpense {
-    pub name: Option<String>,
-    pub expense: Expense,
+struct ParsedExpense {
+    name: Option<String>,
+    expense: Expense,
 }
 
-impl From<AddArgs> for ParsedExpense {
-    fn from(add: AddArgs) -> Self {
-        let implicit = parse_implicit_args(&add.args);
+fn parse(add: AddArgs) -> ParsedExpense {
+    let implicit = parse_implicit_args(&add.args);
 
-        let tags: Option<Vec<String>> = match (add.fields.tags, implicit.expense.tags) {
-            (Some(mut f), Some(i)) => {
-                f.extend(i);
-                Some(f)
-            }
-            (a, b) => a.or(b),
-        };
-
-        ParsedExpense {
-            name: add.fields.name.or(implicit.name),
-            expense: Expense {
-                amount: add.fields.amount.or(implicit.expense.amount),
-                currency: add
-                    .fields
-                    .currency
-                    .map(|c| c.to_lowercase())
-                    .or(implicit.expense.currency),
-                tags,
-                first_payment_date: add.fields.date.or(implicit.expense.first_payment_date),
-                interval: add.fields.interval.or(implicit.expense.interval),
-            },
+    let tags: Option<Vec<String>> = match (add.fields.tags, implicit.expense.tags) {
+        (Some(mut f), Some(i)) => {
+            f.extend(i);
+            Some(f)
         }
+        (a, b) => a.or(b),
+    };
+
+    ParsedExpense {
+        name: add.fields.name.or(implicit.name),
+        expense: Expense {
+            amount: add.fields.amount.or(implicit.expense.amount),
+            currency: add
+                .fields
+                .currency
+                .map(|c| c.to_lowercase())
+                .or(implicit.expense.currency),
+            tags,
+            first_payment_date: add.fields.date.or(implicit.expense.first_payment_date),
+            interval: add.fields.interval.or(implicit.expense.interval),
+        },
     }
 }
 
@@ -99,7 +97,7 @@ fn parse_implicit_args(args: &[String]) -> ParsedExpense {
 }
 
 pub fn execute(add: AddArgs) -> std::io::Result<()> {
-    let parsed = ParsedExpense::from(add);
+    let parsed = parse(add);
 
     let name = parsed
         .name
@@ -121,7 +119,7 @@ mod tests {
     }
 
     fn add_args(flags: AddArgs) -> ParsedExpense {
-        ParsedExpense::from(flags)
+        parse(flags)
     }
 
     fn date(s: &str) -> NaiveDate {

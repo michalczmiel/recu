@@ -59,9 +59,7 @@ pub(crate) fn list_from(dir: &std::path::Path) -> io::Result<Vec<(String, Expens
         let entry = entry?;
         let path = entry.path();
         if path.extension().is_some_and(|e| e == "md") {
-            if let Some(parsed) = parse_file(&path) {
-                expenses.push(parsed);
-            }
+            expenses.extend(parse_file(&path));
         }
     }
     expenses.sort_by(|a, b| a.0.cmp(&b.0));
@@ -128,21 +126,11 @@ pub(crate) fn update_from(
     let mut expense: Expense =
         serde_yaml::from_str(yaml).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-    if let Some(v) = patch.amount {
-        expense.amount = Some(v);
-    }
-    if let Some(ref v) = patch.currency {
-        expense.currency = Some(v.clone());
-    }
-    if let Some(ref v) = patch.tags {
-        expense.tags = Some(v.clone());
-    }
-    if let Some(v) = patch.first_payment_date {
-        expense.first_payment_date = Some(v);
-    }
-    if let Some(ref v) = patch.interval {
-        expense.interval = Some(v.clone());
-    }
+    expense.amount = patch.amount.or(expense.amount);
+    expense.currency = patch.currency.clone().or(expense.currency);
+    expense.tags = patch.tags.clone().or(expense.tags);
+    expense.first_payment_date = patch.first_payment_date.or(expense.first_payment_date);
+    expense.interval = patch.interval.clone().or(expense.interval);
 
     let display_name = new_name.unwrap_or_else(|| {
         rest.lines()

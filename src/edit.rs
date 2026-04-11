@@ -70,16 +70,6 @@ mod tests {
             .1
     }
 
-    fn empty() -> Expense {
-        Expense {
-            amount: None,
-            currency: None,
-            tags: None,
-            first_payment_date: None,
-            interval: None,
-        }
-    }
-
     fn date(s: &str) -> NaiveDate {
         NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
     }
@@ -94,7 +84,7 @@ mod tests {
             None,
             &Expense {
                 amount: Some(12.99),
-                ..empty()
+                ..Default::default()
             },
         )
         .unwrap();
@@ -111,7 +101,7 @@ mod tests {
             None,
             &Expense {
                 amount: Some(20.0),
-                ..empty()
+                ..Default::default()
             },
         )
         .unwrap();
@@ -129,7 +119,7 @@ mod tests {
             None,
             &Expense {
                 amount: Some(11.11),
-                ..empty()
+                ..Default::default()
             },
         )
         .unwrap();
@@ -146,7 +136,7 @@ mod tests {
             None,
             &Expense {
                 currency: Some("eur".into()),
-                ..empty()
+                ..Default::default()
             },
         )
         .unwrap();
@@ -163,7 +153,7 @@ mod tests {
             None,
             &Expense {
                 tags: Some(vec!["streaming".into()]),
-                ..empty()
+                ..Default::default()
             },
         )
         .unwrap();
@@ -183,7 +173,7 @@ mod tests {
             None,
             &Expense {
                 interval: Some(Interval::Yearly),
-                ..empty()
+                ..Default::default()
             },
         )
         .unwrap();
@@ -200,7 +190,7 @@ mod tests {
             None,
             &Expense {
                 first_payment_date: Some(date("2025-01-01")),
-                ..empty()
+                ..Default::default()
             },
         )
         .unwrap();
@@ -222,7 +212,7 @@ mod tests {
                 amount: Some(9.99),
                 currency: Some("eur".into()),
                 tags: Some(vec!["music".into()]),
-                ..empty()
+                ..Default::default()
             },
         )
         .unwrap();
@@ -236,7 +226,7 @@ mod tests {
     fn edit_name_renames_file() {
         let dir = test_dir();
         seed_expenses(&dir);
-        storage::update_from(&dir, "Netflix", Some("Netflix Plus"), &empty()).unwrap();
+        storage::update_from(&dir, "Netflix", Some("Netflix Plus"), &Default::default()).unwrap();
         let names: Vec<String> = storage::list_from(&dir)
             .unwrap()
             .into_iter()
@@ -252,7 +242,7 @@ mod tests {
     fn edit_name_conflict_returns_error() {
         let dir = test_dir();
         seed_expenses(&dir);
-        let result = storage::update_from(&dir, "Netflix", Some("Spotify"), &empty());
+        let result = storage::update_from(&dir, "Netflix", Some("Spotify"), &Default::default());
         assert!(result.is_err());
     }
 
@@ -266,7 +256,7 @@ mod tests {
             None,
             &Expense {
                 amount: Some(5.0),
-                ..empty()
+                ..Default::default()
             },
         );
         assert!(result.is_err());
@@ -283,7 +273,7 @@ mod tests {
                 None,
                 &Expense {
                     amount: Some(1.0),
-                    ..empty()
+                    ..Default::default()
                 }
             )
             .is_err()
@@ -295,7 +285,7 @@ mod tests {
                 None,
                 &Expense {
                     amount: Some(1.0),
-                    ..empty()
+                    ..Default::default()
                 }
             )
             .is_err()
@@ -306,7 +296,7 @@ mod tests {
     fn empty_patch_leaves_expense_unchanged() {
         let dir = test_dir();
         seed_expenses(&dir);
-        storage::update_from(&dir, "Netflix", None, &empty()).unwrap();
+        storage::update_from(&dir, "Netflix", None, &Default::default()).unwrap();
         let e = load(&dir, "Netflix");
         assert_eq!(e.amount, Some(9.99));
         assert_eq!(e.currency.as_deref(), Some("usd"));

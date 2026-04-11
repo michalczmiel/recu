@@ -21,10 +21,9 @@ mod tests {
     use std::fs;
 
     fn test_dir() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join("recu-test-rm").join(format!(
-            "{}",
-            std::thread::current().name().unwrap_or("test")
-        ));
+        let dir = std::env::temp_dir()
+            .join("recu-test-rm")
+            .join(std::thread::current().name().unwrap_or("test").to_owned());
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
