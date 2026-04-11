@@ -9,15 +9,15 @@ pub struct RmArgs {
 }
 
 pub fn execute(args: RmArgs) -> std::io::Result<()> {
-    storage::remove(&args.target)?;
-    println!("Removed '{}'", args.target);
+    let name = storage::remove(&args.target)?;
+    println!("Removed '{}'", name);
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::Expense;
+    use crate::expense::Expense;
     use std::fs;
 
     fn test_dir() -> std::path::PathBuf {

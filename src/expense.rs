@@ -30,28 +30,17 @@ impl Interval {
 }
 
 fn advance_months(first: NaiveDate, today: NaiveDate, step: u32) -> NaiveDate {
-    let step = step as i32;
     let diff = (today.year() - first.year()) * 12 + (today.month() as i32 - first.month() as i32);
-    let mut k = (diff.max(0) / step) * step;
+    let mut k = (diff.max(0) as u32 / step) * step;
     loop {
-        let candidate = month_offset(first, k);
+        let candidate = first
+            .checked_add_months(chrono::Months::new(k))
+            .unwrap_or(first);
         if candidate >= today {
             return candidate;
         }
         k += step;
     }
-}
-
-fn month_offset(first: NaiveDate, months: i32) -> NaiveDate {
-    let total = first.year() * 12 + (first.month() as i32 - 1) + months;
-    let year = total.div_euclid(12);
-    let month = total.rem_euclid(12) as u32 + 1;
-    for day in (1..=first.day()).rev() {
-        if let Some(d) = NaiveDate::from_ymd_opt(year, month, day) {
-            return d;
-        }
-    }
-    first
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]

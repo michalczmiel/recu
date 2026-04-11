@@ -2,7 +2,7 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
-pub use crate::expense::{Expense, Interval};
+use crate::expense::Expense;
 
 fn storage_dir() -> io::Result<PathBuf> {
     let home = std::env::var("HOME")
@@ -122,14 +122,8 @@ pub(crate) fn update_from(
     };
 
     let content = fs::read_to_string(&path)?;
-    let content = content
-        .strip_prefix("---\n")
+    let (yaml, rest) = parse_frontmatter(&content)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid file format"))?;
-    let end = content
-        .find("---\n")
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid file format"))?;
-    let yaml = &content[..end];
-    let rest = &content[end + 4..];
 
     let mut expense: Expense =
         serde_yaml::from_str(yaml).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -172,29 +166,33 @@ pub(crate) fn update_from(
     Ok(())
 }
 
-pub fn remove(target: &str) -> io::Result<()> {
+pub fn remove(target: &str) -> io::Result<String> {
     remove_from(&storage_dir()?, target)
 }
 
-pub(crate) fn remove_from(dir: &std::path::Path, target: &str) -> io::Result<()> {
+pub(crate) fn remove_from(dir: &std::path::Path, target: &str) -> io::Result<String> {
     let path = resolve_path(dir, target)?;
-    fs::remove_file(path)
+    let (name, _) = parse_file(&path)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "could not read expense"))?;
+    fs::remove_file(&path)?;
+    Ok(name)
+}
+
+fn parse_frontmatter(content: &str) -> Option<(&str, &str)> {
+    let content = content.strip_prefix("---\n")?;
+    let end = content.find("---\n")?;
+    Some((&content[..end], &content[end + 4..]))
 }
 
 fn parse_file(path: &std::path::Path) -> Option<(String, Expense)> {
     let content = fs::read_to_string(path).ok()?;
-    let content = content.strip_prefix("---\n")?;
-    let end = content.find("---\n")?;
-    let yaml = &content[..end];
-    let rest = &content[end + 4..];
-
+    let (yaml, rest) = parse_frontmatter(&content)?;
     let expense: Expense = serde_yaml::from_str(yaml).ok()?;
     let name = rest
         .lines()
         .find(|l| l.starts_with("# "))?
         .strip_prefix("# ")?
         .to_string();
-
     Some((name, expense))
 }
 

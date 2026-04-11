@@ -1,7 +1,7 @@
 use clap::Args;
 
-use crate::expense::ExpenseFields;
-use crate::storage::{self, Expense};
+use crate::expense::{Expense, ExpenseFields};
+use crate::storage;
 
 #[derive(Args, Debug)]
 pub struct EditArgs {
@@ -27,7 +27,7 @@ pub fn execute(args: EditArgs) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::{Expense, Interval};
+    use crate::expense::{Expense, Interval};
     use chrono::NaiveDate;
     use std::fs;
 
