@@ -21,14 +21,6 @@ struct ParsedExpense {
 fn parse(add: AddArgs) -> ParsedExpense {
     let implicit = parse_implicit_args(&add.args);
 
-    let tags: Option<Vec<String>> = match (add.fields.tags, implicit.expense.tags) {
-        (Some(mut f), Some(i)) => {
-            f.extend(i);
-            Some(f)
-        }
-        (a, b) => a.or(b),
-    };
-
     ParsedExpense {
         name: add.fields.name.or(implicit.name),
         expense: Expense {
@@ -38,7 +30,6 @@ fn parse(add: AddArgs) -> ParsedExpense {
                 .currency
                 .map(|c| c.to_lowercase())
                 .or(implicit.expense.currency),
-            tags,
             first_payment_date: add.fields.date.or(implicit.expense.first_payment_date),
             interval: add.fields.interval.or(implicit.expense.interval),
         },
@@ -65,13 +56,6 @@ fn parse_implicit_args(args: &[String]) -> ParsedExpense {
                 expense.first_payment_date = Some(d);
                 continue;
             }
-        }
-        if let Some(tag) = arg.strip_prefix('#') {
-            expense
-                .tags
-                .get_or_insert_with(Vec::new)
-                .push(tag.to_string());
-            continue;
         }
         if expense.currency.is_none() && is_currency(arg) {
             expense.currency = Some(arg.to_lowercase());
@@ -128,10 +112,9 @@ mod tests {
 
     #[test]
     fn parses_all_fields_implicitly() {
-        let p = implicit(&["Netflix", "9.99", "#entertainment", "usd", "2024-01-15"]);
+        let p = implicit(&["Netflix", "9.99", "usd", "2024-01-15"]);
         assert_eq!(p.name.as_deref(), Some("Netflix"));
         assert_eq!(p.expense.amount, Some(9.99));
-        assert_eq!(p.expense.tags, Some(vec!["entertainment".to_string()]));
         assert_eq!(p.expense.currency.as_deref(), Some("usd"));
         assert_eq!(p.expense.first_payment_date, Some(date("2024-01-15")));
     }
@@ -141,7 +124,6 @@ mod tests {
         let p = implicit(&["Gym", "50"]);
         assert_eq!(p.name.as_deref(), Some("Gym"));
         assert_eq!(p.expense.amount, Some(50.0));
-        assert_eq!(p.expense.tags, None);
         assert_eq!(p.expense.currency, None);
         assert_eq!(p.expense.first_payment_date, None);
     }
@@ -155,10 +137,9 @@ mod tests {
 
     #[test]
     fn args_order_does_not_matter() {
-        let p = implicit(&["2024-06-01", "#music", "EUR", "9.99", "Spotify"]);
+        let p = implicit(&["2024-06-01", "EUR", "9.99", "Spotify"]);
         assert_eq!(p.name.as_deref(), Some("Spotify"));
         assert_eq!(p.expense.amount, Some(9.99));
-        assert_eq!(p.expense.tags, Some(vec!["music".to_string()]));
         assert_eq!(p.expense.currency.as_deref(), Some("eur"));
         assert_eq!(p.expense.first_payment_date, Some(date("2024-06-01")));
     }
@@ -170,21 +151,6 @@ mod tests {
 
         let p = implicit(&["Test", "eur"]);
         assert_eq!(p.expense.currency.as_deref(), Some("eur"));
-    }
-
-    #[test]
-    fn tags_strip_hash() {
-        let p = implicit(&["Test", "#bills"]);
-        assert_eq!(p.expense.tags, Some(vec!["bills".to_string()]));
-    }
-
-    #[test]
-    fn multiple_tags() {
-        let p = implicit(&["Netflix", "9.99", "#entertainment", "#streaming"]);
-        assert_eq!(
-            p.expense.tags,
-            Some(vec!["entertainment".to_string(), "streaming".to_string()])
-        );
     }
 
     #[test]
@@ -209,7 +175,6 @@ mod tests {
     fn fields(
         name: Option<&str>,
         amount: Option<f64>,
-        tags: Option<Vec<&str>>,
         currency: Option<&str>,
         date: Option<NaiveDate>,
         interval: Option<Interval>,
@@ -217,7 +182,6 @@ mod tests {
         ExpenseFields {
             name: name.map(Into::into),
             amount,
-            tags: tags.map(|t| t.into_iter().map(Into::into).collect()),
             currency: currency.map(Into::into),
             date,
             interval,
@@ -227,7 +191,7 @@ mod tests {
     #[test]
     fn flags_override_implicit_args() {
         let p = add_args(AddArgs {
-            fields: fields(Some("Override"), None, None, Some("GBP"), None, None),
+            fields: fields(Some("Override"), None, Some("GBP"), None, None),
             args: vec!["Netflix".into(), "9.99".into(), "usd".into()],
         });
         assert_eq!(p.name.as_deref(), Some("Override"));
@@ -241,7 +205,6 @@ mod tests {
             fields: fields(
                 Some("Spotify"),
                 Some(9.99),
-                Some(vec!["music"]),
                 Some("EUR"),
                 Some(date("2024-01-15")),
                 None,
@@ -250,7 +213,6 @@ mod tests {
         });
         assert_eq!(p.name.as_deref(), Some("Spotify"));
         assert_eq!(p.expense.amount, Some(9.99));
-        assert_eq!(p.expense.tags, Some(vec!["music".to_string()]));
         assert_eq!(p.expense.currency.as_deref(), Some("eur"));
         assert_eq!(p.expense.first_payment_date, Some(date("2024-01-15")));
     }
@@ -258,7 +220,7 @@ mod tests {
     #[test]
     fn flags_fill_gaps_in_implicit() {
         let p = add_args(AddArgs {
-            fields: fields(None, None, None, Some("PLN"), None, None),
+            fields: fields(None, None, Some("PLN"), None, None),
             args: vec!["Netflix".into(), "9.99".into()],
         });
         assert_eq!(p.name.as_deref(), Some("Netflix"));

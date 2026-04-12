@@ -47,7 +47,6 @@ fn advance_months(first: NaiveDate, today: NaiveDate, step: u32) -> NaiveDate {
 pub struct Expense {
     pub amount: Option<f64>,
     pub currency: Option<String>,
-    pub tags: Option<Vec<String>>,
     pub first_payment_date: Option<NaiveDate>,
     pub interval: Option<Interval>,
 }
@@ -72,9 +71,6 @@ pub struct ExpenseFields {
     /// Amount (e.g. 9.99)
     #[arg(long)]
     pub amount: Option<f64>,
-    /// Tags (e.g. --tags entertainment,streaming)
-    #[arg(long, value_delimiter = ',')]
-    pub tags: Option<Vec<String>>,
     /// ISO 4217 currency code (e.g. usd, eur)
     #[arg(long)]
     pub currency: Option<String>,

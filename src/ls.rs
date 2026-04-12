@@ -55,17 +55,6 @@ pub fn execute() -> std::io::Result<()> {
             (None, None) => String::new(),
         };
 
-        let tags = expense
-            .tags
-            .as_ref()
-            .map(|t| {
-                t.iter()
-                    .map(|tag| format!("#{}", tag))
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            })
-            .unwrap_or_default();
-
         let days_str = expense
             .days_until_next(today)
             .map(format_days)
@@ -77,7 +66,6 @@ pub fn execute() -> std::io::Result<()> {
             amount,
             currency_interval,
             days_str,
-            tags,
         ]
         .into_iter()
         .filter(|s| !s.is_empty())

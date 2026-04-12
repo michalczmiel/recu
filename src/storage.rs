@@ -148,7 +148,6 @@ pub(crate) fn update_from(
 
     expense.amount = patch.amount.or(expense.amount);
     expense.currency = patch.currency.clone().or(expense.currency);
-    expense.tags = patch.tags.clone().or(expense.tags);
     expense.first_payment_date = patch.first_payment_date.or(expense.first_payment_date);
     expense.interval = patch.interval.clone().or(expense.interval);
 
@@ -231,7 +230,6 @@ mod tests {
         let expense = Expense {
             amount: Some(9.99),
             currency: Some("usd".into()),
-            tags: None,
             first_payment_date: None,
             interval: None,
         };

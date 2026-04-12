@@ -15,7 +15,6 @@ pub fn execute(args: EditArgs) -> std::io::Result<()> {
     let patch = Expense {
         amount: args.fields.amount,
         currency: args.fields.currency.map(|c| c.to_lowercase()),
-        tags: args.fields.tags,
         first_payment_date: args.fields.date,
         interval: args.fields.interval,
     };
@@ -53,7 +52,6 @@ mod tests {
             let expense = Expense {
                 amount: Some(amount),
                 currency: Some(currency.to_string()),
-                tags: None,
                 first_payment_date: None,
                 interval: None,
             };
@@ -144,26 +142,6 @@ mod tests {
     }
 
     #[test]
-    fn edit_tags_replaces_existing() {
-        let dir = test_dir();
-        seed_expenses(&dir);
-        storage::update_from(
-            &dir,
-            "Netflix",
-            None,
-            &Expense {
-                tags: Some(vec!["streaming".into()]),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        assert_eq!(
-            load(&dir, "Netflix").tags,
-            Some(vec!["streaming".to_string()])
-        );
-    }
-
-    #[test]
     fn edit_interval() {
         let dir = test_dir();
         seed_expenses(&dir);
@@ -211,7 +189,6 @@ mod tests {
             &Expense {
                 amount: Some(9.99),
                 currency: Some("eur".into()),
-                tags: Some(vec!["music".into()]),
                 ..Default::default()
             },
         )
@@ -219,7 +196,6 @@ mod tests {
         let e = load(&dir, "Spotify");
         assert_eq!(e.amount, Some(9.99));
         assert_eq!(e.currency.as_deref(), Some("eur"));
-        assert_eq!(e.tags, Some(vec!["music".to_string()]));
     }
 
     #[test]

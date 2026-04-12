@@ -41,7 +41,6 @@ mod tests {
             let expense = Expense {
                 amount: Some(amount),
                 currency: Some(currency.to_string()),
-                tags: None,
                 first_payment_date: None,
                 interval: None,
             };
