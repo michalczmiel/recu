@@ -37,6 +37,7 @@ pub fn execute() -> std::io::Result<()> {
         return Ok(());
     }
     let today = chrono::Local::now().date_naive();
+    let mut rows: Vec<[String; 5]> = Vec::new();
     for (index, (name, expense)) in expenses.iter().enumerate() {
         let amount = expense
             .amount
@@ -60,18 +61,30 @@ pub fn execute() -> std::io::Result<()> {
             .map(format_days)
             .unwrap_or_default();
 
-        let parts: Vec<String> = [
+        rows.push([
             format!("@{}", index + 1),
             name.clone(),
             amount,
             currency_interval,
             days_str,
-        ]
-        .into_iter()
-        .filter(|s| !s.is_empty())
-        .collect();
+        ]);
+    }
 
-        println!("{}", parts.join(" "));
+    let col_count = rows[0].len();
+    let mut widths = vec![0usize; col_count];
+    for row in &rows {
+        for (i, cell) in row.iter().enumerate() {
+            widths[i] = widths[i].max(cell.len());
+        }
+    }
+
+    for row in &rows {
+        println!(
+            "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}  {:<w4$}",
+            row[0], row[1], row[2], row[3], row[4],
+            w0 = widths[0], w1 = widths[1], w2 = widths[2],
+            w3 = widths[3], w4 = widths[4],
+        );
     }
     Ok(())
 }
