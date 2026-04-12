@@ -45,27 +45,27 @@ fn parse_implicit_args(args: &[String]) -> ParsedExpense {
     let mut name_parts: Vec<&str> = Vec::new();
 
     for arg in args {
-        if expense.interval.is_none() {
-            if let Ok(iv) = Interval::from_str(arg, true) {
-                expense.interval = Some(iv);
-                continue;
-            }
+        if expense.interval.is_none()
+            && let Ok(iv) = Interval::from_str(arg, true)
+        {
+            expense.interval = Some(iv);
+            continue;
         }
-        if expense.first_payment_date.is_none() {
-            if let Ok(d) = NaiveDate::parse_from_str(arg, "%Y-%m-%d") {
-                expense.first_payment_date = Some(d);
-                continue;
-            }
+        if expense.first_payment_date.is_none()
+            && let Ok(d) = NaiveDate::parse_from_str(arg, "%Y-%m-%d")
+        {
+            expense.first_payment_date = Some(d);
+            continue;
         }
         if expense.currency.is_none() && is_currency(arg) {
             expense.currency = Some(arg.to_lowercase());
             continue;
         }
-        if expense.amount.is_none() {
-            if let Ok(val) = arg.replace(',', ".").parse::<f64>() {
-                expense.amount = Some(val);
-                continue;
-            }
+        if expense.amount.is_none()
+            && let Ok(val) = arg.replace(',', ".").parse::<f64>()
+        {
+            expense.amount = Some(val);
+            continue;
         }
         name_parts.push(arg);
     }

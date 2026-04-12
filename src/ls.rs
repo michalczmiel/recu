@@ -41,8 +41,7 @@ pub fn execute() -> std::io::Result<()> {
     for (index, (name, expense)) in expenses.iter().enumerate() {
         let amount = expense
             .amount
-            .map(|a| format!("{:.2}", a))
-            .unwrap_or_else(|| "-".into());
+            .map_or_else(|| "-".into(), |a| format!("{a:.2}"));
 
         let currency_symbol = expense
             .currency

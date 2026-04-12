@@ -32,20 +32,20 @@ pub fn save(name: &str, expense: &Expense) -> io::Result<PathBuf> {
 
 pub(crate) fn save_to(dir: &std::path::Path, name: &str, expense: &Expense) -> io::Result<PathBuf> {
     let slug = slugify(name);
-    let path = dir.join(format!("{}.md", slug));
+    let path = dir.join(format!("{slug}.md"));
 
     fs::create_dir_all(dir)?;
 
     if path.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("expense '{}' already exists", name),
+            format!("expense '{name}' already exists"),
         ));
     }
 
     let frontmatter = serde_yaml::to_string(expense)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-    let content = format!("---\n{}---\n# {}\n", frontmatter, name);
+    let content = format!("---\n{frontmatter}---\n# {name}\n");
 
     fs::write(&path, content)?;
     Ok(path)
@@ -60,10 +60,10 @@ fn collect_entries(
         let path = entry.path();
         if path.is_dir() {
             collect_entries(&path, entries)?;
-        } else if path.extension().is_some_and(|e| e == "md") {
-            if let Some((name, expense)) = parse_file(&path) {
-                entries.push((name, expense, path));
-            }
+        } else if path.extension().is_some_and(|e| e == "md")
+            && let Some((name, expense)) = parse_file(&path)
+        {
+            entries.push((name, expense, path));
         }
     }
     Ok(())
@@ -99,7 +99,7 @@ fn resolve_path(dir: &std::path::Path, target: &str) -> io::Result<PathBuf> {
         if id == 0 || id > entries.len() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("no expense at @{}", id),
+                format!("no expense at @{id}"),
             ));
         }
         return Ok(entries[id - 1].2.clone());
@@ -112,7 +112,7 @@ fn resolve_path(dir: &std::path::Path, target: &str) -> io::Result<PathBuf> {
 
     Err(io::Error::new(
         io::ErrorKind::NotFound,
-        format!("expense '{}' not found", target),
+        format!("expense '{target}' not found"),
     ))
 }
 
@@ -126,15 +126,15 @@ pub(crate) fn update_from(
     new_name: Option<&str>,
     patch: &Expense,
 ) -> io::Result<()> {
-    let path = resolve_path(dir, target)?;
+    let expense_path = resolve_path(dir, target)?;
 
     // check rename target doesn't conflict before touching anything
     let new_path = if let Some(name) = new_name {
         let p = dir.join(format!("{}.md", slugify(name)));
-        if p != path && p.exists() {
+        if p != expense_path && p.exists() {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                format!("expense '{}' already exists", name),
+                format!("expense '{name}' already exists"),
             ));
         }
         Some(p)
@@ -142,7 +142,7 @@ pub(crate) fn update_from(
         None
     };
 
-    let content = fs::read_to_string(&path)?;
+    let content = fs::read_to_string(&expense_path)?;
     let (yaml, rest) = parse_frontmatter(&content)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid file format"))?;
 
@@ -163,14 +163,14 @@ pub(crate) fn update_from(
 
     let frontmatter = serde_yaml::to_string(&expense)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-    let new_content = format!("---\n{}---\n# {}\n", frontmatter, display_name);
+    let new_content = format!("---\n{frontmatter}---\n# {display_name}\n");
 
     match new_path {
-        Some(ref p) if p != &path => {
+        Some(ref p) if p != &expense_path => {
             fs::write(p, new_content)?;
-            fs::remove_file(&path)?;
+            fs::remove_file(&expense_path)?;
         }
-        _ => fs::write(&path, new_content)?,
+        _ => fs::write(&expense_path, new_content)?,
     }
 
     Ok(())

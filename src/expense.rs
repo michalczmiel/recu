@@ -19,7 +19,7 @@ impl Interval {
                 if days_since == 0 {
                     today
                 } else {
-                    today + chrono::Days::new((7 - days_since) as u64)
+                    today + chrono::Days::new((7 - days_since).cast_unsigned())
                 }
             }
             Interval::Monthly => advance_months(first, today, 1),
@@ -30,8 +30,9 @@ impl Interval {
 }
 
 fn advance_months(first: NaiveDate, today: NaiveDate, step: u32) -> NaiveDate {
-    let diff = (today.year() - first.year()) * 12 + (today.month() as i32 - first.month() as i32);
-    let mut k = (diff.max(0) as u32 / step) * step;
+    let diff = (today.year() - first.year()) * 12
+        + (today.month().cast_signed() - first.month().cast_signed());
+    let mut k = (diff.max(0).cast_unsigned() / step) * step;
     loop {
         let candidate = first
             .checked_add_months(chrono::Months::new(k))

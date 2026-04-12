@@ -32,7 +32,7 @@ fn main() -> std::io::Result<()> {
         None | Some(Commands::Ls) => ls::execute()?,
         Some(Commands::Add(args)) => add::execute(args)?,
         Some(Commands::Edit(args)) => edit::execute(args)?,
-        Some(Commands::Rm(args)) => rm::execute(args)?,
+        Some(Commands::Rm(args)) => rm::execute(&args)?,
     }
     Ok(())
 }

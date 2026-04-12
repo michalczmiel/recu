@@ -8,9 +8,9 @@ pub struct RmArgs {
     pub target: String,
 }
 
-pub fn execute(args: RmArgs) -> std::io::Result<()> {
+pub fn execute(args: &RmArgs) -> std::io::Result<()> {
     let name = storage::remove(&args.target)?;
-    println!("Removed '{}'", name);
+    println!("Removed '{name}'");
     Ok(())
 }
 

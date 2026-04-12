@@ -12,4 +12,4 @@ lint:
 test:
 	cargo test
 
-all: format lint check test
+all: format lint test

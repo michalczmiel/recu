@@ -4,11 +4,14 @@ CLI tool for tracking recurring expenses. Built with Rust (edition 2024).
 
 ## Key files
 
-- `src/main.rs` - CLI entry point, subcommands (ls, add, rm)
+- `src/main.rs` - CLI entry point, subcommands (ls, add, rm, edit)
 - `src/add.rs` - add expense logic
 - `src/rm.rs` - remove expense logic
+- `src/edit.rs` - edit expense logic
+- `src/ls.rs` - list expenses logic
+- `src/expense.rs` - expense data model
 - `src/storage.rs` - data persistence
 
-## Storage
+## After coding changes
 
-Expenses stored as markdown files with YAML frontmatter in `~/.cache/recu/`. Filenames are slugified expense names (e.g. `netflix.md`).
+Run `make all` (formats, lints, tests).
