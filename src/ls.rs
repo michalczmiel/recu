@@ -81,9 +81,16 @@ pub fn execute() -> std::io::Result<()> {
     for row in &rows {
         println!(
             "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}  {:<w4$}",
-            row[0], row[1], row[2], row[3], row[4],
-            w0 = widths[0], w1 = widths[1], w2 = widths[2],
-            w3 = widths[3], w4 = widths[4],
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            row[4],
+            w0 = widths[0],
+            w1 = widths[1],
+            w2 = widths[2],
+            w3 = widths[3],
+            w4 = widths[4],
         );
     }
     Ok(())

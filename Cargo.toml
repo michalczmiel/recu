@@ -3,6 +3,13 @@ name = "recu"
 version = "0.1.0"
 edition = "2024"
 
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = "warn"
+unwrap_used = "warn"
+
 [dependencies]
 clap = { version = "4.6.0", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }

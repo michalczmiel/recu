@@ -10,7 +10,10 @@ fn storage_dir() -> io::Result<PathBuf> {
     }
     let home = std::env::var("HOME")
         .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "HOME not set"))?;
-    Ok(PathBuf::from(home).join(".local").join("share").join("recu"))
+    Ok(PathBuf::from(home)
+        .join(".local")
+        .join("share")
+        .join("recu"))
 }
 
 fn slugify(name: &str) -> String {
