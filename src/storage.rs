@@ -5,9 +5,12 @@ use std::path::PathBuf;
 use crate::expense::Expense;
 
 fn storage_dir() -> io::Result<PathBuf> {
+    if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
+        return Ok(PathBuf::from(xdg).join("recu"));
+    }
     let home = std::env::var("HOME")
         .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "HOME not set"))?;
-    Ok(PathBuf::from(home).join(".cache").join("recu"))
+    Ok(PathBuf::from(home).join(".local").join("share").join("recu"))
 }
 
 fn slugify(name: &str) -> String {
@@ -25,10 +28,10 @@ pub fn save(name: &str, expense: &Expense) -> io::Result<PathBuf> {
 }
 
 pub(crate) fn save_to(dir: &std::path::Path, name: &str, expense: &Expense) -> io::Result<PathBuf> {
-    fs::create_dir_all(dir)?;
-
     let slug = slugify(name);
     let path = dir.join(format!("{}.md", slug));
+
+    fs::create_dir_all(dir)?;
 
     if path.exists() {
         return Err(io::Error::new(
@@ -45,25 +48,43 @@ pub(crate) fn save_to(dir: &std::path::Path, name: &str, expense: &Expense) -> i
     Ok(path)
 }
 
+fn collect_entries(
+    dir: &std::path::Path,
+    entries: &mut Vec<(String, Expense, PathBuf)>,
+) -> io::Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_entries(&path, entries)?;
+        } else if path.extension().is_some_and(|e| e == "md") {
+            if let Some((name, expense)) = parse_file(&path) {
+                entries.push((name, expense, path));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn list_entries(dir: &std::path::Path) -> io::Result<Vec<(String, Expense, PathBuf)>> {
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
+    let mut entries = Vec::new();
+    collect_entries(dir, &mut entries)?;
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(entries)
+}
+
 pub fn list() -> io::Result<Vec<(String, Expense)>> {
     list_from(&storage_dir()?)
 }
 
 pub(crate) fn list_from(dir: &std::path::Path) -> io::Result<Vec<(String, Expense)>> {
-    if !dir.exists() {
-        return Ok(vec![]);
-    }
-
-    let mut expenses = Vec::new();
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.extension().is_some_and(|e| e == "md") {
-            expenses.extend(parse_file(&path));
-        }
-    }
-    expenses.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(expenses)
+    Ok(list_entries(dir)?
+        .into_iter()
+        .map(|(name, expense, _)| (name, expense))
+        .collect())
 }
 
 fn resolve_path(dir: &std::path::Path, target: &str) -> io::Result<PathBuf> {
@@ -71,15 +92,14 @@ fn resolve_path(dir: &std::path::Path, target: &str) -> io::Result<PathBuf> {
         let id: usize = id_str
             .parse()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid id"))?;
-        let entries = list_from(dir)?;
+        let entries = list_entries(dir)?;
         if id == 0 || id > entries.len() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 format!("no expense at @{}", id),
             ));
         }
-        let name = &entries[id - 1].0;
-        return Ok(dir.join(format!("{}.md", slugify(name))));
+        return Ok(entries[id - 1].2.clone());
     }
 
     let path = dir.join(format!("{}.md", slugify(target)));
