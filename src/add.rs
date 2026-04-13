@@ -1,5 +1,6 @@
 use chrono::NaiveDate;
 use clap::{Args, ValueEnum};
+use inquire::{CustomType, Select, Text, validator::Validation};
 use rusty_money::iso;
 
 use crate::expense::{Expense, ExpenseFields, Interval};
@@ -80,14 +81,101 @@ fn parse_implicit_args(args: &[String]) -> ParsedExpense {
     }
 }
 
+fn inquire_err(e: &inquire::InquireError) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::Interrupted, e.to_string())
+}
+
+fn prompt_fields(parsed: &ParsedExpense) -> std::io::Result<(String, Expense)> {
+    let initial_name = parsed.name.as_deref().unwrap_or("");
+    let name = Text::new("Name:")
+        .with_initial_value(initial_name)
+        .with_validator(|s: &str| {
+            if s.trim().is_empty() {
+                Ok(Validation::Invalid("Name cannot be empty".into()))
+            } else {
+                Ok(Validation::Valid)
+            }
+        })
+        .prompt()
+        .map_err(|e| inquire_err(&e))?;
+
+    let mut amount_prompt = CustomType::<f64>::new("Amount:").with_placeholder("e.g. 9.99");
+    if let Some(v) = parsed.expense.amount {
+        amount_prompt = amount_prompt.with_default(v);
+    }
+    let amount = amount_prompt
+        .prompt_skippable()
+        .map_err(|e| inquire_err(&e))?;
+
+    let initial_currency = parsed.expense.currency.as_deref().unwrap_or("");
+    let currency = Text::new("Currency (ISO 4217):")
+        .with_initial_value(initial_currency)
+        .with_placeholder("e.g. usd, eur, gbp")
+        .with_validator(|s: &str| {
+            if s.is_empty() || is_currency(s) {
+                Ok(Validation::Valid)
+            } else {
+                Ok(Validation::Invalid(
+                    "Not a valid ISO 4217 currency code".into(),
+                ))
+            }
+        })
+        .prompt_skippable()
+        .map_err(|e| inquire_err(&e))?
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_lowercase());
+
+    let mut date_prompt =
+        CustomType::<NaiveDate>::new("First payment date:").with_placeholder("YYYY-MM-DD");
+    if let Some(d) = parsed.expense.first_payment_date {
+        date_prompt = date_prompt.with_default(d);
+    }
+    let first_payment_date = date_prompt
+        .prompt_skippable()
+        .map_err(|e| inquire_err(&e))?;
+
+    let intervals = vec![
+        Interval::Weekly,
+        Interval::Monthly,
+        Interval::Quarterly,
+        Interval::Yearly,
+    ];
+    let starting_cursor = parsed
+        .expense
+        .interval
+        .as_ref()
+        .and_then(|iv| intervals.iter().position(|x| x == iv))
+        .unwrap_or(0);
+    let interval = Select::new("Interval:", intervals)
+        .with_starting_cursor(starting_cursor)
+        .prompt_skippable()
+        .map_err(|e| inquire_err(&e))?;
+
+    Ok((
+        name,
+        Expense {
+            amount,
+            currency,
+            first_payment_date,
+            interval,
+        },
+    ))
+}
+
 pub fn execute(add: AddArgs) -> std::io::Result<()> {
+    let interactive = !add.args.is_empty();
     let parsed = parse(add);
 
-    let name = parsed
-        .name
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "name is required"))?;
+    let (name, expense) = if interactive {
+        prompt_fields(&parsed)?
+    } else {
+        let name = parsed.name.ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "name is required")
+        })?;
+        (name, parsed.expense)
+    };
 
-    let path = crate::storage::save(&name, &parsed.expense)?;
+    let path = crate::storage::save(&name, &expense)?;
     println!("Saved: {}", path.display());
     Ok(())
 }

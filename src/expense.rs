@@ -11,6 +11,17 @@ pub enum Interval {
     Yearly,
 }
 
+impl std::fmt::Display for Interval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Interval::Weekly => write!(f, "weekly"),
+            Interval::Monthly => write!(f, "monthly"),
+            Interval::Quarterly => write!(f, "quarterly"),
+            Interval::Yearly => write!(f, "yearly"),
+        }
+    }
+}
+
 impl Interval {
     pub fn next_payment(&self, first: NaiveDate, today: NaiveDate) -> NaiveDate {
         match self {
