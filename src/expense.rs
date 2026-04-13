@@ -11,6 +11,20 @@ pub enum Interval {
     Yearly,
 }
 
+impl std::str::FromStr for Interval {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "weekly" | "week" => Ok(Interval::Weekly),
+            "monthly" | "month" => Ok(Interval::Monthly),
+            "quarterly" | "quarter" => Ok(Interval::Quarterly),
+            "yearly" | "year" | "annual" | "annually" => Ok(Interval::Yearly),
+            _ => Err(()),
+        }
+    }
+}
+
 impl std::fmt::Display for Interval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -72,6 +86,22 @@ impl Expense {
 
     pub fn days_until_next(&self, today: NaiveDate) -> Option<i64> {
         Some((self.next_payment(today)? - today).num_days())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn interval_aliases() {
+        assert_eq!("week".parse::<Interval>().unwrap(), Interval::Weekly);
+        assert_eq!("month".parse::<Interval>().unwrap(), Interval::Monthly);
+        assert_eq!("quarter".parse::<Interval>().unwrap(), Interval::Quarterly);
+        assert_eq!("year".parse::<Interval>().unwrap(), Interval::Yearly);
+        assert_eq!("annual".parse::<Interval>().unwrap(), Interval::Yearly);
+        assert_eq!("annually".parse::<Interval>().unwrap(), Interval::Yearly);
+        assert_eq!("YEARLY".parse::<Interval>().unwrap(), Interval::Yearly);
     }
 }
 
