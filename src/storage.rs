@@ -1,19 +1,40 @@
+use std::ffi::OsString;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
 
 use crate::expense::Expense;
+use serde::{Deserialize, Serialize};
 
-fn storage_dir() -> io::Result<PathBuf> {
-    if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
-        return Ok(PathBuf::from(xdg).join("recu"));
+#[derive(Serialize, Deserialize, Clone)]
+struct StoredExpense {
+    name: String,
+    amount: Option<f64>,
+    currency: Option<String>,
+    first_payment_date: Option<chrono::NaiveDate>,
+    interval: Option<crate::expense::Interval>,
+}
+
+impl StoredExpense {
+    fn into_parts(self) -> (String, Expense) {
+        (
+            self.name,
+            Expense {
+                amount: self.amount,
+                currency: self.currency,
+                first_payment_date: self.first_payment_date,
+                interval: self.interval,
+            },
+        )
     }
-    let home = std::env::var("HOME")
-        .map_err(|_| io::Error::new(io::ErrorKind::NotFound, "HOME not set"))?;
-    Ok(PathBuf::from(home)
-        .join(".local")
-        .join("share")
-        .join("recu"))
+}
+
+fn storage_file_from(value: Option<OsString>) -> PathBuf {
+    value.map_or_else(|| PathBuf::from("recu.csv"), PathBuf::from)
+}
+
+fn storage_file() -> PathBuf {
+    storage_file_from(std::env::var_os("RECU_FILE"))
 }
 
 fn slugify(name: &str) -> String {
@@ -26,88 +47,109 @@ fn slugify(name: &str) -> String {
         .collect()
 }
 
-pub fn save(name: &str, expense: &Expense) -> io::Result<PathBuf> {
-    save_to(&storage_dir()?, name, expense)
+fn io_invalid_data<E: std::error::Error + Send + Sync + 'static>(err: E) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, err)
 }
 
-pub(crate) fn save_to(dir: &std::path::Path, name: &str, expense: &Expense) -> io::Result<PathBuf> {
+fn read_all(path: &std::path::Path) -> io::Result<Vec<StoredExpense>> {
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut reader = csv::Reader::from_path(path).map_err(io_invalid_data)?;
+    reader
+        .deserialize()
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(io_invalid_data)
+}
+
+fn write_all(path: &std::path::Path, entries: &[StoredExpense]) -> io::Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
+
+    let tmp_path = path.with_extension("csv.tmp");
+    {
+        let mut writer = csv::Writer::from_path(&tmp_path).map_err(io_invalid_data)?;
+        for entry in entries {
+            writer.serialize(entry).map_err(io_invalid_data)?;
+        }
+        writer.flush()?;
+    }
+    fs::rename(tmp_path, path)?;
+    Ok(())
+}
+
+fn list_entries(path: &std::path::Path) -> io::Result<Vec<StoredExpense>> {
+    let mut entries = read_all(path)?;
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(entries)
+}
+
+pub fn save(name: &str, expense: &Expense) -> io::Result<PathBuf> {
+    save_to(&storage_file(), name, expense)
+}
+
+pub(crate) fn save_to(
+    path: &std::path::Path,
+    name: &str,
+    expense: &Expense,
+) -> io::Result<PathBuf> {
+    let mut entries = list_entries(path)?;
     let slug = slugify(name);
-    let path = dir.join(format!("{slug}.md"));
-
-    fs::create_dir_all(dir)?;
-
-    if path.exists() {
+    if entries.iter().any(|entry| slugify(&entry.name) == slug) {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("expense '{name}' already exists"),
         ));
     }
 
-    let frontmatter = serde_yaml::to_string(expense)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-    let content = format!("---\n{frontmatter}---\n# {name}\n");
-
-    fs::write(&path, content)?;
-    Ok(path)
-}
-
-fn collect_entries(
-    dir: &std::path::Path,
-    entries: &mut Vec<(String, Expense, PathBuf)>,
-) -> io::Result<()> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            collect_entries(&path, entries)?;
-        } else if path.extension().is_some_and(|e| e == "md")
-            && let Some((name, expense)) = parse_file(&path)
-        {
-            entries.push((name, expense, path));
-        }
-    }
-    Ok(())
-}
-
-fn list_entries(dir: &std::path::Path) -> io::Result<Vec<(String, Expense, PathBuf)>> {
-    if !dir.exists() {
-        return Ok(vec![]);
-    }
-    let mut entries = Vec::new();
-    collect_entries(dir, &mut entries)?;
-    entries.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(entries)
+    entries.push(StoredExpense {
+        name: name.to_string(),
+        amount: expense.amount,
+        currency: expense.currency.clone(),
+        first_payment_date: expense.first_payment_date,
+        interval: expense.interval.clone(),
+    });
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    write_all(path, &entries)?;
+    Ok(path.to_path_buf())
 }
 
 pub fn list() -> io::Result<Vec<(String, Expense)>> {
-    list_from(&storage_dir()?)
+    list_from(&storage_file())
 }
 
-pub(crate) fn list_from(dir: &std::path::Path) -> io::Result<Vec<(String, Expense)>> {
-    Ok(list_entries(dir)?
+pub(crate) fn list_from(path: &std::path::Path) -> io::Result<Vec<(String, Expense)>> {
+    Ok(list_entries(path)?
         .into_iter()
-        .map(|(name, expense, _)| (name, expense))
+        .map(StoredExpense::into_parts)
         .collect())
 }
 
-fn resolve_path(dir: &std::path::Path, target: &str) -> io::Result<PathBuf> {
+fn resolve_index(path: &std::path::Path, target: &str) -> io::Result<usize> {
     if let Some(id_str) = target.strip_prefix('@') {
         let id: usize = id_str
             .parse()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid id"))?;
-        let entries = list_entries(dir)?;
+        let entries = list_entries(path)?;
         if id == 0 || id > entries.len() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 format!("no expense at @{id}"),
             ));
         }
-        return Ok(entries[id - 1].2.clone());
+        return Ok(id - 1);
     }
 
-    let path = dir.join(format!("{}.md", slugify(target)));
-    if path.exists() {
-        return Ok(path);
+    let entries = list_entries(path)?;
+    if let Some(index) = entries
+        .iter()
+        .position(|entry| entry.name == target || slugify(&entry.name) == slugify(target))
+    {
+        return Ok(index);
     }
 
     Err(io::Error::new(
@@ -117,93 +159,57 @@ fn resolve_path(dir: &std::path::Path, target: &str) -> io::Result<PathBuf> {
 }
 
 pub fn update(target: &str, new_name: Option<&str>, patch: &Expense) -> io::Result<()> {
-    update_from(&storage_dir()?, target, new_name, patch)
+    update_from(&storage_file(), target, new_name, patch)
 }
 
 pub(crate) fn update_from(
-    dir: &std::path::Path,
+    path: &std::path::Path,
     target: &str,
     new_name: Option<&str>,
-    patch: &Expense,
+    changes: &Expense,
 ) -> io::Result<()> {
-    let expense_path = resolve_path(dir, target)?;
+    let index = resolve_index(path, target)?;
+    let mut entries = list_entries(path)?;
 
-    // check rename target doesn't conflict before touching anything
-    let new_path = if let Some(name) = new_name {
-        let p = dir.join(format!("{}.md", slugify(name)));
-        if p != expense_path && p.exists() {
+    if let Some(name) = new_name {
+        let new_slug = slugify(name);
+        if entries
+            .iter()
+            .enumerate()
+            .any(|(other_index, entry)| other_index != index && slugify(&entry.name) == new_slug)
+        {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 format!("expense '{name}' already exists"),
             ));
         }
-        Some(p)
-    } else {
-        None
-    };
-
-    let content = fs::read_to_string(&expense_path)?;
-    let (yaml, rest) = parse_frontmatter(&content)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid file format"))?;
-
-    let mut expense: Expense =
-        serde_yaml::from_str(yaml).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
-    expense.amount = patch.amount.or(expense.amount);
-    expense.currency = patch.currency.clone().or(expense.currency);
-    expense.first_payment_date = patch.first_payment_date.or(expense.first_payment_date);
-    expense.interval = patch.interval.clone().or(expense.interval);
-
-    let display_name = new_name.unwrap_or_else(|| {
-        rest.lines()
-            .find(|l| l.starts_with("# "))
-            .and_then(|l| l.strip_prefix("# "))
-            .unwrap_or("")
-    });
-
-    let frontmatter = serde_yaml::to_string(&expense)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-    let new_content = format!("---\n{frontmatter}---\n# {display_name}\n");
-
-    match new_path {
-        Some(ref p) if p != &expense_path => {
-            fs::write(p, new_content)?;
-            fs::remove_file(&expense_path)?;
-        }
-        _ => fs::write(&expense_path, new_content)?,
     }
+
+    let expense = &mut entries[index];
+    expense.amount = changes.amount.or(expense.amount);
+    expense.currency = changes.currency.clone().or(expense.currency.clone());
+    expense.first_payment_date = changes.first_payment_date.or(expense.first_payment_date);
+    expense.interval = changes.interval.clone().or(expense.interval.clone());
+    if let Some(name) = new_name {
+        expense.name = name.to_string();
+    }
+
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    write_all(path, &entries)?;
 
     Ok(())
 }
 
 pub fn remove(target: &str) -> io::Result<String> {
-    remove_from(&storage_dir()?, target)
+    remove_from(&storage_file(), target)
 }
 
-pub(crate) fn remove_from(dir: &std::path::Path, target: &str) -> io::Result<String> {
-    let path = resolve_path(dir, target)?;
-    let (name, _) = parse_file(&path)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "could not read expense"))?;
-    fs::remove_file(&path)?;
+pub(crate) fn remove_from(path: &std::path::Path, target: &str) -> io::Result<String> {
+    let index = resolve_index(path, target)?;
+    let mut entries = list_entries(path)?;
+    let name = entries.remove(index).name;
+    write_all(path, &entries)?;
     Ok(name)
-}
-
-fn parse_frontmatter(content: &str) -> Option<(&str, &str)> {
-    let content = content.strip_prefix("---\n")?;
-    let end = content.find("---\n")?;
-    Some((&content[..end], &content[end + 4..]))
-}
-
-fn parse_file(path: &std::path::Path) -> Option<(String, Expense)> {
-    let content = fs::read_to_string(path).ok()?;
-    let (yaml, rest) = parse_frontmatter(&content)?;
-    let expense: Expense = serde_yaml::from_str(yaml).ok()?;
-    let name = rest
-        .lines()
-        .find(|l| l.starts_with("# "))?
-        .strip_prefix("# ")?
-        .to_string();
-    Some((name, expense))
 }
 
 #[cfg(test)]
@@ -227,8 +233,8 @@ mod tests {
 
     #[test]
     fn save_rejects_duplicate_slug() {
-        let dir = std::env::temp_dir().join("recu-test-storage-dup");
-        let _ = fs::remove_dir_all(&dir);
+        let file = std::env::temp_dir().join("recu-test-storage-dup.csv");
+        let _ = fs::remove_file(&file);
 
         let expense = Expense {
             amount: Some(9.99),
@@ -237,11 +243,33 @@ mod tests {
             interval: None,
         };
 
-        save_to(&dir, "Netflix", &expense).unwrap();
+        save_to(&file, "Netflix", &expense).unwrap();
 
-        let err = save_to(&dir, "netflix", &expense).unwrap_err();
+        let err = save_to(&file, "netflix", &expense).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
 
-        assert_eq!(list_from(&dir).unwrap().len(), 1);
+        assert_eq!(list_from(&file).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn list_from_missing_file_returns_empty() {
+        let file = std::env::temp_dir().join("recu-test-storage-missing.csv");
+        let _ = fs::remove_file(&file);
+
+        assert!(list_from(&file).unwrap().is_empty());
+    }
+
+    #[test]
+    fn storage_file_defaults_to_local_csv() {
+        assert_eq!(storage_file_from(None), PathBuf::from("recu.csv"));
+    }
+
+    #[test]
+    fn storage_file_uses_env_override() {
+        let override_path = std::env::temp_dir().join("custom-recu.csv");
+        assert_eq!(
+            storage_file_from(Some(override_path.clone().into_os_string())),
+            override_path
+        );
     }
 }

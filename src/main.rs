@@ -8,7 +8,12 @@ mod rm;
 mod storage;
 
 #[derive(Parser, Debug)]
-#[command(name = "recu", version, about = "Track recurring expenses")]
+#[command(
+    name = "recu",
+    version,
+    about = "Track recurring expenses",
+    long_about = "Track recurring expenses. Uses ./recu.csv by default, or RECU_FILE to override the storage file path."
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -22,7 +27,7 @@ enum Commands {
     Add(add::AddArgs),
     /// Edit a recurring expense
     Edit(edit::EditArgs),
-    /// Remove a recurring expense
+    /// Remove a recurring expense from
     Rm(rm::RmArgs),
 }
 

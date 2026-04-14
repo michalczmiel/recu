@@ -69,13 +69,44 @@ pub fn execute() -> std::io::Result<()> {
         ]);
     }
 
+    let headers = ["#", "name", "amount", "rate", "due"];
     let col_count = rows[0].len();
     let mut widths = vec![0usize; col_count];
+    for (i, h) in headers.iter().enumerate() {
+        widths[i] = h.len();
+    }
     for row in &rows {
         for (i, cell) in row.iter().enumerate() {
             widths[i] = widths[i].max(cell.len());
         }
     }
+
+    println!(
+        "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}  {:<w4$}",
+        headers[0],
+        headers[1],
+        headers[2],
+        headers[3],
+        headers[4],
+        w0 = widths[0],
+        w1 = widths[1],
+        w2 = widths[2],
+        w3 = widths[3],
+        w4 = widths[4],
+    );
+    println!(
+        "{:─<w0$}  {:─<w1$}  {:─<w2$}  {:─<w3$}  {:─<w4$}",
+        "",
+        "",
+        "",
+        "",
+        "",
+        w0 = widths[0],
+        w1 = widths[1],
+        w2 = widths[2],
+        w3 = widths[3],
+        w4 = widths[4],
+    );
 
     for row in &rows {
         println!(

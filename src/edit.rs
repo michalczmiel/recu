@@ -30,19 +30,19 @@ mod tests {
     use chrono::NaiveDate;
     use std::fs;
 
-    fn test_dir() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join("recu-test-edit").join(
+    fn test_file() -> std::path::PathBuf {
+        let file = std::env::temp_dir().join("recu-test-edit").join(format!(
+            "{}.csv",
             std::thread::current()
                 .name()
                 .unwrap_or("test")
                 .replace("::", "-"),
-        );
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
+        ));
+        let _ = fs::remove_file(&file);
+        file
     }
 
-    fn seed_expenses(dir: &std::path::Path) {
+    fn seed_expenses(file: &std::path::Path) {
         let expenses = vec![
             ("Netflix", 9.99, "usd"),
             ("Spotify", 5.99, "usd"),
@@ -55,12 +55,12 @@ mod tests {
                 first_payment_date: None,
                 interval: None,
             };
-            storage::save_to(dir, name, &expense).unwrap();
+            storage::save_to(file, name, &expense).unwrap();
         }
     }
 
-    fn load(dir: &std::path::Path, name: &str) -> Expense {
-        storage::list_from(dir)
+    fn load(file: &std::path::Path, name: &str) -> Expense {
+        storage::list_from(file)
             .unwrap()
             .into_iter()
             .find(|(n, _)| n == name)
@@ -74,10 +74,10 @@ mod tests {
 
     #[test]
     fn edit_amount_by_name() {
-        let dir = test_dir();
-        seed_expenses(&dir);
+        let file = test_file();
+        seed_expenses(&file);
         storage::update_from(
-            &dir,
+            &file,
             "Netflix",
             None,
             &Expense {
@@ -86,15 +86,15 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(load(&dir, "Netflix").amount, Some(12.99));
+        assert_eq!(load(&file, "Netflix").amount, Some(12.99));
     }
 
     #[test]
     fn edit_amount_by_slug() {
-        let dir = test_dir();
-        seed_expenses(&dir);
+        let file = test_file();
+        seed_expenses(&file);
         storage::update_from(
-            &dir,
+            &file,
             "ny-times",
             None,
             &Expense {
@@ -103,16 +103,16 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(load(&dir, "NY Times").amount, Some(20.0));
+        assert_eq!(load(&file, "NY Times").amount, Some(20.0));
     }
 
     #[test]
     fn edit_amount_by_id() {
-        let dir = test_dir();
-        seed_expenses(&dir);
+        let file = test_file();
+        seed_expenses(&file);
         // sorted lexicographically: NY Times=@1, Netflix=@2, Spotify=@3 (uppercase < lowercase)
         storage::update_from(
-            &dir,
+            &file,
             "@2",
             None,
             &Expense {
@@ -121,15 +121,15 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(load(&dir, "Netflix").amount, Some(11.11));
+        assert_eq!(load(&file, "Netflix").amount, Some(11.11));
     }
 
     #[test]
     fn edit_currency() {
-        let dir = test_dir();
-        seed_expenses(&dir);
+        let file = test_file();
+        seed_expenses(&file);
         storage::update_from(
-            &dir,
+            &file,
             "Spotify",
             None,
             &Expense {
@@ -138,15 +138,15 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(load(&dir, "Spotify").currency.as_deref(), Some("eur"));
+        assert_eq!(load(&file, "Spotify").currency.as_deref(), Some("eur"));
     }
 
     #[test]
     fn edit_interval() {
-        let dir = test_dir();
-        seed_expenses(&dir);
+        let file = test_file();
+        seed_expenses(&file);
         storage::update_from(
-            &dir,
+            &file,
             "Netflix",
             None,
             &Expense {
@@ -155,15 +155,15 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(load(&dir, "Netflix").interval, Some(Interval::Yearly));
+        assert_eq!(load(&file, "Netflix").interval, Some(Interval::Yearly));
     }
 
     #[test]
     fn edit_date() {
-        let dir = test_dir();
-        seed_expenses(&dir);
+        let file = test_file();
+        seed_expenses(&file);
         storage::update_from(
-            &dir,
+            &file,
             "Netflix",
             None,
             &Expense {
@@ -173,17 +173,17 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            load(&dir, "Netflix").first_payment_date,
+            load(&file, "Netflix").first_payment_date,
             Some(date("2025-01-01"))
         );
     }
 
     #[test]
     fn edit_multiple_fields_at_once() {
-        let dir = test_dir();
-        seed_expenses(&dir);
+        let file = test_file();
+        seed_expenses(&file);
         storage::update_from(
-            &dir,
+            &file,
             "Spotify",
             None,
             &Expense {
@@ -193,41 +193,39 @@ mod tests {
             },
         )
         .unwrap();
-        let e = load(&dir, "Spotify");
+        let e = load(&file, "Spotify");
         assert_eq!(e.amount, Some(9.99));
         assert_eq!(e.currency.as_deref(), Some("eur"));
     }
 
     #[test]
-    fn edit_name_renames_file() {
-        let dir = test_dir();
-        seed_expenses(&dir);
-        storage::update_from(&dir, "Netflix", Some("Netflix Plus"), &Default::default()).unwrap();
-        let names: Vec<String> = storage::list_from(&dir)
+    fn edit_name_updates_stored_name() {
+        let file = test_file();
+        seed_expenses(&file);
+        storage::update_from(&file, "Netflix", Some("Netflix Plus"), &Default::default()).unwrap();
+        let names: Vec<String> = storage::list_from(&file)
             .unwrap()
             .into_iter()
             .map(|(n, _)| n)
             .collect();
         assert!(names.contains(&"Netflix Plus".to_string()));
         assert!(!names.contains(&"Netflix".to_string()));
-        assert!(!dir.join("netflix.md").exists());
-        assert!(dir.join("netflix-plus.md").exists());
     }
 
     #[test]
     fn edit_name_conflict_returns_error() {
-        let dir = test_dir();
-        seed_expenses(&dir);
-        let result = storage::update_from(&dir, "Netflix", Some("Spotify"), &Default::default());
+        let file = test_file();
+        seed_expenses(&file);
+        let result = storage::update_from(&file, "Netflix", Some("Spotify"), &Default::default());
         assert!(result.is_err());
     }
 
     #[test]
     fn edit_nonexistent_returns_error() {
-        let dir = test_dir();
-        seed_expenses(&dir);
+        let file = test_file();
+        seed_expenses(&file);
         let result = storage::update_from(
-            &dir,
+            &file,
             "Hulu",
             None,
             &Expense {
@@ -240,11 +238,11 @@ mod tests {
 
     #[test]
     fn edit_id_out_of_range_returns_error() {
-        let dir = test_dir();
-        seed_expenses(&dir);
+        let file = test_file();
+        seed_expenses(&file);
         assert!(
             storage::update_from(
-                &dir,
+                &file,
                 "@0",
                 None,
                 &Expense {
@@ -256,7 +254,7 @@ mod tests {
         );
         assert!(
             storage::update_from(
-                &dir,
+                &file,
                 "@99",
                 None,
                 &Expense {
@@ -270,10 +268,10 @@ mod tests {
 
     #[test]
     fn empty_patch_leaves_expense_unchanged() {
-        let dir = test_dir();
-        seed_expenses(&dir);
-        storage::update_from(&dir, "Netflix", None, &Default::default()).unwrap();
-        let e = load(&dir, "Netflix");
+        let file = test_file();
+        seed_expenses(&file);
+        storage::update_from(&file, "Netflix", None, &Default::default()).unwrap();
+        let e = load(&file, "Netflix");
         assert_eq!(e.amount, Some(9.99));
         assert_eq!(e.currency.as_deref(), Some("usd"));
     }
