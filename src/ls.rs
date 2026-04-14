@@ -1,4 +1,8 @@
-use crate::expense::Interval;
+use std::collections::HashMap;
+
+use crate::config;
+use crate::exchange;
+use crate::expense::{Expense, Interval};
 use crate::storage;
 use rusty_money::{Findable, iso};
 
@@ -30,98 +34,111 @@ fn interval_label(interval: &Interval) -> &'static str {
     }
 }
 
+fn format_rate(cur: &iso::Currency, interval: &Interval) -> String {
+    let lbl = interval_label(interval);
+    if cur.symbol_first {
+        format!("{}{}", cur.symbol, lbl)
+    } else {
+        format!("{} {}", lbl.trim_start_matches('/'), cur.symbol)
+    }
+}
+
+fn build_row(
+    index: usize,
+    name: &str,
+    expense: &Expense,
+    rates: Option<&HashMap<String, f64>>,
+    target: Option<&str>,
+    target_cur: Option<&'static iso::Currency>,
+) -> [String; 5] {
+    let today = chrono::Local::now().date_naive();
+    let original_cur = expense
+        .currency
+        .as_deref()
+        .and_then(|c| iso::Currency::find(&c.to_uppercase()));
+
+    let (display_amount, display_cur) =
+        match (rates, target, expense.amount, expense.currency.as_deref()) {
+            (Some(rates_map), Some(target_code), Some(amt), Some(exp_cur)) => {
+                let exp_upper = exp_cur.to_uppercase();
+                if exp_upper == target_code {
+                    (Some(amt), target_cur)
+                } else if let Some(&rate) = rates_map.get(exp_upper.as_str()) {
+                    (Some(amt / rate), target_cur)
+                } else {
+                    (Some(amt), original_cur)
+                }
+            }
+            _ => (expense.amount, original_cur),
+        };
+
+    let amount = display_amount.map_or_else(|| "-".into(), |a| format!("{a:.2}"));
+    let currency_interval = match (display_cur, &expense.interval) {
+        (Some(cur), Some(i)) => format_rate(cur, i),
+        (Some(cur), None) => cur.symbol.to_string(),
+        (None, Some(i)) => interval_label(i).trim_start_matches('/').to_string(),
+        (None, None) => String::new(),
+    };
+    let days_str = expense
+        .days_until_next(today)
+        .map(format_days)
+        .unwrap_or_default();
+
+    [
+        format!("@{}", index + 1),
+        name.to_string(),
+        amount,
+        currency_interval,
+        days_str,
+    ]
+}
+
+fn print_table(rows: &[[String; 5]]) {
+    let headers = ["#", "name", "amount", "rate", "due"];
+    let mut widths = [0usize; 5];
+    for (i, h) in headers.iter().enumerate() {
+        widths[i] = h.len();
+    }
+    for row in rows {
+        for (i, cell) in row.iter().enumerate() {
+            widths[i] = widths[i].max(cell.len());
+        }
+    }
+    let [w0, w1, w2, w3, w4] = widths;
+    println!(
+        "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}  {:<w4$}",
+        headers[0], headers[1], headers[2], headers[3], headers[4]
+    );
+    println!(
+        "{:─<w0$}  {:─<w1$}  {:─<w2$}  {:─<w3$}  {:─<w4$}",
+        "", "", "", "", ""
+    );
+    for row in rows {
+        println!(
+            "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}  {:<w4$}",
+            row[0], row[1], row[2], row[3], row[4]
+        );
+    }
+}
+
 pub fn execute() -> std::io::Result<()> {
     let expenses = storage::list()?;
     if expenses.is_empty() {
         println!("No recurring expenses found.");
         return Ok(());
     }
-    let today = chrono::Local::now().date_naive();
-    let mut rows: Vec<[String; 5]> = Vec::new();
-    for (index, (name, expense)) in expenses.iter().enumerate() {
-        let amount = expense
-            .amount
-            .map_or_else(|| "-".into(), |a| format!("{a:.2}"));
 
-        let currency_symbol = expense
-            .currency
-            .as_deref()
-            .and_then(|c| iso::Currency::find(&c.to_uppercase()).map(|cur| cur.symbol));
+    let cfg = config::load()?;
+    let target: Option<&str> = cfg.currency.as_deref();
+    let rates: Option<HashMap<String, f64>> = target.map(exchange::get_rates).transpose()?;
+    let target_cur: Option<&'static iso::Currency> = target.and_then(iso::Currency::find);
 
-        let currency_interval = match (currency_symbol, &expense.interval) {
-            (Some(s), Some(i)) => format!("{}{}", s, interval_label(i)),
-            (Some(s), None) => s.to_string(),
-            (None, Some(i)) => interval_label(i).trim_start_matches('/').to_string(),
-            (None, None) => String::new(),
-        };
+    let rows: Vec<[String; 5]> = expenses
+        .iter()
+        .enumerate()
+        .map(|(i, (name, expense))| build_row(i, name, expense, rates.as_ref(), target, target_cur))
+        .collect();
 
-        let days_str = expense
-            .days_until_next(today)
-            .map(format_days)
-            .unwrap_or_default();
-
-        rows.push([
-            format!("@{}", index + 1),
-            name.clone(),
-            amount,
-            currency_interval,
-            days_str,
-        ]);
-    }
-
-    let headers = ["#", "name", "amount", "rate", "due"];
-    let col_count = rows[0].len();
-    let mut widths = vec![0usize; col_count];
-    for (i, h) in headers.iter().enumerate() {
-        widths[i] = h.len();
-    }
-    for row in &rows {
-        for (i, cell) in row.iter().enumerate() {
-            widths[i] = widths[i].max(cell.len());
-        }
-    }
-
-    println!(
-        "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}  {:<w4$}",
-        headers[0],
-        headers[1],
-        headers[2],
-        headers[3],
-        headers[4],
-        w0 = widths[0],
-        w1 = widths[1],
-        w2 = widths[2],
-        w3 = widths[3],
-        w4 = widths[4],
-    );
-    println!(
-        "{:─<w0$}  {:─<w1$}  {:─<w2$}  {:─<w3$}  {:─<w4$}",
-        "",
-        "",
-        "",
-        "",
-        "",
-        w0 = widths[0],
-        w1 = widths[1],
-        w2 = widths[2],
-        w3 = widths[3],
-        w4 = widths[4],
-    );
-
-    for row in &rows {
-        println!(
-            "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}  {:<w4$}",
-            row[0],
-            row[1],
-            row[2],
-            row[3],
-            row[4],
-            w0 = widths[0],
-            w1 = widths[1],
-            w2 = widths[2],
-            w3 = widths[3],
-            w4 = widths[4],
-        );
-    }
+    print_table(&rows);
     Ok(())
 }

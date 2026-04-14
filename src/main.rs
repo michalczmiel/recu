@@ -1,7 +1,9 @@
 use clap::{Parser, Subcommand};
 
 mod add;
+mod config;
 mod edit;
+mod exchange;
 mod expense;
 mod ls;
 mod rm;
@@ -32,6 +34,11 @@ enum Commands {
     Rm(rm::RmArgs),
     /// Visualise expenses as a treemap
     Treemap,
+    /// Manage configuration
+    Config {
+        #[command(subcommand)]
+        command: config::ConfigCommand,
+    },
 }
 
 fn main() -> std::io::Result<()> {
@@ -42,6 +49,7 @@ fn main() -> std::io::Result<()> {
         Some(Commands::Edit(args)) => edit::execute(args)?,
         Some(Commands::Rm(args)) => rm::execute(&args)?,
         Some(Commands::Treemap) => treemap::execute()?,
+        Some(Commands::Config { command }) => config::run(&command)?,
     }
     Ok(())
 }

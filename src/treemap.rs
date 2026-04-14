@@ -1,8 +1,12 @@
+use std::collections::HashMap;
 use std::io::{self, Write as _};
 
+use crate::config;
+use crate::exchange;
 use crate::expense::Interval;
 use crate::storage;
 use colored::Colorize;
+use rusty_money::{Findable, iso};
 
 // Terminal characters are roughly twice as tall as wide.
 // We scale the logical layout height so cells appear visually square.
@@ -250,6 +254,8 @@ fn truncate(s: &str, max: usize) -> String {
 struct Tile {
     name: String,
     monthly: f64,
+    symbol: String,
+    symbol_first: bool,
     rect: Rect,
     color: (u8, u8, u8),
 }
@@ -287,7 +293,12 @@ fn render(tiles: &[Tile], cols: usize, rows: usize) {
             );
         }
         if rh >= 4 && inner_w >= 5 {
-            let amount = truncate(&format!("${:.0}/mo", tile.monthly), inner_w);
+            let amount_label = if tile.symbol_first {
+                format!("{}{:.0}/mo", tile.symbol, tile.monthly)
+            } else {
+                format!("{:.0} {}/mo", tile.monthly, tile.symbol)
+            };
+            let amount = truncate(&amount_label, inner_w);
             write_str(
                 &mut grid,
                 row0 + 2,
@@ -335,6 +346,35 @@ fn query_terminal_size() -> (usize, usize) {
     (cols, rows)
 }
 
+fn resolve_amount(
+    amount: f64,
+    expense_currency: Option<&str>,
+    rates: Option<&HashMap<String, f64>>,
+    target: Option<&str>,
+    target_cur: Option<&'static iso::Currency>,
+) -> (f64, String, bool) {
+    if let (Some(rates_map), Some(target_code), Some(exp_cur)) = (rates, target, expense_currency) {
+        let exp_upper = exp_cur.to_uppercase();
+        if exp_upper == target_code {
+            let (sym, first) = target_cur.map_or(("", true), |c| (c.symbol, c.symbol_first));
+            (amount, sym.to_string(), first)
+        } else if let Some(&rate) = rates_map.get(exp_upper.as_str()) {
+            let (sym, first) = target_cur.map_or(("", true), |c| (c.symbol, c.symbol_first));
+            (amount / rate, sym.to_string(), first)
+        } else {
+            let cur = iso::Currency::find(&exp_upper);
+            let sym = cur.map_or("", |c| c.symbol).to_string();
+            let first = cur.is_none_or(|c| c.symbol_first);
+            (amount, sym, first)
+        }
+    } else {
+        let cur = expense_currency.and_then(|c| iso::Currency::find(&c.to_uppercase()));
+        let sym = cur.map_or("$", |c| c.symbol).to_string();
+        let first = cur.is_none_or(|c| c.symbol_first);
+        (amount, sym, first)
+    }
+}
+
 pub fn execute() -> std::io::Result<()> {
     let expenses = storage::list()?;
     if expenses.is_empty() {
@@ -342,12 +382,24 @@ pub fn execute() -> std::io::Result<()> {
         return Ok(());
     }
 
-    let mut items: Vec<(String, f64)> = expenses
+    let cfg = config::load()?;
+    let target: Option<&str> = cfg.currency.as_deref();
+    let rates: Option<HashMap<String, f64>> = target.map(exchange::get_rates).transpose()?;
+    let target_cur: Option<&'static iso::Currency> = target.and_then(iso::Currency::find);
+
+    let mut items: Vec<(String, f64, String, bool)> = expenses
         .into_iter()
         .filter_map(|(name, expense)| {
             let amount = expense.amount?;
             let interval = expense.interval.as_ref()?;
-            Some((name, to_monthly(amount, interval)))
+            let (converted, symbol, symbol_first) = resolve_amount(
+                amount,
+                expense.currency.as_deref(),
+                rates.as_ref(),
+                target,
+                target_cur,
+            );
+            Some((name, to_monthly(converted, interval), symbol, symbol_first))
         })
         .collect();
 
@@ -360,7 +412,7 @@ pub fn execute() -> std::io::Result<()> {
 
     let (cols, rows) = query_terminal_size();
 
-    let sizes: Vec<f64> = items.iter().map(|(_, v)| *v).collect();
+    let sizes: Vec<f64> = items.iter().map(|(_, v, _, _)| *v).collect();
 
     #[allow(clippy::cast_precision_loss)]
     let logical_w = cols as f64;
@@ -373,9 +425,11 @@ pub fn execute() -> std::io::Result<()> {
         .into_iter()
         .zip(rects)
         .enumerate()
-        .map(|(i, ((name, monthly), r))| Tile {
+        .map(|(i, ((name, monthly, symbol, symbol_first), r))| Tile {
             name,
             monthly,
+            symbol,
+            symbol_first,
             rect: Rect {
                 left: r.left,
                 top: r.top / CHAR_ASPECT,
