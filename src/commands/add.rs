@@ -1,3 +1,4 @@
+use chrono::Local;
 use clap::Args;
 use inquire::{
     Autocomplete, CustomType, DateSelect, Select, Text,
@@ -180,8 +181,25 @@ fn prompt_fields(fields: &ExpenseInput) -> std::io::Result<(String, Expense)> {
 }
 
 pub fn execute(add: &AddArgs) -> std::io::Result<()> {
-    inquire::set_global_render_config(render_config());
-    let (name, expense) = prompt_fields(&add.fields)?;
+    let f = &add.fields;
+    let (name, expense) = if let (Some(name), Some(amount), Some(currency), Some(interval)) =
+        (&f.name, f.amount, &f.currency, &f.interval)
+    {
+        let next_due = Some(f.date.unwrap_or_else(|| Local::now().date_naive()));
+        (
+            name.clone(),
+            Expense {
+                amount: Some(amount),
+                currency: Some(currency.to_lowercase()),
+                next_due,
+                interval: Some(interval.clone()),
+                category: f.category.clone(),
+            },
+        )
+    } else {
+        inquire::set_global_render_config(render_config());
+        prompt_fields(f)?
+    };
 
     if let Some(ref cat) = expense.category {
         let mut cfg = config::load()?;

@@ -147,7 +147,7 @@ pub struct ExpenseInput {
     /// ISO 4217 currency code (e.g. usd, eur)
     #[arg(long)]
     pub currency: Option<String>,
-    /// First payment date (YYYY-MM-DD)
+    /// Next due date (YYYY-MM-DD)
     #[arg(long)]
     pub date: Option<NaiveDate>,
     /// Billing interval
