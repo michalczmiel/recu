@@ -34,6 +34,14 @@ fn interval_label(interval: &Interval) -> &'static str {
     }
 }
 
+fn format_amount(cur: &iso::Currency, amount: f64) -> String {
+    if cur.symbol_first {
+        format!("{}{:.2}", cur.symbol, amount)
+    } else {
+        format!("{:.2} {}", amount, cur.symbol)
+    }
+}
+
 fn format_rate(cur: &iso::Currency, interval: &Interval) -> String {
     let lbl = interval_label(interval);
     if cur.symbol_first {
@@ -43,32 +51,20 @@ fn format_rate(cur: &iso::Currency, interval: &Interval) -> String {
     }
 }
 
-fn build_row(
-    index: usize,
-    name: &str,
-    expense: &Expense,
-    rates: Option<&HashMap<String, f64>>,
-    target: Option<&str>,
-    target_cur: Option<&'static iso::Currency>,
-) -> [String; 5] {
+fn build_row(index: usize, name: &str, expense: &Expense) -> [String; 5] {
     let today = chrono::Local::now().date_naive();
 
-    let (display_amount, display_cur) = if let Some(amt) = expense.amount {
-        let (converted, cur) =
-            rates::convert_amount(amt, expense.currency.as_deref(), rates, target, target_cur);
-        (Some(converted), cur)
-    } else {
-        let cur = expense
-            .currency
-            .as_deref()
-            .and_then(|c| iso::Currency::find(&c.to_uppercase()));
-        (None, cur)
-    };
+    let cur = expense
+        .currency
+        .as_deref()
+        .and_then(|c| iso::Currency::find(&c.to_uppercase()));
 
-    let amount = display_amount.map_or_else(|| "-".into(), |a| format!("{a:.2}"));
-    let currency_interval = match (display_cur, &expense.interval) {
-        (Some(cur), Some(i)) => format_rate(cur, i),
-        (Some(cur), None) => cur.symbol.to_string(),
+    let amount = expense
+        .amount
+        .map_or_else(|| "-".into(), |a| format!("{a:.2}"));
+    let currency_interval = match (cur, &expense.interval) {
+        (Some(c), Some(i)) => format_rate(c, i),
+        (Some(c), None) => c.symbol.to_string(),
         (None, Some(i)) => interval_label(i).trim_start_matches('/').to_string(),
         (None, None) => String::new(),
     };
@@ -84,6 +80,31 @@ fn build_row(
         currency_interval,
         days_str,
     ]
+}
+
+fn print_totals(
+    expenses: &[(usize, &str, &Expense)],
+    rates: Option<&HashMap<String, f64>>,
+    target: Option<&str>,
+    target_cur: Option<&'static iso::Currency>,
+) {
+    let monthly_total: f64 = expenses
+        .iter()
+        .filter_map(|(_, _, e)| {
+            let amt = e.amount?;
+            let interval = e.interval.as_ref()?;
+            let (converted, _) =
+                rates::convert_amount(amt, e.currency.as_deref(), rates, target, target_cur);
+            Some(interval.to_monthly(converted))
+        })
+        .sum();
+
+    let yearly_total = monthly_total * 12.0;
+    if let Some(cur) = target_cur {
+        let monthly_str = format_amount(cur, monthly_total);
+        let yearly_str = format_amount(cur, yearly_total);
+        println!("\nTotal  {monthly_str}/month  {yearly_str}/year");
+    }
 }
 
 fn print_table(rows: &[[String; 5]]) {
@@ -131,18 +152,31 @@ pub fn execute() -> std::io::Result<()> {
 
     let rows: Vec<[String; 5]> = indexed
         .iter()
-        .map(|(i, name, expense)| {
-            build_row(
-                *i,
-                name,
-                expense,
-                exchange_rates.as_ref(),
-                target,
-                target_cur,
-            )
-        })
+        .map(|(i, name, expense)| build_row(*i, name, expense))
         .collect();
 
     print_table(&rows);
+
+    if target.is_some() {
+        print_totals(&indexed, exchange_rates.as_ref(), target, target_cur);
+    }
+
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_amount_symbol_first() {
+        let cur = iso::Currency::find("USD").unwrap();
+        assert_eq!(format_amount(cur, 42.5), "$42.50");
+    }
+
+    #[test]
+    fn format_amount_symbol_last() {
+        let cur = iso::Currency::find("PLN").unwrap();
+        assert_eq!(format_amount(cur, 42.5), "42.50 zł");
+    }
 }
