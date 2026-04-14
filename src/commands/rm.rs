@@ -1,6 +1,6 @@
 use clap::Args;
 
-use crate::storage;
+use crate::store;
 
 #[derive(Args, Debug)]
 pub struct RmArgs {
@@ -9,7 +9,7 @@ pub struct RmArgs {
 }
 
 pub fn execute(args: &RmArgs) -> std::io::Result<()> {
-    let name = storage::remove(&args.target)?;
+    let name = store::remove(&args.target)?;
     println!("Removed '{name}'");
     Ok(())
 }
@@ -43,12 +43,12 @@ mod tests {
                 next_due: None,
                 interval: None,
             };
-            storage::save_to(file, name, &expense).expect("seed save should succeed");
+            store::save_to(file, name, &expense).expect("seed save should succeed");
         }
     }
 
     fn names_in(file: &std::path::Path) -> Vec<String> {
-        let mut items = storage::list_from(file)
+        let mut items = store::list_from(file)
             .expect("list should succeed")
             .into_iter()
             .map(|(name, _)| name)
@@ -61,7 +61,7 @@ mod tests {
     fn remove_by_full_name() {
         let file = test_file();
         seed_expenses(&file);
-        assert!(storage::remove_from(&file, "Netflix").is_ok());
+        assert!(store::remove_from(&file, "Netflix").is_ok());
         let remaining = names_in(&file);
         assert!(!remaining.contains(&"Netflix".to_string()));
         assert_eq!(remaining.len(), 2);
@@ -73,10 +73,10 @@ mod tests {
             let file = test_file();
             seed_expenses(&file);
 
-            let entries = storage::list_from(&file).expect("list should succeed");
+            let entries = store::list_from(&file).expect("list should succeed");
             let target_name = entries[index].0.clone();
 
-            assert!(storage::remove_from(&file, id).is_ok());
+            assert!(store::remove_from(&file, id).is_ok());
             let remaining = names_in(&file);
             assert!(!remaining.contains(&target_name));
             assert_eq!(remaining.len(), 2);
@@ -87,7 +87,7 @@ mod tests {
     fn remove_nonexistent_returns_error() {
         let file = test_file();
         seed_expenses(&file);
-        let result = storage::remove_from(&file, "Hulu");
+        let result = store::remove_from(&file, "Hulu");
         assert!(result.is_err());
     }
 
@@ -95,15 +95,15 @@ mod tests {
     fn remove_id_out_of_range_returns_error() {
         let file = test_file();
         seed_expenses(&file);
-        assert!(storage::remove_from(&file, "@0").is_err());
-        assert!(storage::remove_from(&file, "@99").is_err());
+        assert!(store::remove_from(&file, "@0").is_err());
+        assert!(store::remove_from(&file, "@99").is_err());
     }
 
     #[test]
     fn remove_by_name_case_insensitive() {
         let file = test_file();
         seed_expenses(&file);
-        assert!(storage::remove_from(&file, "netflix").is_ok());
+        assert!(store::remove_from(&file, "netflix").is_ok());
         let remaining = names_in(&file);
         assert!(!remaining.contains(&"Netflix".to_string()));
     }

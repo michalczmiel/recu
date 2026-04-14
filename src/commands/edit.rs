@@ -1,14 +1,14 @@
 use clap::Args;
 
-use crate::expense::{Expense, ExpenseFields};
-use crate::storage;
+use crate::expense::{Expense, ExpenseInput};
+use crate::store;
 
 #[derive(Args, Debug)]
 pub struct EditArgs {
     /// Expense to edit: @id or name (case-insensitive)
     pub target: String,
     #[command(flatten)]
-    pub fields: ExpenseFields,
+    pub fields: ExpenseInput,
 }
 
 pub fn execute(args: EditArgs) -> std::io::Result<()> {
@@ -18,7 +18,7 @@ pub fn execute(args: EditArgs) -> std::io::Result<()> {
         next_due: args.fields.date,
         interval: args.fields.interval,
     };
-    storage::update(&args.target, args.fields.name.as_deref(), &patch)?;
+    store::update(&args.target, args.fields.name.as_deref(), &patch)?;
     println!("Updated '{}'", args.target);
     Ok(())
 }
@@ -55,12 +55,12 @@ mod tests {
                 next_due: None,
                 interval: None,
             };
-            storage::save_to(file, name, &expense).expect("seed save should succeed");
+            store::save_to(file, name, &expense).expect("seed save should succeed");
         }
     }
 
     fn load(file: &std::path::Path, name: &str) -> Expense {
-        storage::list_from(file)
+        store::list_from(file)
             .expect("list should succeed")
             .into_iter()
             .find(|(n, _)| n == name)
@@ -76,7 +76,7 @@ mod tests {
     fn edit_amount_by_name() {
         let file = test_file();
         seed_expenses(&file);
-        storage::update_from(
+        store::update_from(
             &file,
             "Netflix",
             None,
@@ -94,7 +94,7 @@ mod tests {
         let file = test_file();
         seed_expenses(&file);
         // sorted lexicographically: NY Times=@1, Netflix=@2, Spotify=@3 (uppercase < lowercase)
-        storage::update_from(
+        store::update_from(
             &file,
             "@2",
             None,
@@ -111,7 +111,7 @@ mod tests {
     fn edit_currency() {
         let file = test_file();
         seed_expenses(&file);
-        storage::update_from(
+        store::update_from(
             &file,
             "Spotify",
             None,
@@ -128,7 +128,7 @@ mod tests {
     fn edit_interval() {
         let file = test_file();
         seed_expenses(&file);
-        storage::update_from(
+        store::update_from(
             &file,
             "Netflix",
             None,
@@ -145,7 +145,7 @@ mod tests {
     fn edit_date() {
         let file = test_file();
         seed_expenses(&file);
-        storage::update_from(
+        store::update_from(
             &file,
             "Netflix",
             None,
@@ -162,7 +162,7 @@ mod tests {
     fn edit_multiple_fields_at_once() {
         let file = test_file();
         seed_expenses(&file);
-        storage::update_from(
+        store::update_from(
             &file,
             "Spotify",
             None,
@@ -182,9 +182,9 @@ mod tests {
     fn edit_name_updates_stored_name() {
         let file = test_file();
         seed_expenses(&file);
-        storage::update_from(&file, "Netflix", Some("Netflix Plus"), &Default::default())
+        store::update_from(&file, "Netflix", Some("Netflix Plus"), &Default::default())
             .expect("update should succeed");
-        let names: Vec<String> = storage::list_from(&file)
+        let names: Vec<String> = store::list_from(&file)
             .expect("list should succeed")
             .into_iter()
             .map(|(n, _)| n)
@@ -197,7 +197,7 @@ mod tests {
     fn edit_name_conflict_returns_error() {
         let file = test_file();
         seed_expenses(&file);
-        let result = storage::update_from(&file, "Netflix", Some("Spotify"), &Default::default());
+        let result = store::update_from(&file, "Netflix", Some("Spotify"), &Default::default());
         assert!(result.is_err());
     }
 
@@ -205,7 +205,7 @@ mod tests {
     fn edit_nonexistent_returns_error() {
         let file = test_file();
         seed_expenses(&file);
-        let result = storage::update_from(
+        let result = store::update_from(
             &file,
             "Hulu",
             None,
@@ -222,7 +222,7 @@ mod tests {
         let file = test_file();
         seed_expenses(&file);
         assert!(
-            storage::update_from(
+            store::update_from(
                 &file,
                 "@0",
                 None,
@@ -234,7 +234,7 @@ mod tests {
             .is_err()
         );
         assert!(
-            storage::update_from(
+            store::update_from(
                 &file,
                 "@99",
                 None,
@@ -251,7 +251,7 @@ mod tests {
     fn empty_patch_leaves_expense_unchanged() {
         let file = test_file();
         seed_expenses(&file);
-        storage::update_from(&file, "Netflix", None, &Default::default())
+        store::update_from(&file, "Netflix", None, &Default::default())
             .expect("update should succeed");
         let e = load(&file, "Netflix");
         assert_eq!(e.amount, Some(9.99));

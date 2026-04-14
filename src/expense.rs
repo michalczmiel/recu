@@ -37,6 +37,15 @@ impl std::fmt::Display for Interval {
 }
 
 impl Interval {
+    pub fn to_monthly(&self, amount: f64) -> f64 {
+        match self {
+            Interval::Weekly => amount * 52.0 / 12.0,
+            Interval::Monthly => amount,
+            Interval::Quarterly => amount / 3.0,
+            Interval::Yearly => amount / 12.0,
+        }
+    }
+
     pub fn next_payment(&self, first: NaiveDate, today: NaiveDate) -> NaiveDate {
         match self {
             Interval::Weekly => {
@@ -127,7 +136,7 @@ mod tests {
 }
 
 #[derive(Args, Debug, Default)]
-pub struct ExpenseFields {
+pub struct ExpenseInput {
     /// Expense name
     #[arg(long)]
     pub name: Option<String>,

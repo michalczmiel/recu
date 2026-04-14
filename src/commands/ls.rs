@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::commands::config;
-use crate::exchange;
+use crate::config;
 use crate::expense::{Expense, Interval};
-use crate::storage;
+use crate::rates;
+use crate::store;
 use rusty_money::{Findable, iso};
 
 fn format_days(days: i64) -> String {
@@ -55,7 +55,7 @@ fn build_row(
 
     let (display_amount, display_cur) = if let Some(amt) = expense.amount {
         let (converted, cur) =
-            exchange::convert_amount(amt, expense.currency.as_deref(), rates, target, target_cur);
+            rates::convert_amount(amt, expense.currency.as_deref(), rates, target, target_cur);
         (Some(converted), cur)
     } else {
         let cur = expense
@@ -110,7 +110,7 @@ fn print_table(rows: &[[String; 5]]) {
 }
 
 pub fn execute() -> std::io::Result<()> {
-    let expenses = storage::list()?;
+    let expenses = store::list()?;
     if expenses.is_empty() {
         println!("No recurring expenses found.");
         return Ok(());
@@ -118,13 +118,22 @@ pub fn execute() -> std::io::Result<()> {
 
     let cfg = config::load()?;
     let target: Option<&str> = cfg.currency.as_deref();
-    let rates: Option<HashMap<String, f64>> = target.map(exchange::get_rates).transpose()?;
+    let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let target_cur: Option<&'static iso::Currency> = target.and_then(iso::Currency::find);
 
     let rows: Vec<[String; 5]> = expenses
         .iter()
         .enumerate()
-        .map(|(i, (name, expense))| build_row(i, name, expense, rates.as_ref(), target, target_cur))
+        .map(|(i, (name, expense))| {
+            build_row(
+                i,
+                name,
+                expense,
+                exchange_rates.as_ref(),
+                target,
+                target_cur,
+            )
+        })
         .collect();
 
     print_table(&rows);

@@ -1,8 +1,9 @@
 mod cli;
 mod commands;
-mod exchange;
+mod config;
 mod expense;
-mod storage;
+mod rates;
+mod store;
 
 fn main() -> std::io::Result<()> {
     cli::run()

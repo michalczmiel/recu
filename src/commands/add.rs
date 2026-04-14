@@ -6,12 +6,12 @@ use inquire::{
 };
 use rusty_money::iso;
 
-use crate::expense::{Expense, ExpenseFields, Interval};
+use crate::expense::{Expense, ExpenseInput, Interval};
 
 #[derive(Args, Debug)]
 pub struct AddArgs {
     #[command(flatten)]
-    pub fields: ExpenseFields,
+    pub fields: ExpenseInput,
 }
 
 fn is_currency(s: &str) -> bool {
@@ -58,7 +58,7 @@ impl Autocomplete for CurrencyCompleter {
     }
 }
 
-fn prompt_fields(fields: &ExpenseFields) -> std::io::Result<(String, Expense)> {
+fn prompt_fields(fields: &ExpenseInput) -> std::io::Result<(String, Expense)> {
     let initial_name = fields.name.as_deref().unwrap_or("");
     let name = Text::new("Name:")
         .with_initial_value(initial_name)
@@ -141,7 +141,7 @@ fn prompt_fields(fields: &ExpenseFields) -> std::io::Result<(String, Expense)> {
 pub fn execute(add: &AddArgs) -> std::io::Result<()> {
     inquire::set_global_render_config(render_config());
     let (name, expense) = prompt_fields(&add.fields)?;
-    let path = crate::storage::save(&name, &expense)?;
+    let path = crate::store::save(&name, &expense)?;
     println!("Saved: {}", path.display());
     Ok(())
 }

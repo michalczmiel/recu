@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 use std::io::{self, Write as _};
 
-use crate::commands::config;
-use crate::exchange;
-use crate::expense::Interval;
-use crate::storage;
+use crate::config;
+use crate::rates;
+use crate::store;
 use colored::Colorize;
 use rusty_money::{Findable, iso};
 
@@ -24,15 +23,6 @@ const PALETTE: [(u8, u8, u8); 10] = [
     (120, 80, 130),
     (90, 120, 160),
 ];
-
-fn to_monthly(amount: f64, interval: &Interval) -> f64 {
-    match interval {
-        Interval::Weekly => amount * 52.0 / 12.0,
-        Interval::Monthly => amount,
-        Interval::Quarterly => amount / 3.0,
-        Interval::Yearly => amount / 12.0,
-    }
-}
 
 // --- Squarified treemap layout ---
 
@@ -349,7 +339,7 @@ fn query_terminal_size() -> (usize, usize) {
 }
 
 pub fn execute() -> std::io::Result<()> {
-    let expenses = storage::list()?;
+    let expenses = store::list()?;
     if expenses.is_empty() {
         println!("No recurring expenses found.");
         return Ok(());
@@ -357,7 +347,7 @@ pub fn execute() -> std::io::Result<()> {
 
     let cfg = config::load()?;
     let target: Option<&str> = cfg.currency.as_deref();
-    let rates: Option<HashMap<String, f64>> = target.map(exchange::get_rates).transpose()?;
+    let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let target_cur: Option<&'static iso::Currency> = target.and_then(iso::Currency::find);
 
     let mut items: Vec<(String, f64, String, bool)> = expenses
@@ -365,16 +355,16 @@ pub fn execute() -> std::io::Result<()> {
         .filter_map(|(name, expense)| {
             let amount = expense.amount?;
             let interval = expense.interval.as_ref()?;
-            let (converted, cur) = exchange::convert_amount(
+            let (converted, cur) = rates::convert_amount(
                 amount,
                 expense.currency.as_deref(),
-                rates.as_ref(),
+                exchange_rates.as_ref(),
                 target,
                 target_cur,
             );
             let symbol = cur.map_or("", |c| c.symbol).to_string();
             let symbol_first = cur.is_none_or(|c| c.symbol_first);
-            Some((name, to_monthly(converted, interval), symbol, symbol_first))
+            Some((name, interval.to_monthly(converted), symbol, symbol_first))
         })
         .collect();
 
@@ -422,14 +412,15 @@ pub fn execute() -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::expense::Interval;
 
     #[test]
     fn to_monthly_all_intervals() {
-        assert_eq!(to_monthly(12.0, &Interval::Monthly), 12.0);
+        assert_eq!(Interval::Monthly.to_monthly(12.0), 12.0);
         // 12 * 52 / 12 = 52
-        assert!((to_monthly(12.0, &Interval::Weekly) - 52.0).abs() < 1e-10);
-        assert_eq!(to_monthly(30.0, &Interval::Quarterly), 10.0);
-        assert_eq!(to_monthly(120.0, &Interval::Yearly), 10.0);
+        assert!((Interval::Weekly.to_monthly(12.0) - 52.0).abs() < 1e-10);
+        assert_eq!(Interval::Quarterly.to_monthly(30.0), 10.0);
+        assert_eq!(Interval::Yearly.to_monthly(120.0), 10.0);
     }
 
     #[test]
