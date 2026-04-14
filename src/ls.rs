@@ -52,25 +52,18 @@ fn build_row(
     target_cur: Option<&'static iso::Currency>,
 ) -> [String; 5] {
     let today = chrono::Local::now().date_naive();
-    let original_cur = expense
-        .currency
-        .as_deref()
-        .and_then(|c| iso::Currency::find(&c.to_uppercase()));
 
-    let (display_amount, display_cur) =
-        match (rates, target, expense.amount, expense.currency.as_deref()) {
-            (Some(rates_map), Some(target_code), Some(amt), Some(exp_cur)) => {
-                let exp_upper = exp_cur.to_uppercase();
-                if exp_upper == target_code {
-                    (Some(amt), target_cur)
-                } else if let Some(&rate) = rates_map.get(exp_upper.as_str()) {
-                    (Some(amt / rate), target_cur)
-                } else {
-                    (Some(amt), original_cur)
-                }
-            }
-            _ => (expense.amount, original_cur),
-        };
+    let (display_amount, display_cur) = if let Some(amt) = expense.amount {
+        let (converted, cur) =
+            exchange::convert_amount(amt, expense.currency.as_deref(), rates, target, target_cur);
+        (Some(converted), cur)
+    } else {
+        let cur = expense
+            .currency
+            .as_deref()
+            .and_then(|c| iso::Currency::find(&c.to_uppercase()));
+        (None, cur)
+    };
 
     let amount = display_amount.map_or_else(|| "-".into(), |a| format!("{a:.2}"));
     let currency_interval = match (display_cur, &expense.interval) {
@@ -95,15 +88,10 @@ fn build_row(
 
 fn print_table(rows: &[[String; 5]]) {
     let headers = ["#", "name", "amount", "rate", "due"];
-    let mut widths = [0usize; 5];
-    for (i, h) in headers.iter().enumerate() {
-        widths[i] = h.len();
-    }
-    for row in rows {
-        for (i, cell) in row.iter().enumerate() {
-            widths[i] = widths[i].max(cell.len());
-        }
-    }
+    let widths: [usize; 5] = std::array::from_fn(|i| {
+        rows.iter()
+            .fold(headers[i].len(), |w, row| w.max(row[i].len()))
+    });
     let [w0, w1, w2, w3, w4] = widths;
     println!(
         "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}  {:<w4$}",

@@ -95,13 +95,34 @@ mod tests {
 
     #[test]
     fn interval_aliases() {
-        assert_eq!("week".parse::<Interval>().unwrap(), Interval::Weekly);
-        assert_eq!("month".parse::<Interval>().unwrap(), Interval::Monthly);
-        assert_eq!("quarter".parse::<Interval>().unwrap(), Interval::Quarterly);
-        assert_eq!("year".parse::<Interval>().unwrap(), Interval::Yearly);
-        assert_eq!("annual".parse::<Interval>().unwrap(), Interval::Yearly);
-        assert_eq!("annually".parse::<Interval>().unwrap(), Interval::Yearly);
-        assert_eq!("YEARLY".parse::<Interval>().unwrap(), Interval::Yearly);
+        assert_eq!(
+            "week".parse::<Interval>().expect("valid alias"),
+            Interval::Weekly
+        );
+        assert_eq!(
+            "month".parse::<Interval>().expect("valid alias"),
+            Interval::Monthly
+        );
+        assert_eq!(
+            "quarter".parse::<Interval>().expect("valid alias"),
+            Interval::Quarterly
+        );
+        assert_eq!(
+            "year".parse::<Interval>().expect("valid alias"),
+            Interval::Yearly
+        );
+        assert_eq!(
+            "annual".parse::<Interval>().expect("valid alias"),
+            Interval::Yearly
+        );
+        assert_eq!(
+            "annually".parse::<Interval>().expect("valid alias"),
+            Interval::Yearly
+        );
+        assert_eq!(
+            "YEARLY".parse::<Interval>().expect("valid alias"),
+            Interval::Yearly
+        );
     }
 }
 

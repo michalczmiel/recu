@@ -43,13 +43,13 @@ mod tests {
                 next_due: None,
                 interval: None,
             };
-            storage::save_to(file, name, &expense).unwrap();
+            storage::save_to(file, name, &expense).expect("seed save should succeed");
         }
     }
 
     fn names_in(file: &std::path::Path) -> Vec<String> {
         let mut items = storage::list_from(file)
-            .unwrap()
+            .expect("list should succeed")
             .into_iter()
             .map(|(name, _)| name)
             .collect::<Vec<_>>();
@@ -73,7 +73,7 @@ mod tests {
             let file = test_file();
             seed_expenses(&file);
 
-            let entries = storage::list_from(&file).unwrap();
+            let entries = storage::list_from(&file).expect("list should succeed");
             let target_name = entries[index].0.clone();
 
             assert!(storage::remove_from(&file, id).is_ok());

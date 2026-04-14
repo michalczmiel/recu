@@ -55,21 +55,21 @@ mod tests {
                 next_due: None,
                 interval: None,
             };
-            storage::save_to(file, name, &expense).unwrap();
+            storage::save_to(file, name, &expense).expect("seed save should succeed");
         }
     }
 
     fn load(file: &std::path::Path, name: &str) -> Expense {
         storage::list_from(file)
-            .unwrap()
+            .expect("list should succeed")
             .into_iter()
             .find(|(n, _)| n == name)
-            .unwrap()
+            .expect("expense should exist")
             .1
     }
 
     fn date(s: &str) -> NaiveDate {
-        NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
+        NaiveDate::parse_from_str(s, "%Y-%m-%d").expect("valid date literal")
     }
 
     #[test]
@@ -85,7 +85,7 @@ mod tests {
                 ..Default::default()
             },
         )
-        .unwrap();
+        .expect("update should succeed");
         assert_eq!(load(&file, "Netflix").amount, Some(12.99));
     }
 
@@ -103,7 +103,7 @@ mod tests {
                 ..Default::default()
             },
         )
-        .unwrap();
+        .expect("update should succeed");
         assert_eq!(load(&file, "Netflix").amount, Some(11.11));
     }
 
@@ -120,7 +120,7 @@ mod tests {
                 ..Default::default()
             },
         )
-        .unwrap();
+        .expect("update should succeed");
         assert_eq!(load(&file, "Spotify").currency.as_deref(), Some("eur"));
     }
 
@@ -137,7 +137,7 @@ mod tests {
                 ..Default::default()
             },
         )
-        .unwrap();
+        .expect("update should succeed");
         assert_eq!(load(&file, "Netflix").interval, Some(Interval::Yearly));
     }
 
@@ -154,7 +154,7 @@ mod tests {
                 ..Default::default()
             },
         )
-        .unwrap();
+        .expect("update should succeed");
         assert_eq!(load(&file, "Netflix").next_due, Some(date("2025-01-01")));
     }
 
@@ -172,7 +172,7 @@ mod tests {
                 ..Default::default()
             },
         )
-        .unwrap();
+        .expect("update should succeed");
         let e = load(&file, "Spotify");
         assert_eq!(e.amount, Some(9.99));
         assert_eq!(e.currency.as_deref(), Some("eur"));
@@ -182,9 +182,10 @@ mod tests {
     fn edit_name_updates_stored_name() {
         let file = test_file();
         seed_expenses(&file);
-        storage::update_from(&file, "Netflix", Some("Netflix Plus"), &Default::default()).unwrap();
+        storage::update_from(&file, "Netflix", Some("Netflix Plus"), &Default::default())
+            .expect("update should succeed");
         let names: Vec<String> = storage::list_from(&file)
-            .unwrap()
+            .expect("list should succeed")
             .into_iter()
             .map(|(n, _)| n)
             .collect();
@@ -250,7 +251,8 @@ mod tests {
     fn empty_patch_leaves_expense_unchanged() {
         let file = test_file();
         seed_expenses(&file);
-        storage::update_from(&file, "Netflix", None, &Default::default()).unwrap();
+        storage::update_from(&file, "Netflix", None, &Default::default())
+            .expect("update should succeed");
         let e = load(&file, "Netflix");
         assert_eq!(e.amount, Some(9.99));
         assert_eq!(e.currency.as_deref(), Some("usd"));

@@ -70,35 +70,37 @@ fn worst_ratio(row: &[f64], side: f64) -> f64 {
 
 fn lay_out_row(row: &[f64], left: f64, top: f64, width: f64, height: f64) -> Vec<Rect> {
     let row_sum: f64 = row.iter().sum();
-    let mut rects = Vec::with_capacity(row.len());
     if width >= height {
         let strip_w = if height > 0.0 { row_sum / height } else { 0.0 };
-        let mut curr_top = top;
-        for &size in row {
-            let cell_h = if strip_w > 0.0 { size / strip_w } else { 0.0 };
-            rects.push(Rect {
-                left,
-                top: curr_top,
-                width: strip_w,
-                height: cell_h,
-            });
-            curr_top += cell_h;
-        }
+        row.iter()
+            .scan(top, |curr_top, &size| {
+                let cell_h = if strip_w > 0.0 { size / strip_w } else { 0.0 };
+                let rect = Rect {
+                    left,
+                    top: *curr_top,
+                    width: strip_w,
+                    height: cell_h,
+                };
+                *curr_top += cell_h;
+                Some(rect)
+            })
+            .collect()
     } else {
         let strip_h = if width > 0.0 { row_sum / width } else { 0.0 };
-        let mut curr_left = left;
-        for &size in row {
-            let cell_w = if strip_h > 0.0 { size / strip_h } else { 0.0 };
-            rects.push(Rect {
-                left: curr_left,
-                top,
-                width: cell_w,
-                height: strip_h,
-            });
-            curr_left += cell_w;
-        }
+        row.iter()
+            .scan(left, |curr_left, &size| {
+                let cell_w = if strip_h > 0.0 { size / strip_h } else { 0.0 };
+                let rect = Rect {
+                    left: *curr_left,
+                    top,
+                    width: cell_w,
+                    height: strip_h,
+                };
+                *curr_left += cell_w;
+                Some(rect)
+            })
+            .collect()
     }
-    rects
 }
 
 // Iterative squarified treemap: avoids per-call Vec allocation of the recursive version.
@@ -346,35 +348,6 @@ fn query_terminal_size() -> (usize, usize) {
     (cols, rows)
 }
 
-fn resolve_amount(
-    amount: f64,
-    expense_currency: Option<&str>,
-    rates: Option<&HashMap<String, f64>>,
-    target: Option<&str>,
-    target_cur: Option<&'static iso::Currency>,
-) -> (f64, String, bool) {
-    if let (Some(rates_map), Some(target_code), Some(exp_cur)) = (rates, target, expense_currency) {
-        let exp_upper = exp_cur.to_uppercase();
-        if exp_upper == target_code {
-            let (sym, first) = target_cur.map_or(("", true), |c| (c.symbol, c.symbol_first));
-            (amount, sym.to_string(), first)
-        } else if let Some(&rate) = rates_map.get(exp_upper.as_str()) {
-            let (sym, first) = target_cur.map_or(("", true), |c| (c.symbol, c.symbol_first));
-            (amount / rate, sym.to_string(), first)
-        } else {
-            let cur = iso::Currency::find(&exp_upper);
-            let sym = cur.map_or("", |c| c.symbol).to_string();
-            let first = cur.is_none_or(|c| c.symbol_first);
-            (amount, sym, first)
-        }
-    } else {
-        let cur = expense_currency.and_then(|c| iso::Currency::find(&c.to_uppercase()));
-        let sym = cur.map_or("$", |c| c.symbol).to_string();
-        let first = cur.is_none_or(|c| c.symbol_first);
-        (amount, sym, first)
-    }
-}
-
 pub fn execute() -> std::io::Result<()> {
     let expenses = storage::list()?;
     if expenses.is_empty() {
@@ -392,13 +365,15 @@ pub fn execute() -> std::io::Result<()> {
         .filter_map(|(name, expense)| {
             let amount = expense.amount?;
             let interval = expense.interval.as_ref()?;
-            let (converted, symbol, symbol_first) = resolve_amount(
+            let (converted, cur) = exchange::convert_amount(
                 amount,
                 expense.currency.as_deref(),
                 rates.as_ref(),
                 target,
                 target_cur,
             );
+            let symbol = cur.map_or("", |c| c.symbol).to_string();
+            let symbol_first = cur.is_none_or(|c| c.symbol_first);
             Some((name, to_monthly(converted, interval), symbol, symbol_first))
         })
         .collect();

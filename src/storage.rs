@@ -217,12 +217,12 @@ mod tests {
             interval: None,
         };
 
-        save_to(&file, "Netflix", &expense).unwrap();
+        save_to(&file, "Netflix", &expense).expect("first save should succeed");
 
         let err = save_to(&file, "netflix", &expense).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
 
-        assert_eq!(list_from(&file).unwrap().len(), 1);
+        assert_eq!(list_from(&file).expect("list should succeed").len(), 1);
     }
 
     #[test]
@@ -230,7 +230,7 @@ mod tests {
         let file = std::env::temp_dir().join("recu-test-storage-missing.csv");
         let _ = fs::remove_file(&file);
 
-        assert!(list_from(&file).unwrap().is_empty());
+        assert!(list_from(&file).expect("list should succeed").is_empty());
     }
 
     #[test]
