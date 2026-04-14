@@ -37,16 +37,6 @@ fn storage_file() -> PathBuf {
     storage_file_from(std::env::var_os("RECU_FILE"))
 }
 
-fn slugify(name: &str) -> String {
-    name.to_lowercase()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join("-")
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '-')
-        .collect()
-}
-
 fn io_invalid_data<E: std::error::Error + Send + Sync + 'static>(err: E) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, err)
 }
@@ -98,8 +88,10 @@ pub(crate) fn save_to(
     expense: &Expense,
 ) -> io::Result<PathBuf> {
     let mut entries = list_entries(path)?;
-    let slug = slugify(name);
-    if entries.iter().any(|entry| slugify(&entry.name) == slug) {
+    if entries
+        .iter()
+        .any(|entry| entry.name.eq_ignore_ascii_case(name))
+    {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("expense '{name}' already exists"),
@@ -147,7 +139,7 @@ fn resolve_index(path: &std::path::Path, target: &str) -> io::Result<usize> {
     let entries = list_entries(path)?;
     if let Some(index) = entries
         .iter()
-        .position(|entry| entry.name == target || slugify(&entry.name) == slugify(target))
+        .position(|entry| entry.name.eq_ignore_ascii_case(target))
     {
         return Ok(index);
     }
@@ -171,18 +163,15 @@ pub(crate) fn update_from(
     let index = resolve_index(path, target)?;
     let mut entries = list_entries(path)?;
 
-    if let Some(name) = new_name {
-        let new_slug = slugify(name);
-        if entries
-            .iter()
-            .enumerate()
-            .any(|(other_index, entry)| other_index != index && slugify(&entry.name) == new_slug)
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!("expense '{name}' already exists"),
-            ));
-        }
+    if let Some(name) = new_name
+        && entries.iter().enumerate().any(|(other_index, entry)| {
+            other_index != index && entry.name.eq_ignore_ascii_case(name)
+        })
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("expense '{name}' already exists"),
+        ));
     }
 
     let expense = &mut entries[index];
@@ -217,22 +206,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn slugify_simple() {
-        assert_eq!(slugify("Netflix"), "netflix");
-    }
-
-    #[test]
-    fn slugify_multi_word() {
-        assert_eq!(slugify("NY Times"), "ny-times");
-    }
-
-    #[test]
-    fn slugify_special_chars() {
-        assert_eq!(slugify("Gym & Spa!"), "gym--spa");
-    }
-
-    #[test]
-    fn save_rejects_duplicate_slug() {
+    fn save_rejects_duplicate_case_insensitive() {
         let file = std::env::temp_dir().join("recu-test-storage-dup.csv");
         let _ = fs::remove_file(&file);
 

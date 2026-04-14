@@ -4,7 +4,7 @@ use crate::storage;
 
 #[derive(Args, Debug)]
 pub struct RmArgs {
-    /// Expense to remove: @id, slug, or full name
+    /// Expense to remove: @id or name (case-insensitive)
     pub target: String,
 }
 
@@ -64,16 +64,6 @@ mod tests {
         assert!(storage::remove_from(&file, "Netflix").is_ok());
         let remaining = names_in(&file);
         assert!(!remaining.contains(&"Netflix".to_string()));
-        assert_eq!(remaining.len(), 2);
-    }
-
-    #[test]
-    fn remove_by_slug() {
-        let file = test_file();
-        seed_expenses(&file);
-        assert!(storage::remove_from(&file, "ny-times").is_ok());
-        let remaining = names_in(&file);
-        assert!(!remaining.contains(&"NY Times".to_string()));
         assert_eq!(remaining.len(), 2);
     }
 

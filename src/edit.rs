@@ -5,7 +5,7 @@ use crate::storage;
 
 #[derive(Args, Debug)]
 pub struct EditArgs {
-    /// Expense to edit: @id, slug, or full name
+    /// Expense to edit: @id or name (case-insensitive)
     pub target: String,
     #[command(flatten)]
     pub fields: ExpenseFields,
@@ -87,23 +87,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(load(&file, "Netflix").amount, Some(12.99));
-    }
-
-    #[test]
-    fn edit_amount_by_slug() {
-        let file = test_file();
-        seed_expenses(&file);
-        storage::update_from(
-            &file,
-            "ny-times",
-            None,
-            &Expense {
-                amount: Some(20.0),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        assert_eq!(load(&file, "NY Times").amount, Some(20.0));
     }
 
     #[test]
