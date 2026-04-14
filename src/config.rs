@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Config {
     pub currency: Option<String>,
+    #[serde(default)]
+    pub categories: Vec<String>,
 }
 
 fn config_path() -> io::Result<PathBuf> {

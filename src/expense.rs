@@ -84,6 +84,7 @@ pub struct Expense {
     pub currency: Option<String>,
     pub next_due: Option<NaiveDate>,
     pub interval: Option<Interval>,
+    pub category: Option<String>,
 }
 
 impl Expense {
@@ -152,4 +153,7 @@ pub struct ExpenseInput {
     /// Billing interval
     #[arg(long)]
     pub interval: Option<Interval>,
+    /// Category label (e.g. streaming, utilities)
+    #[arg(long)]
+    pub category: Option<String>,
 }

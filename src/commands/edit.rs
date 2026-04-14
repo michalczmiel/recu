@@ -17,6 +17,7 @@ pub fn execute(args: EditArgs) -> std::io::Result<()> {
         currency: args.fields.currency.map(|c| c.to_lowercase()),
         next_due: args.fields.date,
         interval: args.fields.interval,
+        category: args.fields.category,
     };
     store::update(&args.target, args.fields.name.as_deref(), &patch)?;
     println!("Updated '{}'", args.target);
@@ -52,8 +53,7 @@ mod tests {
             let expense = Expense {
                 amount: Some(amount),
                 currency: Some(currency.to_string()),
-                next_due: None,
-                interval: None,
+                ..Default::default()
             };
             store::save_to(file, name, &expense).expect("seed save should succeed");
         }

@@ -13,6 +13,8 @@ struct StoredExpense {
     currency: Option<String>,
     next_due: Option<chrono::NaiveDate>,
     interval: Option<crate::expense::Interval>,
+    #[serde(default)]
+    category: Option<String>,
 }
 
 impl StoredExpense {
@@ -24,6 +26,7 @@ impl StoredExpense {
                 currency: self.currency,
                 next_due: self.next_due,
                 interval: self.interval,
+                category: self.category,
             },
         )
     }
@@ -104,6 +107,7 @@ pub(crate) fn save_to(
         currency: expense.currency.clone(),
         next_due: expense.next_due,
         interval: expense.interval.clone(),
+        category: expense.category.clone(),
     });
     entries.sort_by(|a, b| a.name.cmp(&b.name));
     write_all(path, &entries)?;
@@ -179,6 +183,7 @@ pub(crate) fn update_from(
     expense.currency = changes.currency.clone().or(expense.currency.clone());
     expense.next_due = changes.next_due.or(expense.next_due);
     expense.interval = changes.interval.clone().or(expense.interval.clone());
+    expense.category = changes.category.clone().or(expense.category.clone());
     if let Some(name) = new_name {
         expense.name = name.to_string();
     }
@@ -213,8 +218,7 @@ mod tests {
         let expense = Expense {
             amount: Some(9.99),
             currency: Some("usd".into()),
-            next_due: None,
-            interval: None,
+            ..Default::default()
         };
 
         save_to(&file, "Netflix", &expense).expect("first save should succeed");

@@ -40,8 +40,7 @@ mod tests {
             let expense = Expense {
                 amount: Some(amount),
                 currency: Some(currency.to_string()),
-                next_due: None,
-                interval: None,
+                ..Default::default()
             };
             store::save_to(file, name, &expense).expect("seed save should succeed");
         }

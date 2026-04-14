@@ -1,4 +1,5 @@
 pub mod add;
+pub mod category;
 pub mod config;
 pub mod edit;
 pub mod ls;

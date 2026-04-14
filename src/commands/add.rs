@@ -6,6 +6,7 @@ use inquire::{
 };
 use rusty_money::iso;
 
+use crate::config;
 use crate::expense::{Expense, ExpenseInput, Interval};
 
 #[derive(Args, Debug)]
@@ -55,6 +56,42 @@ impl Autocomplete for CurrencyCompleter {
         highlighted_suggestion: Option<String>,
     ) -> Result<inquire::autocompletion::Replacement, inquire::CustomUserError> {
         Ok(highlighted_suggestion)
+    }
+}
+
+const NEW_CATEGORY_SENTINEL: &str = "+ New category...";
+
+fn prompt_category(
+    existing: &[String],
+    preselected: Option<&str>,
+) -> std::io::Result<Option<String>> {
+    if existing.is_empty() {
+        return Text::new("Category:")
+            .with_initial_value(preselected.unwrap_or(""))
+            .prompt_skippable()
+            .map_err(|e| inquire_err(&e))
+            .map(|opt| opt.filter(|s| !s.is_empty()));
+    }
+
+    let mut options: Vec<String> = existing.to_vec();
+    options.push(NEW_CATEGORY_SENTINEL.to_string());
+
+    let cursor = preselected
+        .and_then(|p| options.iter().position(|o| o == p))
+        .unwrap_or(0);
+
+    let chosen = Select::new("Category:", options)
+        .with_starting_cursor(cursor)
+        .prompt_skippable()
+        .map_err(|e| inquire_err(&e))?;
+
+    match chosen.as_deref() {
+        None => Ok(None),
+        Some(s) if s == NEW_CATEGORY_SENTINEL => Text::new("New category name:")
+            .prompt_skippable()
+            .map_err(|e| inquire_err(&e))
+            .map(|opt| opt.filter(|s| !s.is_empty())),
+        Some(_) => Ok(chosen),
     }
 }
 
@@ -127,6 +164,9 @@ fn prompt_fields(fields: &ExpenseInput) -> std::io::Result<(String, Expense)> {
         .prompt_skippable()
         .map_err(|e| inquire_err(&e))?;
 
+    let cfg = config::load()?;
+    let category = prompt_category(&cfg.categories, fields.category.as_deref())?;
+
     Ok((
         name,
         Expense {
@@ -134,6 +174,7 @@ fn prompt_fields(fields: &ExpenseInput) -> std::io::Result<(String, Expense)> {
             currency,
             next_due,
             interval,
+            category,
         },
     ))
 }
@@ -141,6 +182,16 @@ fn prompt_fields(fields: &ExpenseInput) -> std::io::Result<(String, Expense)> {
 pub fn execute(add: &AddArgs) -> std::io::Result<()> {
     inquire::set_global_render_config(render_config());
     let (name, expense) = prompt_fields(&add.fields)?;
+
+    if let Some(ref cat) = expense.category {
+        let mut cfg = config::load()?;
+        if !cfg.categories.iter().any(|c| c.eq_ignore_ascii_case(cat)) {
+            cfg.categories.push(cat.clone());
+            cfg.categories.sort();
+            config::save(&cfg)?;
+        }
+    }
+
     let path = crate::store::save(&name, &expense)?;
     println!("Saved: {}", path.display());
     Ok(())
