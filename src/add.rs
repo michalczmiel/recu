@@ -36,68 +36,6 @@ const CURRENCIES: &[&str] = &[
     "vnd", "zar",
 ];
 
-fn detect_locale_currency() -> Option<String> {
-    for var in &["LC_MONETARY", "LC_ALL", "LANG"] {
-        if let Ok(val) = std::env::var(var) {
-            let locale = val.split('.').next()?;
-            let country = locale.split('_').nth(1)?;
-            if let Some(currency) = country_to_currency(country) {
-                return Some(currency.to_string());
-            }
-        }
-    }
-    None
-}
-
-fn country_to_currency(country: &str) -> Option<&'static str> {
-    match country {
-        "US" | "EC" | "SV" | "PA" => Some("usd"),
-        "GB" => Some("gbp"),
-        "AU" => Some("aud"),
-        "CA" => Some("cad"),
-        "CH" => Some("chf"),
-        "CN" => Some("cny"),
-        "JP" => Some("jpy"),
-        "KR" => Some("krw"),
-        "SE" => Some("sek"),
-        "NO" => Some("nok"),
-        "DK" => Some("dkk"),
-        "NZ" => Some("nzd"),
-        "SG" => Some("sgd"),
-        "HK" => Some("hkd"),
-        "IN" => Some("inr"),
-        "BR" => Some("brl"),
-        "MX" => Some("mxn"),
-        "RU" => Some("rub"),
-        "ZA" => Some("zar"),
-        "PL" => Some("pln"),
-        "CZ" => Some("czk"),
-        "HU" => Some("huf"),
-        "RO" => Some("ron"),
-        "TR" => Some("try"),
-        "IL" => Some("ils"),
-        "TH" => Some("thb"),
-        "MY" => Some("myr"),
-        "ID" => Some("idr"),
-        "PH" => Some("php"),
-        "UA" => Some("uah"),
-        "AR" => Some("ars"),
-        "CL" => Some("clp"),
-        "CO" => Some("cop"),
-        "PE" => Some("pen"),
-        "VN" => Some("vnd"),
-        "BD" => Some("bdt"),
-        "PK" => Some("pkr"),
-        "EG" => Some("egp"),
-        "NG" => Some("ngn"),
-        "KE" => Some("kes"),
-        // Eurozone
-        "DE" | "FR" | "IT" | "ES" | "NL" | "BE" | "AT" | "PT" | "FI" | "IE" | "GR" | "SK"
-        | "SI" | "LU" | "CY" | "MT" | "EE" | "LV" | "LT" => Some("eur"),
-        _ => None,
-    }
-}
-
 #[derive(Clone)]
 struct CurrencyCompleter;
 
@@ -146,12 +84,7 @@ fn prompt_fields(fields: &ExpenseFields) -> std::io::Result<(String, Expense)> {
         .prompt_skippable()
         .map_err(|e| inquire_err(&e))?;
 
-    let locale_currency = detect_locale_currency();
-    let initial_currency = fields
-        .currency
-        .as_deref()
-        .or(locale_currency.as_deref())
-        .unwrap_or("");
+    let initial_currency = fields.currency.as_deref().unwrap_or("");
     let currency = Text::new("Currency (ISO 4217):")
         .with_initial_value(initial_currency)
         .with_placeholder("e.g. usd, eur, gbp")
