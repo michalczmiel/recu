@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{self, Write as _};
 
-use crate::config;
+use crate::commands::config;
 use crate::exchange;
 use crate::expense::Interval;
 use crate::storage;

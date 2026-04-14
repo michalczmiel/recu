@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::config;
+use crate::commands::config;
 use crate::exchange;
 use crate::expense::{Expense, Interval};
 use crate::storage;
