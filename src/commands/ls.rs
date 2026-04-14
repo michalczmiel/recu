@@ -121,12 +121,19 @@ pub fn execute() -> std::io::Result<()> {
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let target_cur: Option<&'static iso::Currency> = target.and_then(iso::Currency::find);
 
-    let rows: Vec<[String; 5]> = expenses
+    let today = chrono::Local::now().date_naive();
+    let mut indexed: Vec<(usize, &str, &Expense)> = expenses
         .iter()
         .enumerate()
-        .map(|(i, (name, expense))| {
+        .map(|(i, (name, expense))| (i, name.as_str(), expense))
+        .collect();
+    indexed.sort_by_key(|(_, _, expense)| expense.days_until_next(today).unwrap_or(i64::MAX));
+
+    let rows: Vec<[String; 5]> = indexed
+        .iter()
+        .map(|(i, name, expense)| {
             build_row(
-                i,
+                *i,
                 name,
                 expense,
                 exchange_rates.as_ref(),

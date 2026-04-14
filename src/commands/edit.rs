@@ -93,10 +93,10 @@ mod tests {
     fn edit_amount_by_id() {
         let file = test_file();
         seed_expenses(&file);
-        // sorted lexicographically: NY Times=@1, Netflix=@2, Spotify=@3 (uppercase < lowercase)
+        // insertion order: Netflix=@1, Spotify=@2, NY Times=@3
         store::update_from(
             &file,
-            "@2",
+            "@1",
             None,
             &Expense {
                 amount: Some(11.11),

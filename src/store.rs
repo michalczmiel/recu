@@ -76,9 +76,7 @@ fn write_all(path: &std::path::Path, entries: &[StoredExpense]) -> io::Result<()
 }
 
 fn list_entries(path: &std::path::Path) -> io::Result<Vec<StoredExpense>> {
-    let mut entries = read_all(path)?;
-    entries.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(entries)
+    read_all(path)
 }
 
 pub fn save(name: &str, expense: &Expense) -> io::Result<PathBuf> {
@@ -109,7 +107,6 @@ pub(crate) fn save_to(
         interval: expense.interval.clone(),
         category: expense.category.clone(),
     });
-    entries.sort_by(|a, b| a.name.cmp(&b.name));
     write_all(path, &entries)?;
     Ok(path.to_path_buf())
 }
@@ -188,7 +185,6 @@ pub(crate) fn update_from(
         expense.name = name.to_string();
     }
 
-    entries.sort_by(|a, b| a.name.cmp(&b.name));
     write_all(path, &entries)?;
 
     Ok(())
