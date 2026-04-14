@@ -6,6 +6,7 @@ mod expense;
 mod ls;
 mod rm;
 mod storage;
+mod treemap;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -29,6 +30,8 @@ enum Commands {
     Edit(edit::EditArgs),
     /// Remove a recurring expense from
     Rm(rm::RmArgs),
+    /// Visualise expenses as a treemap
+    Treemap,
 }
 
 fn main() -> std::io::Result<()> {
@@ -38,6 +41,7 @@ fn main() -> std::io::Result<()> {
         Some(Commands::Add(args)) => add::execute(&args)?,
         Some(Commands::Edit(args)) => edit::execute(args)?,
         Some(Commands::Rm(args)) => rm::execute(&args)?,
+        Some(Commands::Treemap) => treemap::execute()?,
     }
     Ok(())
 }
