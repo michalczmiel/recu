@@ -103,11 +103,11 @@ fn prompt_fields(fields: &ExpenseFields) -> std::io::Result<(String, Expense)> {
         .filter(|s| !s.is_empty())
         .map(|s| s.to_lowercase());
 
-    let mut date_prompt = DateSelect::new("First payment date:");
+    let mut date_prompt = DateSelect::new("Next due date:");
     if let Some(d) = fields.date {
         date_prompt = date_prompt.with_default(d);
     }
-    let first_payment_date = date_prompt
+    let next_due = date_prompt
         .prompt_skippable()
         .map_err(|e| inquire_err(&e))?;
 
@@ -132,7 +132,7 @@ fn prompt_fields(fields: &ExpenseFields) -> std::io::Result<(String, Expense)> {
         Expense {
             amount,
             currency,
-            first_payment_date,
+            next_due,
             interval,
         },
     ))

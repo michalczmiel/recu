@@ -73,13 +73,13 @@ fn advance_months(first: NaiveDate, today: NaiveDate, step: u32) -> NaiveDate {
 pub struct Expense {
     pub amount: Option<f64>,
     pub currency: Option<String>,
-    pub first_payment_date: Option<NaiveDate>,
+    pub next_due: Option<NaiveDate>,
     pub interval: Option<Interval>,
 }
 
 impl Expense {
     pub fn next_payment(&self, today: NaiveDate) -> Option<NaiveDate> {
-        let first = self.first_payment_date?;
+        let first = self.next_due?;
         let interval = self.interval.as_ref()?;
         Some(interval.next_payment(first, today))
     }

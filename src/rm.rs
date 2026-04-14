@@ -40,7 +40,7 @@ mod tests {
             let expense = Expense {
                 amount: Some(amount),
                 currency: Some(currency.to_string()),
-                first_payment_date: None,
+                next_due: None,
                 interval: None,
             };
             storage::save_to(file, name, &expense).unwrap();

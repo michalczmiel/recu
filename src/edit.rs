@@ -15,7 +15,7 @@ pub fn execute(args: EditArgs) -> std::io::Result<()> {
     let patch = Expense {
         amount: args.fields.amount,
         currency: args.fields.currency.map(|c| c.to_lowercase()),
-        first_payment_date: args.fields.date,
+        next_due: args.fields.date,
         interval: args.fields.interval,
     };
     storage::update(&args.target, args.fields.name.as_deref(), &patch)?;
@@ -52,7 +52,7 @@ mod tests {
             let expense = Expense {
                 amount: Some(amount),
                 currency: Some(currency.to_string()),
-                first_payment_date: None,
+                next_due: None,
                 interval: None,
             };
             storage::save_to(file, name, &expense).unwrap();
@@ -167,15 +167,12 @@ mod tests {
             "Netflix",
             None,
             &Expense {
-                first_payment_date: Some(date("2025-01-01")),
+                next_due: Some(date("2025-01-01")),
                 ..Default::default()
             },
         )
         .unwrap();
-        assert_eq!(
-            load(&file, "Netflix").first_payment_date,
-            Some(date("2025-01-01"))
-        );
+        assert_eq!(load(&file, "Netflix").next_due, Some(date("2025-01-01")));
     }
 
     #[test]

@@ -11,7 +11,7 @@ struct StoredExpense {
     name: String,
     amount: Option<f64>,
     currency: Option<String>,
-    first_payment_date: Option<chrono::NaiveDate>,
+    next_due: Option<chrono::NaiveDate>,
     interval: Option<crate::expense::Interval>,
 }
 
@@ -22,7 +22,7 @@ impl StoredExpense {
             Expense {
                 amount: self.amount,
                 currency: self.currency,
-                first_payment_date: self.first_payment_date,
+                next_due: self.next_due,
                 interval: self.interval,
             },
         )
@@ -110,7 +110,7 @@ pub(crate) fn save_to(
         name: name.to_string(),
         amount: expense.amount,
         currency: expense.currency.clone(),
-        first_payment_date: expense.first_payment_date,
+        next_due: expense.next_due,
         interval: expense.interval.clone(),
     });
     entries.sort_by(|a, b| a.name.cmp(&b.name));
@@ -188,7 +188,7 @@ pub(crate) fn update_from(
     let expense = &mut entries[index];
     expense.amount = changes.amount.or(expense.amount);
     expense.currency = changes.currency.clone().or(expense.currency.clone());
-    expense.first_payment_date = changes.first_payment_date.or(expense.first_payment_date);
+    expense.next_due = changes.next_due.or(expense.next_due);
     expense.interval = changes.interval.clone().or(expense.interval.clone());
     if let Some(name) = new_name {
         expense.name = name.to_string();
@@ -239,7 +239,7 @@ mod tests {
         let expense = Expense {
             amount: Some(9.99),
             currency: Some("usd".into()),
-            first_payment_date: None,
+            next_due: None,
             interval: None,
         };
 
