@@ -246,6 +246,7 @@ fn truncate(s: &str, max: usize) -> String {
 struct Tile {
     name: String,
     monthly: f64,
+    yearly: f64,
     symbol: String,
     symbol_first: bool,
     rect: Rect,
@@ -285,17 +286,31 @@ fn render(tiles: &[Tile], cols: usize, rows: usize) {
             );
         }
         if rh >= 4 && inner_w >= 5 {
-            let amount_label = if tile.symbol_first {
+            let mo_label = if tile.symbol_first {
                 format!("{}{:.0}/mo", tile.symbol, tile.monthly)
             } else {
                 format!("{:.0} {}/mo", tile.monthly, tile.symbol)
             };
-            let amount = truncate(&amount_label, inner_w);
             write_str(
                 &mut grid,
                 row0 + 2,
                 col0 + 1,
-                &amount,
+                &truncate(&mo_label, inner_w),
+                tile.color,
+                lighten(tile.color),
+            );
+        }
+        if rh >= 5 && inner_w >= 5 {
+            let yr_label = if tile.symbol_first {
+                format!("{}{:.0}/yr", tile.symbol, tile.yearly)
+            } else {
+                format!("{:.0} {}/yr", tile.yearly, tile.symbol)
+            };
+            write_str(
+                &mut grid,
+                row0 + 3,
+                col0 + 1,
+                &truncate(&yr_label, inner_w),
                 tile.color,
                 lighten(tile.color),
             );
@@ -393,6 +408,7 @@ pub fn execute() -> std::io::Result<()> {
         .map(|(i, ((name, monthly, symbol, symbol_first), r))| Tile {
             name,
             monthly,
+            yearly: monthly * 12.0,
             symbol,
             symbol_first,
             rect: Rect {
