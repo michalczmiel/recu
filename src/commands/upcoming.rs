@@ -6,7 +6,7 @@ use colored::Colorize;
 use rusty_money::{Findable, iso};
 
 use crate::config;
-use crate::expense::{self, Expense, convert_amount};
+use crate::expense::{self, Expense, convert_amount, format_amount};
 use crate::rates;
 use crate::store;
 
@@ -25,14 +25,6 @@ struct Occurrence {
     name: String,
     display_amount: String,
     converted_amount: f64,
-}
-
-fn format_amount(cur: &iso::Currency, amount: f64) -> String {
-    if cur.symbol_first {
-        format!("{}{:.2}", cur.symbol, amount)
-    } else {
-        format!("{:.2} {}", amount, cur.symbol)
-    }
 }
 
 fn occurrences_in_range(

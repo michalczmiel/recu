@@ -155,6 +155,26 @@ mod tests {
             Interval::Yearly
         );
     }
+
+    #[test]
+    fn format_amount_symbol_first() {
+        let cur = iso::Currency::find("USD").unwrap();
+        assert_eq!(format_amount(cur, 42.5), "$42.50");
+    }
+
+    #[test]
+    fn format_amount_symbol_last() {
+        let cur = iso::Currency::find("PLN").unwrap();
+        assert_eq!(format_amount(cur, 42.5), "42.50 zł");
+    }
+}
+
+pub fn format_amount(cur: &iso::Currency, amount: f64) -> String {
+    if cur.symbol_first {
+        format!("{}{:.2}", cur.symbol, amount)
+    } else {
+        format!("{:.2} {}", amount, cur.symbol)
+    }
 }
 
 /// Convert `amount` from `expense_currency` to `target`, using `rates`.

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use colored::Colorize;
 
 use crate::config;
-use crate::expense::{self, DueStatus, Expense};
+use crate::expense::{self, DueStatus, Expense, format_amount};
 use crate::rates;
 use crate::store;
 use rusty_money::{Findable, iso};
@@ -36,14 +36,6 @@ fn format_days(days: i64) -> String {
             let y = days / 365;
             format!("in {} year{}", y, if y == 1 { "" } else { "s" })
         }
-    }
-}
-
-fn format_amount(cur: &iso::Currency, amount: f64) -> String {
-    if cur.symbol_first {
-        format!("{}{:.2}", cur.symbol, amount)
-    } else {
-        format!("{:.2} {}", amount, cur.symbol)
     }
 }
 
@@ -170,21 +162,4 @@ pub fn execute() -> std::io::Result<()> {
     print_totals(&expense_refs, exchange_rates.as_ref(), target, target_cur);
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn format_amount_symbol_first() {
-        let cur = iso::Currency::find("USD").unwrap();
-        assert_eq!(format_amount(cur, 42.5), "$42.50");
-    }
-
-    #[test]
-    fn format_amount_symbol_last() {
-        let cur = iso::Currency::find("PLN").unwrap();
-        assert_eq!(format_amount(cur, 42.5), "42.50 zł");
-    }
 }
