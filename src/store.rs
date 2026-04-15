@@ -461,6 +461,77 @@ mod tests {
     }
 
     #[test]
+    fn remove_by_id() {
+        let file = make_test_file("remove-by-id");
+        save_to(&file, "Netflix", &expense(9.99)).unwrap();
+        save_to(&file, "Spotify", &expense(5.99)).unwrap();
+        let name = remove_from(&file, "@1").unwrap();
+        assert_eq!(name, "Netflix");
+        let entries = list_from(&file).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].0, "Spotify");
+    }
+
+    #[test]
+    fn update_by_id() {
+        let file = make_test_file("update-by-id");
+        save_to(&file, "Netflix", &expense(9.99)).unwrap();
+        save_to(&file, "Spotify", &expense(5.99)).unwrap();
+        update_from(&file, "@2", None, &expense(7.99)).unwrap();
+        assert_eq!(list_from(&file).unwrap()[1].1.amount, Some(7.99));
+    }
+
+    #[test]
+    fn resolve_index_invalid_ids() {
+        let file = make_test_file("id-invalid");
+        save_to(&file, "Netflix", &expense(9.99)).unwrap();
+
+        let cases = [
+            ("@0", io::ErrorKind::NotFound),  // zero is not a valid 1-based id
+            ("@99", io::ErrorKind::NotFound), // out of bounds
+            ("@abc", io::ErrorKind::InvalidInput), // non-numeric
+        ];
+
+        for (input, expected) in cases {
+            let err = remove_from(&file, input).unwrap_err();
+            assert_eq!(err.kind(), expected, "input: {input}");
+        }
+    }
+
+    #[test]
+    fn update_rejects_rename_to_existing_name() {
+        let file = make_test_file("rename-conflict");
+        save_to(&file, "Netflix", &expense(9.99)).unwrap();
+        save_to(&file, "Spotify", &expense(5.99)).unwrap();
+        let err = update_from(&file, "Netflix", Some("spotify"), &expense(9.99)).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
+    }
+
+    #[test]
+    fn clear_category_no_match_returns_zero_and_no_snapshot() {
+        let file = make_test_file("clear-no-match");
+        save_to(
+            &file,
+            "Netflix",
+            &Expense {
+                category: Some("streaming".into()),
+                ..expense(9.99)
+            },
+        )
+        .unwrap();
+        assert_eq!(clear_category_from(&file, "housing").unwrap(), 0);
+        // no snapshot means undo is unavailable
+        let err = restore_from(&file).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn categories_from_empty_file_returns_empty() {
+        let file = make_test_file("categories-empty");
+        assert!(categories_from(&file).unwrap().is_empty());
+    }
+
+    #[test]
     fn clear_category_from_removes_category_from_matching_expenses() {
         let file = make_test_file("clear-category");
         save_to(
