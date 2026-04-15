@@ -15,12 +15,17 @@ pub enum CategoryCommand {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Examples:
+  recu category add streaming
+  recu category add utilities")]
 pub struct CategoryAddArgs {
     /// Category name to add
     pub name: String,
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Examples:
+  recu category rm streaming")]
 pub struct CategoryRmArgs {
     /// Category name to remove
     pub name: String,

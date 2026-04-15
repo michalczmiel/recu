@@ -8,7 +8,14 @@ use crate::commands::prompt::{
 use crate::config;
 use crate::expense::{Expense, ExpenseInput};
 
+/// Add a recurring expense.
+///
+/// If arguments are omitted, runs interactively.
 #[derive(Args, Debug)]
+#[command(after_help = "Examples:
+  recu add -n Netflix -a 9.99 -c usd -d 2026-05-01 -i monthly
+  recu add --name Netflix --amount 9.99 --currency usd --date 2026-05-01 --interval monthly
+  recu add          # interactive mode")]
 pub struct AddArgs {
     #[command(flatten)]
     pub fields: ExpenseInput,

@@ -216,21 +216,21 @@ pub fn uniform_currency(expenses: &[(String, Expense)]) -> Option<&'static iso::
 #[derive(Args, Debug, Default)]
 pub struct ExpenseInput {
     /// Expense name
-    #[arg(long)]
+    #[arg(short, long)]
     pub name: Option<String>,
     /// Amount (e.g. 9.99)
-    #[arg(long)]
+    #[arg(short, long)]
     pub amount: Option<f64>,
     /// ISO 4217 currency code (e.g. usd, eur)
-    #[arg(long)]
+    #[arg(short, long)]
     pub currency: Option<String>,
     /// Next due date (YYYY-MM-DD)
-    #[arg(long)]
+    #[arg(short, long)]
     pub date: Option<NaiveDate>,
     /// Billing interval
-    #[arg(long)]
+    #[arg(short, long)]
     pub interval: Option<Interval>,
     /// Category label (e.g. streaming, utilities)
-    #[arg(long)]
+    #[arg(short = 'C', long)]
     pub category: Option<String>,
 }

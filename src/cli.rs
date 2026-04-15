@@ -16,27 +16,34 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// List recurring expenses
+    /// List recurring expenses. Amounts converted to display currency when configured.
     Ls,
     /// Add a recurring expense
     Add(add::AddArgs),
     /// Edit a recurring expense
     Edit(edit::EditArgs),
-    /// Remove a recurring expense from
+    /// Remove a recurring expense
     Rm(rm::RmArgs),
-    /// Visualise expenses as a treemap
+    /// Visualize expenses as a treemap
     Treemap,
     /// Manage configuration
+    #[command(after_help = "Examples:
+  recu config list
+  recu config set currency usd")]
     Config {
         #[command(subcommand)]
         command: config::ConfigCommand,
     },
     /// Manage expense categories
+    #[command(after_help = "Examples:
+  recu category list
+  recu category add streaming
+  recu category rm streaming")]
     Category {
         #[command(subcommand)]
         command: category::CategoryCommand,
     },
-    /// Show upcoming expenses as a timeline
+    /// Show upcoming expenses as a timeline. Groups by due date over the next N days.
     Upcoming(upcoming::UpcomingArgs),
     /// Undo the last add, edit, or rm
     Undo,

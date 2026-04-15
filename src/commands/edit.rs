@@ -32,6 +32,10 @@ impl std::fmt::Display for MenuItem {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Examples:
+  recu edit @1 -a 12.99
+  recu edit Netflix --interval yearly
+  recu edit Netflix          # interactive mode")]
 pub struct EditArgs {
     /// Expense to edit: @id or name (case-insensitive)
     pub target: String,

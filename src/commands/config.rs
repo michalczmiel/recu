@@ -16,6 +16,9 @@ pub enum ConfigCommand {
 }
 
 #[derive(Args, Debug)]
+#[command(after_help = "Examples:
+  recu config set currency usd
+  recu config set currency eur")]
 pub struct ConfigSetArgs {
     /// Configuration key to set
     pub key: ConfigKey,

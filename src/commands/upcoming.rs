@@ -11,9 +11,12 @@ use crate::rates;
 use crate::store;
 
 #[derive(Args, Debug)]
+#[command(after_help = "Examples:
+  recu upcoming
+  recu upcoming --days 60 [default: 30]")]
 pub struct UpcomingArgs {
-    /// Number of days to look ahead
-    #[arg(long, default_value_t = 30)]
+    /// Number of days to look ahead [default: 30]
+    #[arg(short, long, default_value_t = 30)]
     pub days: u32,
 }
 

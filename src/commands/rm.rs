@@ -3,6 +3,9 @@ use clap::Args;
 use crate::store;
 
 #[derive(Args, Debug)]
+#[command(after_help = "Examples:
+  recu rm @1
+  recu rm Netflix")]
 pub struct RmArgs {
     /// Expense to remove: @id or name (case-insensitive)
     pub target: String,
