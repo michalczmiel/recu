@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use crate::expense::Expense;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 struct StoredExpense {
     name: String,
     amount: Option<f64>,
@@ -56,6 +56,64 @@ fn read_all(path: &std::path::Path) -> io::Result<Vec<StoredExpense>> {
         .map_err(io_invalid_data)
 }
 
+fn undo_path(path: &std::path::Path) -> PathBuf {
+    path.with_extension("csv.undo")
+}
+
+fn snapshot(path: &std::path::Path) -> io::Result<()> {
+    if path.exists() {
+        fs::copy(path, undo_path(path))?;
+    }
+    Ok(())
+}
+
+fn diff_description(before: &[StoredExpense], after: &[StoredExpense]) -> String {
+    match after.len().cmp(&before.len()) {
+        std::cmp::Ordering::Greater => {
+            if let Some(e) = after
+                .iter()
+                .find(|a| !before.iter().any(|b| b.name.eq_ignore_ascii_case(&a.name)))
+            {
+                return format!("Undid add of '{}'", e.name);
+            }
+        }
+        std::cmp::Ordering::Less => {
+            if let Some(e) = before
+                .iter()
+                .find(|b| !after.iter().any(|a| a.name.eq_ignore_ascii_case(&b.name)))
+            {
+                return format!("Restored '{}'", e.name);
+            }
+        }
+        std::cmp::Ordering::Equal => {
+            for b in before {
+                let changed =
+                    after.iter().find(|a| a.name.eq_ignore_ascii_case(&b.name)) != Some(b);
+                if changed {
+                    return format!("Reverted edit of '{}'", b.name);
+                }
+            }
+        }
+    }
+    "Undone".to_string()
+}
+
+pub fn restore() -> io::Result<String> {
+    restore_from(&storage_file())
+}
+
+pub(crate) fn restore_from(path: &std::path::Path) -> io::Result<String> {
+    let undo = undo_path(path);
+    if !undo.exists() {
+        return Err(io::Error::new(io::ErrorKind::NotFound, "nothing to undo"));
+    }
+    let before = read_all(&undo)?;
+    let after = read_all(path)?;
+    let msg = diff_description(&before, &after);
+    fs::rename(&undo, path)?;
+    Ok(msg)
+}
+
 fn write_all(path: &std::path::Path, entries: &[StoredExpense]) -> io::Result<()> {
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
@@ -88,6 +146,7 @@ pub(crate) fn save_to(
     name: &str,
     expense: &Expense,
 ) -> io::Result<PathBuf> {
+    snapshot(path)?;
     let mut entries = list_entries(path)?;
     if entries
         .iter()
@@ -161,6 +220,7 @@ pub(crate) fn update_from(
     new_name: Option<&str>,
     changes: &Expense,
 ) -> io::Result<()> {
+    snapshot(path)?;
     let index = resolve_index(path, target)?;
     let mut entries = list_entries(path)?;
 
@@ -195,6 +255,7 @@ pub fn remove(target: &str) -> io::Result<String> {
 }
 
 pub(crate) fn remove_from(path: &std::path::Path, target: &str) -> io::Result<String> {
+    snapshot(path)?;
     let index = resolve_index(path, target)?;
     let mut entries = list_entries(path)?;
     let name = entries.remove(index).name;
@@ -245,5 +306,71 @@ mod tests {
             storage_file_from(Some(override_path.clone().into_os_string())),
             override_path
         );
+    }
+
+    fn make_test_file(name: &str) -> PathBuf {
+        let file = std::env::temp_dir().join(format!("recu-test-undo-{name}.csv"));
+        let _ = fs::remove_file(&file);
+        let _ = fs::remove_file(undo_path(&file));
+        file
+    }
+
+    fn expense(amount: f64) -> Expense {
+        Expense {
+            amount: Some(amount),
+            currency: Some("usd".into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn restore_after_remove() {
+        let file = make_test_file("remove");
+        save_to(&file, "Netflix", &expense(9.99)).unwrap();
+        remove_from(&file, "Netflix").unwrap();
+        assert!(list_from(&file).unwrap().is_empty());
+        let msg = restore_from(&file).unwrap();
+        assert_eq!(msg, "Restored 'Netflix'");
+        assert_eq!(list_from(&file).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn restore_after_update() {
+        let file = make_test_file("update");
+        save_to(&file, "Netflix", &expense(9.99)).unwrap();
+        update_from(&file, "Netflix", None, &expense(14.99)).unwrap();
+        assert_eq!(list_from(&file).unwrap()[0].1.amount, Some(14.99));
+        let msg = restore_from(&file).unwrap();
+        assert_eq!(msg, "Reverted edit of 'Netflix'");
+        assert_eq!(list_from(&file).unwrap()[0].1.amount, Some(9.99));
+    }
+
+    #[test]
+    fn restore_after_add() {
+        let file = make_test_file("add");
+        save_to(&file, "Netflix", &expense(9.99)).unwrap();
+        save_to(&file, "Spotify", &expense(5.99)).unwrap();
+        assert_eq!(list_from(&file).unwrap().len(), 2);
+        let msg = restore_from(&file).unwrap();
+        assert_eq!(msg, "Undid add of 'Spotify'");
+        assert_eq!(list_from(&file).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn restore_with_no_snapshot_returns_error() {
+        let file = make_test_file("nosnap");
+        save_to(&file, "Netflix", &expense(9.99)).unwrap();
+        let err = restore_from(&file).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn restore_is_single_use() {
+        let file = make_test_file("singleuse");
+        save_to(&file, "Netflix", &expense(9.99)).unwrap();
+        remove_from(&file, "Netflix").unwrap();
+        restore_from(&file).unwrap();
+        let err = restore_from(&file).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
     }
 }
