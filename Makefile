@@ -1,15 +1,15 @@
 .PHONY: check format lint test all
 
 check:
-	cargo check
+	rtk cargo check
 
 format:
-	cargo fmt
+	rtk cargo fmt
 
 lint:
-	cargo clippy -- -D warnings
+	rtk cargo clippy -- -D warnings
 
 test:
-	cargo test
+	rtk cargo test
 
 all: format lint test
