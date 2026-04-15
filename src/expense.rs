@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+
 use chrono::{Datelike, NaiveDate};
 use clap::{Args, ValueEnum};
+use rusty_money::{Findable, iso};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, ValueEnum)]
@@ -152,6 +155,62 @@ mod tests {
             Interval::Yearly
         );
     }
+}
+
+/// Convert `amount` from `expense_currency` to `target`, using `rates`.
+/// Returns `(converted_amount, currency_to_display)`.
+/// Falls back to the original currency if conversion is not possible.
+pub fn convert_amount(
+    amount: f64,
+    expense_currency: Option<&str>,
+    rates: Option<&HashMap<String, f64>>,
+    target: Option<&str>,
+    target_cur: Option<&'static iso::Currency>,
+) -> (f64, Option<&'static iso::Currency>) {
+    let original_cur = expense_currency.and_then(|c| iso::Currency::find(&c.to_uppercase()));
+    if let (Some(rates_map), Some(target_code), Some(exp_cur)) = (rates, target, expense_currency) {
+        let exp_upper = exp_cur.to_uppercase();
+        if exp_upper == target_code {
+            return (amount, target_cur);
+        }
+        if let Some(&rate) = rates_map.get(exp_upper.as_str()) {
+            return (amount / rate, target_cur);
+        }
+    }
+    (amount, original_cur)
+}
+
+/// Sum of all expenses converted to `target_cur` and normalised to monthly amounts.
+pub fn monthly_total(
+    expenses: &[&Expense],
+    rates: Option<&HashMap<String, f64>>,
+    target: Option<&str>,
+    target_cur: Option<&'static iso::Currency>,
+) -> f64 {
+    expenses
+        .iter()
+        .filter_map(|e| {
+            let amt = e.amount?;
+            let interval = e.interval.as_ref()?;
+            let (converted, _) =
+                convert_amount(amt, e.currency.as_deref(), rates, target, target_cur);
+            Some(interval.to_monthly(converted))
+        })
+        .sum()
+}
+
+/// Returns the single shared currency if every expense has the same one, otherwise `None`.
+pub fn uniform_currency(expenses: &[(String, Expense)]) -> Option<&'static iso::Currency> {
+    let mut cur: Option<&str> = None;
+    for (_, e) in expenses {
+        let c = e.currency.as_deref()?;
+        match cur {
+            None => cur = Some(c),
+            Some(prev) if prev.eq_ignore_ascii_case(c) => {}
+            _ => return None,
+        }
+    }
+    cur.and_then(|c| iso::Currency::find(&c.to_uppercase()))
 }
 
 #[derive(Args, Debug, Default)]

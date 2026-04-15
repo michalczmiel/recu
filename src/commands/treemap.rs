@@ -370,7 +370,7 @@ pub fn execute() -> std::io::Result<()> {
         .filter_map(|(name, expense)| {
             let amount = expense.amount?;
             let interval = expense.interval.as_ref()?;
-            let (converted, cur) = rates::convert_amount(
+            let (converted, cur) = crate::expense::convert_amount(
                 amount,
                 expense.currency.as_deref(),
                 exchange_rates.as_ref(),

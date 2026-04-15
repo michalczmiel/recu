@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use rusty_money::{Findable, iso};
 use serde::{Deserialize, Serialize};
 
 const TIMEOUT_SECS: u64 = 10;
@@ -85,29 +84,6 @@ fn write_cache(path: &Path, cache: &ExchangeRateCache) -> io::Result<()> {
     let tmp = path.with_extension("tmp");
     std::fs::write(&tmp, &content)?;
     std::fs::rename(tmp, path)
-}
-
-/// Convert `amount` from `expense_currency` to `target`, using `rates`.
-/// Returns `(converted_amount, currency_to_display)`.
-/// Falls back to the original currency if conversion is not possible.
-pub fn convert_amount(
-    amount: f64,
-    expense_currency: Option<&str>,
-    rates: Option<&HashMap<String, f64>>,
-    target: Option<&str>,
-    target_cur: Option<&'static iso::Currency>,
-) -> (f64, Option<&'static iso::Currency>) {
-    let original_cur = expense_currency.and_then(|c| iso::Currency::find(&c.to_uppercase()));
-    if let (Some(rates_map), Some(target_code), Some(exp_cur)) = (rates, target, expense_currency) {
-        let exp_upper = exp_cur.to_uppercase();
-        if exp_upper == target_code {
-            return (amount, target_cur);
-        }
-        if let Some(&rate) = rates_map.get(exp_upper.as_str()) {
-            return (amount / rate, target_cur);
-        }
-    }
-    (amount, original_cur)
 }
 
 pub fn get_rates(base_currency: &str) -> io::Result<HashMap<String, f64>> {
