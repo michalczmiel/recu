@@ -231,6 +231,19 @@ fn resolve_index(path: &std::path::Path, target: &str) -> io::Result<usize> {
     ))
 }
 
+pub fn get(target: &str) -> io::Result<(String, Expense)> {
+    get_from(&storage_file(), target)
+}
+
+pub(crate) fn get_from(path: &std::path::Path, target: &str) -> io::Result<(String, Expense)> {
+    let index = resolve_index(path, target)?;
+    list_entries(path)?
+        .into_iter()
+        .nth(index)
+        .map(StoredExpense::into_parts)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "not found"))
+}
+
 pub fn update(target: &str, new_name: Option<&str>, patch: &Expense) -> io::Result<()> {
     update_from(&storage_file(), target, new_name, patch)
 }

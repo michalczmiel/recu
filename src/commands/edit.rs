@@ -42,30 +42,6 @@ pub struct EditArgs {
     pub fields: ExpenseInput,
 }
 
-fn find_current(target: &str) -> std::io::Result<(String, Expense)> {
-    let all = store::list()?;
-    if let Some(id_str) = target.strip_prefix('@') {
-        let id: usize = id_str
-            .parse()
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid id"))?;
-        if id == 0 || id > all.len() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("no expense at @{id}"),
-            ));
-        }
-        return Ok(all.into_iter().nth(id - 1).expect("bounds checked above"));
-    }
-    all.into_iter()
-        .find(|(n, _)| n.eq_ignore_ascii_case(target))
-        .ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("expense '{target}' not found"),
-            )
-        })
-}
-
 fn menu_items(name: &str, e: &Expense) -> Vec<MenuItem> {
     let d = "—";
     let item = |field, label: &str, val: &str| MenuItem {
@@ -195,7 +171,7 @@ pub fn execute(args: &EditArgs) -> std::io::Result<()> {
         store::update(&args.target, f.name.as_deref(), &patch)?;
     } else {
         inquire::set_global_render_config(render_config());
-        let (current_name, current_expense) = find_current(&args.target)?;
+        let (current_name, current_expense) = store::get(&args.target)?;
         let (new_name, patch) = prompt_fields(&current_name, &current_expense)?;
 
         store::update(&args.target, new_name.as_deref(), &patch)?;
