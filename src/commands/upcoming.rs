@@ -1,11 +1,12 @@
 use std::collections::{BTreeMap, HashMap};
+use std::io::Write;
 
 use chrono::{Datelike, NaiveDate};
 use clap::Args;
 use colored::Colorize;
 use rusty_money::{Findable, iso};
 
-use crate::config;
+use crate::config::{self, Config};
 use crate::expense::{self, Expense, convert_amount, format_amount};
 use crate::rates;
 use crate::store;
@@ -75,10 +76,11 @@ fn occurrences_in_range(
 }
 
 fn print_timeline(
+    out: &mut impl Write,
     all: &[Occurrence],
     by_month: &BTreeMap<(i32, u32), Vec<usize>>,
     target_cur: Option<&'static iso::Currency>,
-) {
+) -> std::io::Result<()> {
     let show_totals = target_cur.is_some();
     let grand_total: f64 = all.iter().map(|o| o.converted_amount).sum();
 
@@ -98,53 +100,64 @@ fn print_timeline(
         .max("amount".len());
 
     // headers + separator
-    println!(
+    writeln!(
+        out,
         "{:<date_w$}  {:<name_w$}  {:>amount_w$}",
         "date", "name", "amount"
-    );
-    println!("{:─<date_w$}  {:─<name_w$}  {:─<amount_w$}", "", "", "");
+    )?;
+    writeln!(
+        out,
+        "{:─<date_w$}  {:─<name_w$}  {:─<amount_w$}",
+        "", "", ""
+    )?;
 
     for ((year, month), idxs) in by_month {
         let month_str = NaiveDate::from_ymd_opt(*year, *month, 1)
             .map(|d| d.format("%b %Y").to_string())
             .unwrap_or_default();
 
-        println!("{}", month_str.bold());
+        writeln!(out, "{}", month_str.bold())?;
 
         for &i in idxs {
             let occ = &all[i];
-            println!(
+            writeln!(
+                out,
                 "{:>date_w$}  {:<name_w$}  {:>amount_w$}",
                 occ.date.day(),
                 occ.name,
                 occ.display_amount
-            );
+            )?;
         }
     }
 
     if show_totals {
         let cur = target_cur.expect("show_totals implies target_cur is Some");
         let grand_str = format_amount(cur, grand_total);
-        println!("{}", format!("Total  {grand_str}").bold());
+        writeln!(out, "{}", format!("Total  {grand_str}").bold())?;
     }
+
+    Ok(())
 }
 
-pub fn execute(args: &UpcomingArgs) -> std::io::Result<()> {
-    let expenses = store::list()?;
+pub(crate) fn execute_with(
+    out: &mut impl Write,
+    today: NaiveDate,
+    cfg: &Config,
+    expenses: &[(String, Expense)],
+    days: u32,
+) -> std::io::Result<()> {
     if expenses.is_empty() {
-        println!("No recurring expenses found.");
+        writeln!(out, "No recurring expenses found.")?;
         return Ok(());
     }
 
-    let cfg = config::load()?;
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let target_cur: Option<&'static iso::Currency> = target
         .and_then(iso::Currency::find)
-        .or_else(|| expense::uniform_currency(&expenses));
+        .or_else(|| expense::uniform_currency(expenses));
 
-    let today = chrono::Local::now().date_naive();
-    let end = today + chrono::Days::new(u64::from(args.days));
+    let end = today + chrono::Days::new(u64::from(days));
 
     let mut all: Vec<Occurrence> = expenses
         .iter()
@@ -162,7 +175,7 @@ pub fn execute(args: &UpcomingArgs) -> std::io::Result<()> {
         .collect();
 
     if all.is_empty() {
-        println!("No upcoming expenses in the next {} days.", args.days);
+        writeln!(out, "No upcoming expenses in the next {days} days.")?;
         return Ok(());
     }
 
@@ -176,7 +189,99 @@ pub fn execute(args: &UpcomingArgs) -> std::io::Result<()> {
             .push(i);
     }
 
-    print_timeline(&all, &by_month, target_cur);
+    print_timeline(out, &all, &by_month, target_cur)?;
 
     Ok(())
+}
+
+pub fn execute(args: &UpcomingArgs) -> std::io::Result<()> {
+    let expenses = store::list()?;
+    let cfg = config::load()?;
+    let today = chrono::Local::now().date_naive();
+    execute_with(&mut std::io::stdout(), today, &cfg, &expenses, args.days)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::expense::Interval;
+
+    fn today() -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 4, 15).expect("valid date")
+    }
+
+    fn d(y: i32, m: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, day).expect("valid date")
+    }
+
+    fn run(expenses: &[(String, Expense)], days: u32) -> String {
+        let mut buf = Vec::new();
+        execute_with(&mut buf, today(), &Config::default(), expenses, days).expect("execute_with");
+        String::from_utf8(buf).expect("utf8")
+    }
+
+    fn monthly_usd(amount: f64, next_due: NaiveDate) -> Expense {
+        Expense {
+            amount: Some(amount),
+            currency: Some("usd".to_string()),
+            next_due: Some(next_due),
+            interval: Some(Interval::Monthly),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn upcoming() {
+        let mut s = insta::Settings::clone_current();
+        s.add_filter(r"\x1b\[[0-9;]*m", "");
+        let _guard = s.bind_to_scope();
+
+        let mut out = String::new();
+
+        out += "=== empty store ===\n";
+        out += &run(&[], 30);
+
+        // Due June 1 = 47 days away, outside 30-day window
+        out += "\n=== no occurrences in window ===\n";
+        out += &run(
+            &[("Netflix".to_string(), monthly_usd(15.99, d(2026, 6, 1)))],
+            30,
+        );
+
+        // April 20 = 5 days away, within 30-day window
+        out += "\n=== single in range ===\n";
+        out += &run(
+            &[("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 20)))],
+            30,
+        );
+
+        // 60-day window: April 20 + May 20 both appear
+        out += "\n=== monthly spans two months ===\n";
+        out += &run(
+            &[("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 20)))],
+            60,
+        );
+
+        // Two expenses, 60-day window → entries across April, May, June
+        out += "\n=== multiple across months ===\n";
+        out += &run(
+            &[
+                ("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 20))),
+                ("Spotify".to_string(), monthly_usd(9.99, d(2026, 5, 1))),
+            ],
+            60,
+        );
+
+        // All USD → uniform_currency → total line shown
+        out += "\n=== totals with uniform currency ===\n";
+        out += &run(
+            &[
+                ("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 20))),
+                ("Spotify".to_string(), monthly_usd(9.99, d(2026, 4, 25))),
+            ],
+            30,
+        );
+
+        insta::assert_snapshot!(out);
+    }
 }

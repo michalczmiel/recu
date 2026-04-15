@@ -1,0 +1,45 @@
+---
+source: src/commands/upcoming.rs
+expression: out
+---
+=== empty store ===
+No recurring expenses found.
+
+=== no occurrences in window ===
+No upcoming expenses in the next 30 days.
+
+=== single in range ===
+date      name     amount
+────────  ───────  ──────
+Apr 2026
+      20  Netflix  $15.99
+Total  $15.99
+
+=== monthly spans two months ===
+date      name     amount
+────────  ───────  ──────
+Apr 2026
+      20  Netflix  $15.99
+May 2026
+      20  Netflix  $15.99
+Total  $31.98
+
+=== multiple across months ===
+date      name     amount
+────────  ───────  ──────
+Apr 2026
+      20  Netflix  $15.99
+May 2026
+       1  Spotify   $9.99
+      20  Netflix  $15.99
+Jun 2026
+       1  Spotify   $9.99
+Total  $51.96
+
+=== totals with uniform currency ===
+date      name     amount
+────────  ───────  ──────
+Apr 2026
+      20  Netflix  $15.99
+      25  Spotify   $9.99
+Total  $25.98

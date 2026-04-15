@@ -1,0 +1,54 @@
+---
+source: src/commands/ls.rs
+expression: out
+---
+=== empty ===
+No recurring expenses found.
+
+=== single due today ===
+#   name     amount  due  
+──  ───────  ──────  ─────
+@1  Netflix  $15.99  today
+
+Total  $15.99/month  $191.88/year
+
+=== single due soon ===
+#   name     amount  due      
+──  ───────  ──────  ─────────
+@1  Netflix  $15.99  in 5 days
+
+Total  $15.99/month  $191.88/year
+
+=== single distant ===
+#   name     amount  due        
+──  ───────  ──────  ───────────
+@1  Netflix  $15.99  in 2 months
+
+Total  $15.99/month  $191.88/year
+
+=== sorted by due date ===
+#   name     amount  due        
+──  ───────  ──────  ───────────
+@3  Netflix  $15.99  today      
+@2  Spotify   $9.99  in 5 days  
+@1  Notion   $16.00  in 2 months
+
+Total  $41.98/month  $503.76/year
+
+=== totals with uniform currency ===
+#   name     amount  due       
+──  ───────  ──────  ──────────
+@1  Netflix  $15.99  in 2 weeks
+@2  Spotify   $9.99  in 1 month
+
+Total  $25.98/month  $311.76/year
+
+=== no currency, no totals ===
+#   name   amount  due       
+──  ────  ───────  ──────────
+@1  Rent  1000.00  in 2 weeks
+
+=== incomplete expense ===
+#   name     amount  due
+──  ───────  ──────  ───
+@1  Unknown       -

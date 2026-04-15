@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::io::Write;
 
+use chrono::NaiveDate;
 use colored::Colorize;
 
-use crate::config;
+use crate::config::{self, Config};
 use crate::expense::{self, DueStatus, Expense, format_amount};
 use crate::rates;
 use crate::store;
@@ -39,9 +41,7 @@ fn format_days(days: i64) -> String {
     }
 }
 
-fn build_row(index: usize, name: &str, expense: &Expense) -> [String; 4] {
-    let today = chrono::Local::now().date_naive();
-
+fn build_row(index: usize, name: &str, expense: &Expense, today: NaiveDate) -> [String; 4] {
     let cur = expense
         .currency
         .as_deref()
@@ -66,19 +66,20 @@ fn build_row(index: usize, name: &str, expense: &Expense) -> [String; 4] {
 }
 
 fn print_totals(
+    out: &mut impl Write,
     expenses: &[&Expense],
     rates: Option<&HashMap<String, f64>>,
     target: Option<&str>,
     target_cur: Option<&'static iso::Currency>,
-) {
-    let Some(cur) = target_cur else { return };
+) -> std::io::Result<()> {
+    let Some(cur) = target_cur else { return Ok(()) };
     let monthly = expense::monthly_total(expenses, rates, target, target_cur);
     let line = format!(
         "\nTotal  {}/month  {}/year",
         format_amount(cur, monthly),
         format_amount(cur, monthly * 12.0)
     );
-    println!("{}", line.bold());
+    writeln!(out, "{}", line.bold())
 }
 
 /// Visible width of a plain string in terminal columns.
@@ -99,7 +100,11 @@ fn pad_start(colored: &str, plain_w: usize, width: usize) -> String {
     format!("{}{colored}", " ".repeat(spaces))
 }
 
-fn print_table(rows: &[[String; 4]], statuses: &[DueStatus]) {
+fn print_table(
+    out: &mut impl Write,
+    rows: &[[String; 4]],
+    statuses: &[DueStatus],
+) -> std::io::Result<()> {
     let headers = ["#", "name", "amount", "due"];
     // Widths in visible columns (char count), not bytes.
     let widths: [usize; 4] = std::array::from_fn(|i| {
@@ -107,38 +112,47 @@ fn print_table(rows: &[[String; 4]], statuses: &[DueStatus]) {
             .fold(char_width(headers[i]), |w, row| w.max(char_width(&row[i])))
     });
     let [w0, w1, w2, w3] = widths;
-    println!(
+    writeln!(
+        out,
         "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}",
         headers[0], headers[1], headers[2], headers[3]
-    );
-    println!("{:─<w0$}  {:─<w1$}  {:─<w2$}  {:─<w3$}", "", "", "", "");
+    )?;
+    writeln!(
+        out,
+        "{:─<w0$}  {:─<w1$}  {:─<w2$}  {:─<w3$}",
+        "", "", "", ""
+    )?;
     for (row, status) in rows.iter().zip(statuses.iter()) {
         let c = colorize_row(row, status);
-        println!(
+        writeln!(
+            out,
             "{}  {}  {}  {}",
             pad_end(&c[0], char_width(&row[0]), w0),
             pad_end(&c[1], char_width(&row[1]), w1),
             pad_start(&c[2], char_width(&row[2]), w2), // amount: right-aligned
             pad_end(&c[3], char_width(&row[3]), w3),
-        );
+        )?;
     }
+    Ok(())
 }
 
-pub fn execute() -> std::io::Result<()> {
-    let expenses = store::list()?;
+pub(crate) fn execute_with(
+    out: &mut impl Write,
+    today: NaiveDate,
+    cfg: &Config,
+    expenses: &[(String, Expense)],
+) -> std::io::Result<()> {
     if expenses.is_empty() {
-        println!("No recurring expenses found.");
+        writeln!(out, "No recurring expenses found.")?;
         return Ok(());
     }
 
-    let cfg = config::load()?;
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let target_cur: Option<&'static iso::Currency> = target
         .and_then(iso::Currency::find)
-        .or_else(|| expense::uniform_currency(&expenses));
+        .or_else(|| expense::uniform_currency(expenses));
 
-    let today = chrono::Local::now().date_naive();
     let mut indexed: Vec<(usize, &str, &Expense)> = expenses
         .iter()
         .enumerate()
@@ -148,7 +162,7 @@ pub fn execute() -> std::io::Result<()> {
 
     let rows: Vec<[String; 4]> = indexed
         .iter()
-        .map(|(i, name, expense)| build_row(*i, name, expense))
+        .map(|(i, name, expense)| build_row(*i, name, expense, today))
         .collect();
 
     let statuses: Vec<DueStatus> = indexed
@@ -156,10 +170,110 @@ pub fn execute() -> std::io::Result<()> {
         .map(|(_, _, expense)| expense.due_status(today))
         .collect();
 
-    print_table(&rows, &statuses);
+    print_table(out, &rows, &statuses)?;
 
     let expense_refs: Vec<&Expense> = indexed.iter().map(|(_, _, e)| *e).collect();
-    print_totals(&expense_refs, exchange_rates.as_ref(), target, target_cur);
+    print_totals(
+        out,
+        &expense_refs,
+        exchange_rates.as_ref(),
+        target,
+        target_cur,
+    )?;
 
     Ok(())
+}
+
+pub fn execute() -> std::io::Result<()> {
+    let expenses = store::list()?;
+    let cfg = config::load()?;
+    let today = chrono::Local::now().date_naive();
+    execute_with(&mut std::io::stdout(), today, &cfg, &expenses)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::expense::Interval;
+
+    fn today() -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 4, 15).expect("valid date")
+    }
+
+    fn d(y: i32, m: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, day).expect("valid date")
+    }
+
+    fn run(expenses: &[(String, Expense)]) -> String {
+        let mut buf = Vec::new();
+        execute_with(&mut buf, today(), &Config::default(), expenses).expect("execute_with");
+        String::from_utf8(buf).expect("utf8")
+    }
+
+    fn monthly_usd(amount: f64, next_due: NaiveDate) -> Expense {
+        Expense {
+            amount: Some(amount),
+            currency: Some("usd".to_string()),
+            next_due: Some(next_due),
+            interval: Some(Interval::Monthly),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn ls() {
+        let mut s = insta::Settings::clone_current();
+        s.add_filter(r"\x1b\[[0-9;]*m", "");
+        let _guard = s.bind_to_scope();
+
+        let mut out = String::new();
+
+        out += "=== empty ===\n";
+        out += &run(&[]);
+
+        // next_due == today → days = 0 → Overdue
+        out += "\n=== single due today ===\n";
+        out += &run(&[("Netflix".to_string(), monthly_usd(15.99, today()))]);
+
+        // 5 days away → DueSoon
+        out += "\n=== single due soon ===\n";
+        out += &run(&[("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 20)))]);
+
+        // 77 days away → Distant
+        out += "\n=== single distant ===\n";
+        out += &run(&[("Netflix".to_string(), monthly_usd(15.99, d(2026, 7, 1)))]);
+
+        // Added in reverse order; output sorted by due date, @ids reflect insertion order
+        out += "\n=== sorted by due date ===\n";
+        out += &run(&[
+            ("Notion".to_string(), monthly_usd(16.00, d(2026, 7, 1))),
+            ("Spotify".to_string(), monthly_usd(9.99, d(2026, 4, 20))),
+            ("Netflix".to_string(), monthly_usd(15.99, today())),
+        ]);
+
+        // All USD → uniform_currency → totals shown
+        out += "\n=== totals with uniform currency ===\n";
+        out += &run(&[
+            ("Netflix".to_string(), monthly_usd(15.99, d(2026, 5, 1))),
+            ("Spotify".to_string(), monthly_usd(9.99, d(2026, 5, 15))),
+        ]);
+
+        // No currency → uniform_currency returns None → no totals line
+        out += "\n=== no currency, no totals ===\n";
+        out += &run(&[(
+            "Rent".to_string(),
+            Expense {
+                amount: Some(1000.0),
+                next_due: Some(d(2026, 5, 1)),
+                interval: Some(Interval::Monthly),
+                ..Default::default()
+            },
+        )]);
+
+        // No amount or date → dashes in amount and due columns
+        out += "\n=== incomplete expense ===\n";
+        out += &run(&[("Unknown".to_string(), Expense::default())]);
+
+        insta::assert_snapshot!(out);
+    }
 }
