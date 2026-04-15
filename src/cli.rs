@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use crate::commands::{add, category, config, edit, ls, rm, treemap};
+use crate::commands::{add, category, config, edit, ls, rm, treemap, upcoming};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -36,6 +36,8 @@ enum Commands {
         #[command(subcommand)]
         command: category::CategoryCommand,
     },
+    /// Show upcoming expenses as a timeline
+    Upcoming(upcoming::UpcomingArgs),
 }
 
 pub fn run() -> std::io::Result<()> {
@@ -48,6 +50,7 @@ pub fn run() -> std::io::Result<()> {
         Some(Commands::Treemap) => treemap::execute()?,
         Some(Commands::Config { command }) => config::run(&command)?,
         Some(Commands::Category { command }) => category::run(&command)?,
+        Some(Commands::Upcoming(args)) => upcoming::execute(&args)?,
     }
     Ok(())
 }

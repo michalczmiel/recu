@@ -5,3 +5,4 @@ pub mod edit;
 pub mod ls;
 pub mod rm;
 pub mod treemap;
+pub mod upcoming;
