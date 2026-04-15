@@ -1,10 +1,24 @@
 use std::collections::HashMap;
 
+use colored::Colorize;
+
 use crate::config;
-use crate::expense::{Expense, Interval};
+use crate::expense::{DueStatus, Expense, Interval};
 use crate::rates;
 use crate::store;
 use rusty_money::{Findable, iso};
+
+fn colorize_row(row: &[String; 5], status: &DueStatus) -> [String; 5] {
+    let apply = |s: &String| -> String {
+        match status {
+            DueStatus::Overdue => s.red().to_string(),
+            DueStatus::DueSoon => s.yellow().to_string(),
+            DueStatus::Distant => s.dimmed().to_string(),
+            DueStatus::Normal | DueStatus::Unknown => s.clone(),
+        }
+    };
+    std::array::from_fn(|i| apply(&row[i]))
+}
 
 fn format_days(days: i64) -> String {
     match days {
@@ -103,15 +117,35 @@ fn print_totals(
     if let Some(cur) = target_cur {
         let monthly_str = format_amount(cur, monthly_total);
         let yearly_str = format_amount(cur, yearly_total);
-        println!("\nTotal  {monthly_str}/month  {yearly_str}/year");
+        let line = format!("\nTotal  {monthly_str}/month  {yearly_str}/year");
+        println!("{}", line.bold());
     }
 }
 
-fn print_table(rows: &[[String; 5]]) {
+/// Visible width of a plain string in terminal columns.
+/// Uses char count — sufficient for Latin/currency symbols (all 1-column wide).
+fn char_width(s: &str) -> usize {
+    s.chars().count()
+}
+
+/// Pad `colored` (which may contain ANSI codes) to `width` columns,
+/// using `plain_w` (visible char width) for the math.
+fn pad_end(colored: &str, plain_w: usize, width: usize) -> String {
+    let spaces = width.saturating_sub(plain_w);
+    format!("{colored}{}", " ".repeat(spaces))
+}
+
+fn pad_start(colored: &str, plain_w: usize, width: usize) -> String {
+    let spaces = width.saturating_sub(plain_w);
+    format!("{}{colored}", " ".repeat(spaces))
+}
+
+fn print_table(rows: &[[String; 5]], statuses: &[DueStatus]) {
     let headers = ["#", "name", "amount", "rate", "due"];
+    // Widths in visible columns (char count), not bytes.
     let widths: [usize; 5] = std::array::from_fn(|i| {
         rows.iter()
-            .fold(headers[i].len(), |w, row| w.max(row[i].len()))
+            .fold(char_width(headers[i]), |w, row| w.max(char_width(&row[i])))
     });
     let [w0, w1, w2, w3, w4] = widths;
     println!(
@@ -122,10 +156,15 @@ fn print_table(rows: &[[String; 5]]) {
         "{:─<w0$}  {:─<w1$}  {:─<w2$}  {:─<w3$}  {:─<w4$}",
         "", "", "", "", ""
     );
-    for row in rows {
+    for (row, status) in rows.iter().zip(statuses.iter()) {
+        let c = colorize_row(row, status);
         println!(
-            "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}  {:<w4$}",
-            row[0], row[1], row[2], row[3], row[4]
+            "{}  {}  {}  {}  {}",
+            pad_end(&c[0], char_width(&row[0]), w0),
+            pad_end(&c[1], char_width(&row[1]), w1),
+            pad_start(&c[2], char_width(&row[2]), w2), // amount: right-aligned
+            pad_end(&c[3], char_width(&row[3]), w3),
+            pad_end(&c[4], char_width(&row[4]), w4),
         );
     }
 }
@@ -155,7 +194,12 @@ pub fn execute() -> std::io::Result<()> {
         .map(|(i, name, expense)| build_row(*i, name, expense))
         .collect();
 
-    print_table(&rows);
+    let statuses: Vec<DueStatus> = indexed
+        .iter()
+        .map(|(_, _, expense)| expense.due_status(today))
+        .collect();
+
+    print_table(&rows, &statuses);
 
     if target.is_some() {
         print_totals(&indexed, exchange_rates.as_ref(), target, target_cur);

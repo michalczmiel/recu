@@ -78,6 +78,14 @@ fn advance_months(first: NaiveDate, today: NaiveDate, step: u32) -> NaiveDate {
     }
 }
 
+pub enum DueStatus {
+    Overdue,
+    DueSoon,
+    Normal,
+    Distant,
+    Unknown,
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Expense {
     pub amount: Option<f64>,
@@ -96,6 +104,16 @@ impl Expense {
 
     pub fn days_until_next(&self, today: NaiveDate) -> Option<i64> {
         Some((self.next_payment(today)? - today).num_days())
+    }
+
+    pub fn due_status(&self, today: NaiveDate) -> DueStatus {
+        match self.days_until_next(today) {
+            Some(d) if d <= 0 => DueStatus::Overdue,
+            Some(d) if d <= 7 => DueStatus::DueSoon,
+            Some(d) if d > 60 => DueStatus::Distant,
+            Some(_) => DueStatus::Normal,
+            None => DueStatus::Unknown,
+        }
     }
 }
 
