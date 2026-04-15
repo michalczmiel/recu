@@ -1,7 +1,35 @@
 use clap::Args;
+use inquire::Select;
 
+use crate::commands::prompt::{
+    inquire_err, prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval,
+    prompt_name_skippable, render_config, save_new_category,
+};
+use crate::config;
 use crate::expense::{Expense, ExpenseInput};
 use crate::store;
+
+#[derive(Clone, PartialEq)]
+enum Field {
+    Name,
+    Amount,
+    Currency,
+    Date,
+    Interval,
+    Category,
+    Done,
+}
+
+struct MenuItem {
+    field: Field,
+    display: String,
+}
+
+impl std::fmt::Display for MenuItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display)
+    }
+}
 
 #[derive(Args, Debug)]
 pub struct EditArgs {
@@ -11,15 +39,170 @@ pub struct EditArgs {
     pub fields: ExpenseInput,
 }
 
-pub fn execute(args: EditArgs) -> std::io::Result<()> {
-    let patch = Expense {
-        amount: args.fields.amount,
-        currency: args.fields.currency.map(|c| c.to_lowercase()),
-        next_due: args.fields.date,
-        interval: args.fields.interval,
-        category: args.fields.category,
+fn find_current(target: &str) -> std::io::Result<(String, Expense)> {
+    let all = store::list()?;
+    if let Some(id_str) = target.strip_prefix('@') {
+        let id: usize = id_str
+            .parse()
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid id"))?;
+        if id == 0 || id > all.len() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("no expense at @{id}"),
+            ));
+        }
+        return Ok(all.into_iter().nth(id - 1).expect("bounds checked above"));
+    }
+    all.into_iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case(target))
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("expense '{target}' not found"),
+            )
+        })
+}
+
+fn menu_items(name: &str, e: &Expense) -> Vec<MenuItem> {
+    let d = "—";
+    let item = |field, label: &str, val: &str| MenuItem {
+        field,
+        display: format!("{label:<14} {val}"),
     };
-    store::update(&args.target, args.fields.name.as_deref(), &patch)?;
+    vec![
+        item(Field::Name, "Name", name),
+        item(
+            Field::Amount,
+            "Amount",
+            &e.amount.map_or_else(|| d.to_string(), |a| a.to_string()),
+        ),
+        item(
+            Field::Currency,
+            "Currency",
+            e.currency.as_deref().unwrap_or(d),
+        ),
+        item(
+            Field::Date,
+            "Next due",
+            &e.next_due.map_or_else(|| d.to_string(), |d| d.to_string()),
+        ),
+        item(
+            Field::Interval,
+            "Interval",
+            &e.interval
+                .as_ref()
+                .map_or_else(|| d.to_string(), std::string::ToString::to_string),
+        ),
+        item(
+            Field::Category,
+            "Category",
+            e.category.as_deref().unwrap_or(d),
+        ),
+        MenuItem {
+            field: Field::Done,
+            display: "Done".to_string(),
+        },
+    ]
+}
+
+fn prompt_fields(
+    current_name: &str,
+    current: &Expense,
+) -> std::io::Result<(Option<String>, Expense)> {
+    let mut working_name = current_name.to_string();
+    let mut working = Expense {
+        amount: current.amount,
+        currency: current.currency.clone(),
+        next_due: current.next_due,
+        interval: current.interval.clone(),
+        category: current.category.clone(),
+    };
+
+    loop {
+        let choice = Select::new("Edit:", menu_items(&working_name, &working))
+            .prompt_skippable()
+            .map_err(|e| inquire_err(&e))?;
+
+        match choice {
+            None => break,
+            Some(item) => match item.field {
+                Field::Done => break,
+                Field::Name => {
+                    if let Some(new) = prompt_name_skippable(&working_name)? {
+                        working_name = new;
+                    }
+                }
+                Field::Amount => {
+                    if let Some(v) = prompt_amount(working.amount)? {
+                        working.amount = Some(v);
+                    }
+                }
+                Field::Currency => {
+                    if let Some(c) = prompt_currency(working.currency.as_deref().unwrap_or(""))? {
+                        working.currency = Some(c);
+                    }
+                }
+                Field::Date => {
+                    if let Some(d) = prompt_date(working.next_due)? {
+                        working.next_due = Some(d);
+                    }
+                }
+                Field::Interval => {
+                    if let Some(iv) = prompt_interval(working.interval.as_ref())? {
+                        working.interval = Some(iv);
+                    }
+                }
+                Field::Category => {
+                    let cfg = config::load()?;
+                    if let Some(cat) =
+                        prompt_category(&cfg.categories, working.category.as_deref())?
+                    {
+                        working.category = Some(cat);
+                    }
+                }
+            },
+        }
+    }
+
+    let new_name = if working_name == current_name {
+        None
+    } else {
+        Some(working_name)
+    };
+    Ok((new_name, working))
+}
+
+fn has_any_field(f: &ExpenseInput) -> bool {
+    f.name.is_some()
+        || f.amount.is_some()
+        || f.currency.is_some()
+        || f.date.is_some()
+        || f.interval.is_some()
+        || f.category.is_some()
+}
+
+pub fn execute(args: &EditArgs) -> std::io::Result<()> {
+    if has_any_field(&args.fields) {
+        let f = &args.fields;
+        let patch = Expense {
+            amount: f.amount,
+            currency: f.currency.as_ref().map(|c| c.to_lowercase()),
+            next_due: f.date,
+            interval: f.interval.clone(),
+            category: f.category.clone(),
+        };
+        store::update(&args.target, f.name.as_deref(), &patch)?;
+    } else {
+        inquire::set_global_render_config(render_config());
+        let (current_name, current_expense) = find_current(&args.target)?;
+        let (new_name, patch) = prompt_fields(&current_name, &current_expense)?;
+
+        if let Some(ref cat) = patch.category {
+            save_new_category(cat)?;
+        }
+
+        store::update(&args.target, new_name.as_deref(), &patch)?;
+    }
     println!("Updated '{}'", args.target);
     Ok(())
 }

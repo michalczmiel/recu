@@ -45,7 +45,7 @@ pub fn run() -> std::io::Result<()> {
     match cli.command {
         None | Some(Commands::Ls) => ls::execute()?,
         Some(Commands::Add(args)) => add::execute(&args)?,
-        Some(Commands::Edit(args)) => edit::execute(args)?,
+        Some(Commands::Edit(args)) => edit::execute(&args)?,
         Some(Commands::Rm(args)) => rm::execute(&args)?,
         Some(Commands::Treemap) => treemap::execute()?,
         Some(Commands::Config { command }) => config::run(&command)?,
