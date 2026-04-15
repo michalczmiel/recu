@@ -6,7 +6,6 @@ use inquire::{
 };
 use rusty_money::iso;
 
-use crate::config;
 use crate::expense::Interval;
 
 fn is_currency(s: &str) -> bool {
@@ -172,14 +171,4 @@ pub fn prompt_category(
             .map(|opt| opt.filter(|s| !s.is_empty())),
         Some(_) => Ok(chosen),
     }
-}
-
-pub fn save_new_category(cat: &str) -> std::io::Result<()> {
-    let mut cfg = config::load()?;
-    if !cfg.categories.iter().any(|c| c.eq_ignore_ascii_case(cat)) {
-        cfg.categories.push(cat.to_string());
-        cfg.categories.sort();
-        config::save(&cfg)?;
-    }
-    Ok(())
 }

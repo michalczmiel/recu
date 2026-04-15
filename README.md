@@ -22,7 +22,7 @@ recu [COMMAND]
 | `rm`       | Remove a recurring expense      |
 | `treemap`  | Visualise expenses as a treemap |
 | `config`   | Manage configuration            |
-| `category` | Manage expense categories       |
+| `category` | List or clear expense categories |
 
 By default uses `./recu.csv`; set `RECU_FILE` to override.
 

@@ -3,10 +3,10 @@ use clap::Args;
 
 use crate::commands::prompt::{
     prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval, prompt_name,
-    render_config, save_new_category,
+    render_config,
 };
-use crate::config;
 use crate::expense::{Expense, ExpenseInput};
+use crate::store;
 
 /// Add a recurring expense.
 ///
@@ -27,8 +27,8 @@ fn prompt_fields(fields: &ExpenseInput) -> std::io::Result<(String, Expense)> {
     let currency = prompt_currency(fields.currency.as_deref().unwrap_or(""))?;
     let next_due = prompt_date(fields.date)?;
     let interval = prompt_interval(fields.interval.as_ref())?;
-    let cfg = config::load()?;
-    let category = prompt_category(&cfg.categories, fields.category.as_deref())?;
+    let categories = store::categories()?;
+    let category = prompt_category(&categories, fields.category.as_deref())?;
     Ok((
         name,
         Expense {
@@ -61,10 +61,6 @@ pub fn execute(add: &AddArgs) -> std::io::Result<()> {
         inquire::set_global_render_config(render_config());
         prompt_fields(f)?
     };
-
-    if let Some(ref cat) = expense.category {
-        save_new_category(cat)?;
-    }
 
     let path = crate::store::save(&name, &expense)?;
     println!("Saved: {}", path.display());

@@ -2,25 +2,14 @@ use std::io;
 
 use clap::{Args, Subcommand};
 
-use crate::config;
+use crate::store;
 
 #[derive(Subcommand, Debug)]
 pub enum CategoryCommand {
-    /// List all defined categories
+    /// List categories currently used by expenses
     List,
-    /// Add a new category
-    Add(CategoryAddArgs),
-    /// Remove a category
+    /// Remove a category from all matching expenses
     Rm(CategoryRmArgs),
-}
-
-#[derive(Args, Debug)]
-#[command(after_help = "Examples:
-  recu category add streaming
-  recu category add utilities")]
-pub struct CategoryAddArgs {
-    /// Category name to add
-    pub name: String,
 }
 
 #[derive(Args, Debug)]
@@ -34,47 +23,27 @@ pub struct CategoryRmArgs {
 pub fn run(cmd: &CategoryCommand) -> io::Result<()> {
     match cmd {
         CategoryCommand::List => {
-            let cfg = config::load()?;
-            if cfg.categories.is_empty() {
-                println!("No categories defined.");
+            let categories = store::categories()?;
+            if categories.is_empty() {
+                println!("No categories found.");
             } else {
-                for cat in &cfg.categories {
+                for cat in &categories {
                     println!("{cat}");
                 }
             }
         }
-
-        CategoryCommand::Add(args) => {
-            let mut cfg = config::load()?;
-            if cfg
-                .categories
-                .iter()
-                .any(|c| c.eq_ignore_ascii_case(&args.name))
-            {
-                return Err(io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    format!("category '{}' already exists", args.name),
-                ));
-            }
-            cfg.categories.push(args.name.clone());
-            cfg.categories.sort();
-            config::save(&cfg)?;
-            println!("Category '{}' added.", args.name);
-        }
-
         CategoryCommand::Rm(args) => {
-            let mut cfg = config::load()?;
-            let before = cfg.categories.len();
-            cfg.categories
-                .retain(|c| !c.eq_ignore_ascii_case(&args.name));
-            if cfg.categories.len() == before {
+            let updated = store::clear_category(&args.name)?;
+            if updated == 0 {
                 return Err(io::Error::new(
                     io::ErrorKind::NotFound,
                     format!("category '{}' not found", args.name),
                 ));
             }
-            config::save(&cfg)?;
-            println!("Category '{}' removed.", args.name);
+            println!(
+                "Removed category '{}' from {} expense(s).",
+                args.name, updated
+            );
         }
     }
     Ok(())

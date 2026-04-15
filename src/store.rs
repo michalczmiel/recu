@@ -181,6 +181,27 @@ pub(crate) fn list_from(path: &std::path::Path) -> io::Result<Vec<(String, Expen
         .collect())
 }
 
+pub fn categories() -> io::Result<Vec<String>> {
+    categories_from(&storage_file())
+}
+
+pub(crate) fn categories_from(path: &std::path::Path) -> io::Result<Vec<String>> {
+    let mut categories = Vec::<String>::new();
+    for (_, expense) in list_from(path)? {
+        let Some(category) = expense.category else {
+            continue;
+        };
+        if !categories
+            .iter()
+            .any(|existing| existing.eq_ignore_ascii_case(&category))
+        {
+            categories.push(category);
+        }
+    }
+    categories.sort_by_cached_key(|category| category.to_ascii_lowercase());
+    Ok(categories)
+}
+
 fn resolve_index(path: &std::path::Path, target: &str) -> io::Result<usize> {
     if let Some(id_str) = target.strip_prefix('@') {
         let id: usize = id_str
@@ -261,6 +282,34 @@ pub(crate) fn remove_from(path: &std::path::Path, target: &str) -> io::Result<St
     let name = entries.remove(index).name;
     write_all(path, &entries)?;
     Ok(name)
+}
+
+pub fn clear_category(category: &str) -> io::Result<usize> {
+    clear_category_from(&storage_file(), category)
+}
+
+pub(crate) fn clear_category_from(path: &std::path::Path, category: &str) -> io::Result<usize> {
+    let mut entries = list_entries(path)?;
+    let updated = entries
+        .iter_mut()
+        .filter(|entry| {
+            entry
+                .category
+                .as_deref()
+                .is_some_and(|c| c.eq_ignore_ascii_case(category))
+        })
+        .map(|entry| {
+            entry.category = None;
+        })
+        .count();
+
+    if updated == 0 {
+        return Ok(0);
+    }
+
+    snapshot(path)?;
+    write_all(path, &entries)?;
+    Ok(updated)
 }
 
 #[cfg(test)]
@@ -372,5 +421,81 @@ mod tests {
         restore_from(&file).unwrap();
         let err = restore_from(&file).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn categories_from_lists_unique_categories_case_insensitive() {
+        let file = make_test_file("categories");
+        save_to(
+            &file,
+            "Netflix",
+            &Expense {
+                category: Some("Streaming".into()),
+                ..expense(9.99)
+            },
+        )
+        .unwrap();
+        save_to(
+            &file,
+            "Spotify",
+            &Expense {
+                category: Some("streaming".into()),
+                ..expense(5.99)
+            },
+        )
+        .unwrap();
+        save_to(
+            &file,
+            "Rent",
+            &Expense {
+                category: Some("Housing".into()),
+                ..expense(999.0)
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            categories_from(&file).unwrap(),
+            vec!["Housing", "Streaming"]
+        );
+    }
+
+    #[test]
+    fn clear_category_from_removes_category_from_matching_expenses() {
+        let file = make_test_file("clear-category");
+        save_to(
+            &file,
+            "Netflix",
+            &Expense {
+                category: Some("streaming".into()),
+                ..expense(9.99)
+            },
+        )
+        .unwrap();
+        save_to(
+            &file,
+            "Spotify",
+            &Expense {
+                category: Some("Streaming".into()),
+                ..expense(5.99)
+            },
+        )
+        .unwrap();
+        save_to(
+            &file,
+            "Rent",
+            &Expense {
+                category: Some("housing".into()),
+                ..expense(999.0)
+            },
+        )
+        .unwrap();
+
+        assert_eq!(clear_category_from(&file, "streaming").unwrap(), 2);
+
+        let expenses = list_from(&file).unwrap();
+        assert_eq!(expenses[0].1.category, None);
+        assert_eq!(expenses[1].1.category, None);
+        assert_eq!(expenses[2].1.category.as_deref(), Some("housing"));
     }
 }

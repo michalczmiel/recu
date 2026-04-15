@@ -37,7 +37,6 @@ enum Commands {
     /// Manage expense categories
     #[command(after_help = "Examples:
   recu category list
-  recu category add streaming
   recu category rm streaming")]
     Category {
         #[command(subcommand)]

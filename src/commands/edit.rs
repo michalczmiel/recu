@@ -3,9 +3,8 @@ use inquire::Select;
 
 use crate::commands::prompt::{
     inquire_err, prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval,
-    prompt_name_skippable, render_config, save_new_category,
+    prompt_name_skippable, render_config,
 };
-use crate::config;
 use crate::expense::{Expense, ExpenseInput};
 use crate::store;
 
@@ -157,10 +156,8 @@ fn prompt_fields(
                     }
                 }
                 Field::Category => {
-                    let cfg = config::load()?;
-                    if let Some(cat) =
-                        prompt_category(&cfg.categories, working.category.as_deref())?
-                    {
+                    let categories = store::categories()?;
+                    if let Some(cat) = prompt_category(&categories, working.category.as_deref())? {
                         working.category = Some(cat);
                     }
                 }
@@ -200,10 +197,6 @@ pub fn execute(args: &EditArgs) -> std::io::Result<()> {
         inquire::set_global_render_config(render_config());
         let (current_name, current_expense) = find_current(&args.target)?;
         let (new_name, patch) = prompt_fields(&current_name, &current_expense)?;
-
-        if let Some(ref cat) = patch.category {
-            save_new_category(cat)?;
-        }
 
         store::update(&args.target, new_name.as_deref(), &patch)?;
     }
