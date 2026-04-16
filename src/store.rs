@@ -133,10 +133,6 @@ fn write_all(path: &std::path::Path, entries: &[StoredExpense]) -> io::Result<()
     Ok(())
 }
 
-fn list_entries(path: &std::path::Path) -> io::Result<Vec<StoredExpense>> {
-    read_all(path)
-}
-
 pub fn save(name: &str, expense: &Expense) -> io::Result<PathBuf> {
     save_to(&storage_file(), name, expense)
 }
@@ -147,7 +143,7 @@ pub(crate) fn save_to(
     expense: &Expense,
 ) -> io::Result<PathBuf> {
     snapshot(path)?;
-    let mut entries = list_entries(path)?;
+    let mut entries = read_all(path)?;
     if entries
         .iter()
         .any(|entry| entry.name.eq_ignore_ascii_case(name))
@@ -175,7 +171,7 @@ pub fn list() -> io::Result<Vec<(String, Expense)>> {
 }
 
 pub(crate) fn list_from(path: &std::path::Path) -> io::Result<Vec<(String, Expense)>> {
-    Ok(list_entries(path)?
+    Ok(read_all(path)?
         .into_iter()
         .map(StoredExpense::into_parts)
         .collect())
@@ -186,15 +182,13 @@ pub fn categories() -> io::Result<Vec<String>> {
 }
 
 pub(crate) fn categories_from(path: &std::path::Path) -> io::Result<Vec<String>> {
+    let mut seen = std::collections::HashSet::<String>::new();
     let mut categories = Vec::<String>::new();
     for (_, expense) in list_from(path)? {
         let Some(category) = expense.category else {
             continue;
         };
-        if !categories
-            .iter()
-            .any(|existing| existing.eq_ignore_ascii_case(&category))
-        {
+        if seen.insert(category.to_ascii_lowercase()) {
             categories.push(category);
         }
     }
@@ -207,7 +201,7 @@ fn resolve_index(path: &std::path::Path, target: &str) -> io::Result<usize> {
         let id: usize = id_str
             .parse()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid id"))?;
-        let entries = list_entries(path)?;
+        let entries = read_all(path)?;
         if id == 0 || id > entries.len() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
@@ -217,7 +211,7 @@ fn resolve_index(path: &std::path::Path, target: &str) -> io::Result<usize> {
         return Ok(id - 1);
     }
 
-    let entries = list_entries(path)?;
+    let entries = read_all(path)?;
     if let Some(index) = entries
         .iter()
         .position(|entry| entry.name.eq_ignore_ascii_case(target))
@@ -237,7 +231,7 @@ pub fn get(target: &str) -> io::Result<(String, Expense)> {
 
 pub(crate) fn get_from(path: &std::path::Path, target: &str) -> io::Result<(String, Expense)> {
     let index = resolve_index(path, target)?;
-    list_entries(path)?
+    read_all(path)?
         .into_iter()
         .nth(index)
         .map(StoredExpense::into_parts)
@@ -256,7 +250,7 @@ pub(crate) fn update_from(
 ) -> io::Result<()> {
     snapshot(path)?;
     let index = resolve_index(path, target)?;
-    let mut entries = list_entries(path)?;
+    let mut entries = read_all(path)?;
 
     if let Some(name) = new_name
         && entries.iter().enumerate().any(|(other_index, entry)| {
@@ -271,10 +265,22 @@ pub(crate) fn update_from(
 
     let expense = &mut entries[index];
     expense.amount = changes.amount.or(expense.amount);
-    expense.currency = changes.currency.clone().or(expense.currency.clone());
+    expense.currency = changes
+        .currency
+        .as_ref()
+        .or(expense.currency.as_ref())
+        .cloned();
     expense.start_date = changes.start_date.or(expense.start_date);
-    expense.interval = changes.interval.clone().or(expense.interval.clone());
-    expense.category = changes.category.clone().or(expense.category.clone());
+    expense.interval = changes
+        .interval
+        .as_ref()
+        .or(expense.interval.as_ref())
+        .cloned();
+    expense.category = changes
+        .category
+        .as_ref()
+        .or(expense.category.as_ref())
+        .cloned();
     if let Some(name) = new_name {
         expense.name = name.to_string();
     }
@@ -291,7 +297,7 @@ pub fn remove(target: &str) -> io::Result<String> {
 pub(crate) fn remove_from(path: &std::path::Path, target: &str) -> io::Result<String> {
     snapshot(path)?;
     let index = resolve_index(path, target)?;
-    let mut entries = list_entries(path)?;
+    let mut entries = read_all(path)?;
     let name = entries.remove(index).name;
     write_all(path, &entries)?;
     Ok(name)
@@ -302,7 +308,7 @@ pub fn clear_category(category: &str) -> io::Result<usize> {
 }
 
 pub(crate) fn clear_category_from(path: &std::path::Path, category: &str) -> io::Result<usize> {
-    let mut entries = list_entries(path)?;
+    let mut entries = read_all(path)?;
     let updated = entries
         .iter_mut()
         .filter(|entry| {
