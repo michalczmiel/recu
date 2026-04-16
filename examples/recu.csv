@@ -1,4 +1,4 @@
-name,amount,currency,next_due,interval,category
+name,amount,currency,start_date,interval,category
 Streamberry,19.99,usd,2026-04-22,monthly,Streaming
 Spookify,9.99,usd,2026-04-18,monthly,Streaming
 ViewTube Premium,15.99,usd,2026-05-01,monthly,Streaming

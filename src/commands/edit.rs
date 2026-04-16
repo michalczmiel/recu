@@ -62,8 +62,9 @@ fn menu_items(name: &str, e: &Expense) -> Vec<MenuItem> {
         ),
         item(
             Field::Date,
-            "Next due",
-            &e.next_due.map_or_else(|| d.to_string(), |d| d.to_string()),
+            "Start date",
+            &e.start_date
+                .map_or_else(|| d.to_string(), |d| d.to_string()),
         ),
         item(
             Field::Interval,
@@ -92,7 +93,7 @@ fn prompt_fields(
     let mut working = Expense {
         amount: current.amount,
         currency: current.currency.clone(),
-        next_due: current.next_due,
+        start_date: current.start_date,
         interval: current.interval.clone(),
         category: current.category.clone(),
     };
@@ -122,8 +123,8 @@ fn prompt_fields(
                     }
                 }
                 Field::Date => {
-                    if let Some(d) = prompt_date(working.next_due)? {
-                        working.next_due = Some(d);
+                    if let Some(d) = prompt_date(working.start_date)? {
+                        working.start_date = Some(d);
                     }
                 }
                 Field::Interval => {
@@ -164,7 +165,7 @@ pub fn execute(args: &EditArgs) -> std::io::Result<()> {
         let patch = Expense {
             amount: f.amount,
             currency: f.currency.as_ref().map(|c| c.to_lowercase()),
-            next_due: f.date,
+            start_date: f.date,
             interval: f.interval.clone(),
             category: f.category.clone(),
         };
@@ -306,12 +307,12 @@ mod tests {
             "Netflix",
             None,
             &Expense {
-                next_due: Some(date("2025-01-01")),
+                start_date: Some(date("2025-01-01")),
                 ..Default::default()
             },
         )
         .expect("update should succeed");
-        assert_eq!(load(&file, "Netflix").next_due, Some(date("2025-01-01")));
+        assert_eq!(load(&file, "Netflix").start_date, Some(date("2025-01-01")));
     }
 
     #[test]

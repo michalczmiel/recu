@@ -37,9 +37,11 @@ fn occurrences_in_range(
     target: Option<&str>,
     target_cur: Option<&'static iso::Currency>,
 ) -> Vec<Occurrence> {
-    let (Some(first), Some(interval), Some(amount)) =
-        (expense.next_due, expense.interval.as_ref(), expense.amount)
-    else {
+    let (Some(first), Some(interval), Some(amount)) = (
+        expense.start_date,
+        expense.interval.as_ref(),
+        expense.amount,
+    ) else {
         return vec![];
     };
 
@@ -220,11 +222,11 @@ mod tests {
         String::from_utf8(buf).expect("utf8")
     }
 
-    fn monthly_usd(amount: f64, next_due: NaiveDate) -> Expense {
+    fn monthly_usd(amount: f64, start_date: NaiveDate) -> Expense {
         Expense {
             amount: Some(amount),
             currency: Some("usd".to_string()),
-            next_due: Some(next_due),
+            start_date: Some(start_date),
             interval: Some(Interval::Monthly),
             ..Default::default()
         }

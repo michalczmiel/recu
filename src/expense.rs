@@ -93,14 +93,14 @@ pub enum DueStatus {
 pub struct Expense {
     pub amount: Option<f64>,
     pub currency: Option<String>,
-    pub next_due: Option<NaiveDate>,
+    pub start_date: Option<NaiveDate>,
     pub interval: Option<Interval>,
     pub category: Option<String>,
 }
 
 impl Expense {
     pub fn next_payment(&self, today: NaiveDate) -> Option<NaiveDate> {
-        let first = self.next_due?;
+        let first = self.start_date?;
         let interval = self.interval.as_ref()?;
         Some(interval.next_payment(first, today))
     }
@@ -244,7 +244,7 @@ pub struct ExpenseInput {
     /// ISO 4217 currency code (e.g. usd, eur)
     #[arg(short, long)]
     pub currency: Option<String>,
-    /// Next due date (YYYY-MM-DD)
+    /// Start date (YYYY-MM-DD)
     #[arg(short, long)]
     pub date: Option<NaiveDate>,
     /// Billing interval

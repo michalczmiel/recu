@@ -116,7 +116,7 @@ pub fn prompt_currency(initial: &str) -> std::io::Result<Option<String>> {
 }
 
 pub fn prompt_date(default: Option<NaiveDate>) -> std::io::Result<Option<NaiveDate>> {
-    let mut prompt = DateSelect::new("Next due date:");
+    let mut prompt = DateSelect::new("Start date:");
     if let Some(d) = default {
         prompt = prompt.with_default(d);
     }

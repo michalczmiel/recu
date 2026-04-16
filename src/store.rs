@@ -11,7 +11,7 @@ struct StoredExpense {
     name: String,
     amount: Option<f64>,
     currency: Option<String>,
-    next_due: Option<chrono::NaiveDate>,
+    start_date: Option<chrono::NaiveDate>,
     interval: Option<crate::expense::Interval>,
     #[serde(default)]
     category: Option<String>,
@@ -24,7 +24,7 @@ impl StoredExpense {
             Expense {
                 amount: self.amount,
                 currency: self.currency,
-                next_due: self.next_due,
+                start_date: self.start_date,
                 interval: self.interval,
                 category: self.category,
             },
@@ -162,7 +162,7 @@ pub(crate) fn save_to(
         name: name.to_string(),
         amount: expense.amount,
         currency: expense.currency.clone(),
-        next_due: expense.next_due,
+        start_date: expense.start_date,
         interval: expense.interval.clone(),
         category: expense.category.clone(),
     });
@@ -272,7 +272,7 @@ pub(crate) fn update_from(
     let expense = &mut entries[index];
     expense.amount = changes.amount.or(expense.amount);
     expense.currency = changes.currency.clone().or(expense.currency.clone());
-    expense.next_due = changes.next_due.or(expense.next_due);
+    expense.start_date = changes.start_date.or(expense.start_date);
     expense.interval = changes.interval.clone().or(expense.interval.clone());
     expense.category = changes.category.clone().or(expense.category.clone());
     if let Some(name) = new_name {

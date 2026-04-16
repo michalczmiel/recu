@@ -210,11 +210,11 @@ mod tests {
         String::from_utf8(buf).expect("utf8")
     }
 
-    fn monthly_usd(amount: f64, next_due: NaiveDate) -> Expense {
+    fn monthly_usd(amount: f64, start_date: NaiveDate) -> Expense {
         Expense {
             amount: Some(amount),
             currency: Some("usd".to_string()),
-            next_due: Some(next_due),
+            start_date: Some(start_date),
             interval: Some(Interval::Monthly),
             ..Default::default()
         }
@@ -231,7 +231,7 @@ mod tests {
         out += "=== empty ===\n";
         out += &run(&[]);
 
-        // next_due == today → days = 0 → Overdue
+        // start_date == today → days = 0 → Overdue
         out += "\n=== single due today ===\n";
         out += &run(&[("Netflix".to_string(), monthly_usd(15.99, today()))]);
 
@@ -264,7 +264,7 @@ mod tests {
             "Rent".to_string(),
             Expense {
                 amount: Some(1000.0),
-                next_due: Some(d(2026, 5, 1)),
+                start_date: Some(d(2026, 5, 1)),
                 interval: Some(Interval::Monthly),
                 ..Default::default()
             },

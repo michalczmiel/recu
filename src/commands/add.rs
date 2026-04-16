@@ -25,7 +25,7 @@ fn prompt_fields(fields: &ExpenseInput) -> std::io::Result<(String, Expense)> {
     let name = prompt_name(fields.name.as_deref().unwrap_or(""))?;
     let amount = prompt_amount(fields.amount)?;
     let currency = prompt_currency(fields.currency.as_deref().unwrap_or(""))?;
-    let next_due = prompt_date(fields.date)?;
+    let start_date = prompt_date(fields.date)?;
     let interval = prompt_interval(fields.interval.as_ref())?;
     let categories = store::categories()?;
     let category = prompt_category(&categories, fields.category.as_deref())?;
@@ -34,7 +34,7 @@ fn prompt_fields(fields: &ExpenseInput) -> std::io::Result<(String, Expense)> {
         Expense {
             amount,
             currency,
-            next_due,
+            start_date,
             interval,
             category,
         },
@@ -46,13 +46,13 @@ pub fn execute(add: &AddArgs) -> std::io::Result<()> {
     let (name, expense) = if let (Some(name), Some(amount), Some(currency), Some(interval)) =
         (&f.name, f.amount, &f.currency, &f.interval)
     {
-        let next_due = Some(f.date.unwrap_or_else(|| Local::now().date_naive()));
+        let start_date = Some(f.date.unwrap_or_else(|| Local::now().date_naive()));
         (
             name.clone(),
             Expense {
                 amount: Some(amount),
                 currency: Some(currency.to_lowercase()),
-                next_due,
+                start_date,
                 interval: Some(interval.clone()),
                 category: f.category.clone(),
             },
