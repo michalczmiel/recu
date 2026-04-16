@@ -62,7 +62,24 @@ pub fn execute(add: &AddArgs) -> std::io::Result<()> {
         prompt_fields(f)?
     };
 
-    let path = crate::store::save(&name, &expense)?;
-    println!("Saved: {}", path.display());
+    crate::store::save(&name, &expense)?;
+    let amount_str = match (expense.amount, expense.currency.as_deref()) {
+        (Some(a), Some(c)) => format!("{a} {c}"),
+        (Some(a), None) => format!("{a}"),
+        _ => String::new(),
+    };
+    let interval_str = expense
+        .interval
+        .as_ref()
+        .map_or(String::new(), ToString::to_string);
+    let parts: Vec<&str> = [amount_str.as_str(), interval_str.as_str()]
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect();
+    if parts.is_empty() {
+        println!("Added {name}");
+    } else {
+        println!("Added {name}: {}", parts.join(", "));
+    }
     Ok(())
 }

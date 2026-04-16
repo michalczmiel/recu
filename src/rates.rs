@@ -6,7 +6,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-const TIMEOUT_SECS: u64 = 10;
+const TIMEOUT_SECS: u64 = 5;
 const MAX_RETRIES: u8 = 2;
 
 #[derive(Debug, Serialize, Deserialize)]

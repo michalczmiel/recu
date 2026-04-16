@@ -233,13 +233,19 @@ pub fn uniform_currency(expenses: &[(String, Expense)]) -> Option<&'static iso::
     cur.and_then(|c| iso::Currency::find(&c.to_uppercase()))
 }
 
+fn parse_amount(s: &str) -> Result<f64, String> {
+    s.replace(',', ".")
+        .parse::<f64>()
+        .map_err(|e| e.to_string())
+}
+
 #[derive(Args, Debug, Default)]
 pub struct ExpenseInput {
     /// Expense name
     #[arg(short, long)]
     pub name: Option<String>,
-    /// Amount (e.g. 9.99)
-    #[arg(short, long)]
+    /// Amount (e.g. 9.99 or 9,99)
+    #[arg(short, long, value_parser = parse_amount)]
     pub amount: Option<f64>,
     /// ISO 4217 currency code (e.g. usd, eur)
     #[arg(short, long)]
@@ -251,6 +257,6 @@ pub struct ExpenseInput {
     #[arg(short, long)]
     pub interval: Option<Interval>,
     /// Category label (e.g. streaming, utilities)
-    #[arg(short = 'C', long)]
+    #[arg(long = "ca")]
     pub category: Option<String>,
 }
