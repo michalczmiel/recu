@@ -10,7 +10,7 @@ use crate::rates;
 use crate::store;
 use rusty_money::{Findable, iso};
 
-fn colorize_row(row: &[String; 4], status: &DueStatus) -> [String; 4] {
+fn colorize_row(row: &[String; 5], status: &DueStatus) -> [String; 5] {
     let apply = |s: &String| -> String {
         match status {
             DueStatus::Overdue => s.red().to_string(),
@@ -41,7 +41,7 @@ fn format_days(days: i64) -> String {
     }
 }
 
-fn build_row(index: usize, name: &str, expense: &Expense, today: NaiveDate) -> [String; 4] {
+fn build_row(index: usize, name: &str, expense: &Expense, today: NaiveDate) -> [String; 5] {
     let cur = expense
         .currency
         .as_deref()
@@ -62,6 +62,7 @@ fn build_row(index: usize, name: &str, expense: &Expense, today: NaiveDate) -> [
         name.to_string(),
         amount,
         days_str,
+        expense.category.clone().unwrap_or_default(),
     ]
 }
 
@@ -102,35 +103,36 @@ fn pad_start(colored: &str, plain_w: usize, width: usize) -> String {
 
 fn print_table(
     out: &mut impl Write,
-    rows: &[[String; 4]],
+    rows: &[[String; 5]],
     statuses: &[DueStatus],
 ) -> std::io::Result<()> {
-    let headers = ["#", "name", "amount", "due"];
+    let headers = ["@", "name", "amount", "due", "category"];
     // Widths in visible columns (char count), not bytes.
-    let widths: [usize; 4] = std::array::from_fn(|i| {
+    let widths: [usize; 5] = std::array::from_fn(|i| {
         rows.iter()
             .fold(char_width(headers[i]), |w, row| w.max(char_width(&row[i])))
     });
-    let [w0, w1, w2, w3] = widths;
+    let [w0, w1, w2, w3, w4] = widths;
     writeln!(
         out,
-        "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}",
-        headers[0], headers[1], headers[2], headers[3]
+        "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}  {:<w4$}",
+        headers[0], headers[1], headers[2], headers[3], headers[4]
     )?;
     writeln!(
         out,
-        "{:─<w0$}  {:─<w1$}  {:─<w2$}  {:─<w3$}",
-        "", "", "", ""
+        "{:─<w0$}  {:─<w1$}  {:─<w2$}  {:─<w3$}  {:─<w4$}",
+        "", "", "", "", ""
     )?;
     for (row, status) in rows.iter().zip(statuses.iter()) {
         let c = colorize_row(row, status);
         writeln!(
             out,
-            "{}  {}  {}  {}",
+            "{}  {}  {}  {}  {}",
             pad_end(&c[0], char_width(&row[0]), w0),
             pad_end(&c[1], char_width(&row[1]), w1),
             pad_start(&c[2], char_width(&row[2]), w2), // amount: right-aligned
             pad_end(&c[3], char_width(&row[3]), w3),
+            pad_end(&c[4], char_width(&row[4]), w4),
         )?;
     }
     Ok(())
@@ -160,7 +162,7 @@ pub(crate) fn execute_with(
         .collect();
     indexed.sort_by_key(|(_, _, expense)| expense.days_until_next(today).unwrap_or(i64::MAX));
 
-    let rows: Vec<[String; 4]> = indexed
+    let rows: Vec<[String; 5]> = indexed
         .iter()
         .map(|(i, name, expense)| build_row(*i, name, expense, today))
         .collect();
