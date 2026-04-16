@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use crate::commands::{add, category, config, edit, ls, rm, treemap, undo, upcoming};
+use crate::commands::{add, category, config, edit, ls, rm, timeline, treemap, undo};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -42,8 +42,8 @@ enum Commands {
         #[command(subcommand)]
         command: category::CategoryCommand,
     },
-    /// Show upcoming expenses as a timeline. Groups by due date over the next N days.
-    Upcoming(upcoming::UpcomingArgs),
+    /// Show expenses as a timeline. Supports past and future date ranges.
+    Timeline(timeline::TimelineArgs),
     /// Undo the last add, edit, or rm
     Undo,
 }
@@ -58,7 +58,7 @@ pub fn run() -> std::io::Result<()> {
         Some(Commands::Treemap) => treemap::execute()?,
         Some(Commands::Config { command }) => config::run(&command)?,
         Some(Commands::Category { command }) => category::run(&command)?,
-        Some(Commands::Upcoming(args)) => upcoming::execute(&args)?,
+        Some(Commands::Timeline(args)) => timeline::execute(&args)?,
         Some(Commands::Undo) => undo::execute()?,
     }
     Ok(())

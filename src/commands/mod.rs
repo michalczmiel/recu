@@ -5,6 +5,6 @@ pub mod edit;
 pub mod ls;
 pub mod prompt;
 pub mod rm;
+pub mod timeline;
 pub mod treemap;
 pub mod undo;
-pub mod upcoming;
