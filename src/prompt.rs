@@ -4,12 +4,10 @@ use inquire::{
     ui::{Color, RenderConfig, Styled},
     validator::Validation,
 };
-use rusty_money::iso;
-
-use crate::expense::Interval;
+use crate::expense::{Interval, find_currency};
 
 fn is_currency(s: &str) -> bool {
-    iso::find(&s.to_uppercase()).is_some()
+    find_currency(s).is_some()
 }
 
 pub fn inquire_err(e: &inquire::InquireError) -> std::io::Error {

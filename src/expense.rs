@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::num::ParseFloatError;
 
 use chrono::{Datelike, NaiveDate};
 use clap::{Args, ValueEnum};
@@ -73,7 +74,7 @@ fn advance_months(first: NaiveDate, today: NaiveDate, step: u32) -> NaiveDate {
     loop {
         let candidate = first
             .checked_add_months(chrono::Months::new(k))
-            .unwrap_or(first);
+            .unwrap_or(today);
         if candidate >= today {
             return candidate;
         }
@@ -177,6 +178,11 @@ pub fn format_amount(cur: &iso::Currency, amount: f64) -> String {
     }
 }
 
+/// Look up an ISO 4217 currency by code (case-insensitive).
+pub fn find_currency(code: &str) -> Option<&'static iso::Currency> {
+    iso::Currency::find(&code.to_ascii_uppercase())
+}
+
 /// Convert `amount` from `expense_currency` to `target`, using `rates`.
 /// Returns `(converted_amount, currency_to_display)`.
 /// Falls back to the original currency if conversion is not possible.
@@ -187,9 +193,9 @@ pub fn convert_amount(
     target: Option<&str>,
     target_cur: Option<&'static iso::Currency>,
 ) -> (f64, Option<&'static iso::Currency>) {
-    let original_cur = expense_currency.and_then(|c| iso::Currency::find(&c.to_uppercase()));
+    let original_cur = expense_currency.and_then(find_currency);
     if let (Some(rates_map), Some(target_code), Some(exp_cur)) = (rates, target, expense_currency) {
-        let exp_upper = exp_cur.to_uppercase();
+        let exp_upper = exp_cur.to_ascii_uppercase();
         if exp_upper == target_code {
             return (amount, target_cur);
         }
@@ -230,13 +236,11 @@ pub fn uniform_currency(expenses: &[(String, Expense)]) -> Option<&'static iso::
             _ => return None,
         }
     }
-    cur.and_then(|c| iso::Currency::find(&c.to_uppercase()))
+    cur.and_then(find_currency)
 }
 
-fn parse_amount(s: &str) -> Result<f64, String> {
-    s.replace(',', ".")
-        .parse::<f64>()
-        .map_err(|e| e.to_string())
+fn parse_amount(s: &str) -> Result<f64, ParseFloatError> {
+    s.replace(',', ".").parse::<f64>()
 }
 
 #[derive(Args, Debug, Default)]

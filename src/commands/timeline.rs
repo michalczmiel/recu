@@ -4,10 +4,10 @@ use std::io::Write;
 use chrono::{Datelike, NaiveDate};
 use clap::Args;
 use colored::Colorize;
-use rusty_money::{Findable, iso};
+use rusty_money::iso;
 
 use crate::config::{self, Config};
-use crate::expense::{self, Expense, convert_amount, format_amount};
+use crate::expense::{self, Expense, convert_amount, find_currency, format_amount};
 use crate::rates;
 use crate::store;
 
@@ -50,10 +50,7 @@ fn occurrences_in_range(
         return vec![];
     };
 
-    let display_cur = expense
-        .currency
-        .as_deref()
-        .and_then(|c| iso::Currency::find(&c.to_uppercase()));
+    let display_cur = expense.currency.as_deref().and_then(find_currency);
 
     let display_amount = match display_cur {
         Some(c) => format_amount(c, amount),
@@ -167,7 +164,7 @@ pub(crate) fn execute_with(
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let target_cur: Option<&'static iso::Currency> = target
-        .and_then(iso::Currency::find)
+        .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
 
     let start = today - chrono::Days::new(u64::from(past_days));

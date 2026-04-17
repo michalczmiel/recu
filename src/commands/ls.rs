@@ -5,10 +5,11 @@ use chrono::NaiveDate;
 use colored::Colorize;
 
 use crate::config::{self, Config};
-use crate::expense::{self, DueStatus, Expense, format_amount};
+use rusty_money::iso;
+
+use crate::expense::{self, DueStatus, Expense, find_currency, format_amount};
 use crate::rates;
 use crate::store;
-use rusty_money::{Findable, iso};
 
 fn colorize_row(row: &[String; 5], status: &DueStatus) -> [String; 5] {
     let apply = |s: &String| -> String {
@@ -42,10 +43,7 @@ fn format_days(days: i64) -> String {
 }
 
 fn build_row(index: usize, name: &str, expense: &Expense, today: NaiveDate) -> [String; 5] {
-    let cur = expense
-        .currency
-        .as_deref()
-        .and_then(|c| iso::Currency::find(&c.to_uppercase()));
+    let cur = expense.currency.as_deref().and_then(find_currency);
 
     let amount = match (cur, expense.amount) {
         (Some(c), Some(a)) => format_amount(c, a),
@@ -152,7 +150,7 @@ pub(crate) fn execute_with(
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let target_cur: Option<&'static iso::Currency> = target
-        .and_then(iso::Currency::find)
+        .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
 
     let mut indexed: Vec<(usize, &str, &Expense)> = expenses
