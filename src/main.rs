@@ -2,6 +2,7 @@ mod cli;
 mod commands;
 mod config;
 mod expense;
+mod prompt;
 mod rates;
 mod store;
 

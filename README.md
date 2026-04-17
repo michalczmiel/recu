@@ -61,26 +61,26 @@ Examples:
 
 ```
 $ recu ls
-@    name                  amount  due          category      
+@    name                  amount  due          category
 ───  ────────────────────  ──────  ───────────  ──────────────
-@13  iSmog+                 $2.99  in 1 day     Cloud         
-@2   Spookify               $9.99  in 2 days    Streaming     
-@14  Goggle One             $2.99  in 3 days    Cloud         
-@6   Adobo Creative Cloud  $54.99  in 4 days    Productivity  
-@1   Streamberry           $19.99  in 6 days    Streaming     
+@13  iSmog+                 $2.99  in 1 day     Cloud
+@2   Spookify               $9.99  in 2 days    Streaming
+@14  Goggle One             $2.99  in 3 days    Cloud
+@6   Adobo Creative Cloud  $54.99  in 4 days    Productivity
+@1   Streamberry           $19.99  in 6 days    Streaming
 @18  Web Hosting            $6.99  in 1 week    Infrastructure
-@5   Ghibli+               $11.99  in 1 week    Streaming     
-@9   0Password              $4.99  in 1 week    Security      
-@4   Pear TV+              $12.99  in 2 weeks   Streaming     
-@3   ViewTube Premium      $15.99  in 2 weeks   Streaming     
-@16  Gym                   $45.00  in 2 weeks   Health        
-@8   Potion                $10.00  in 2 weeks   Productivity  
-@11  GitHug Pro             $4.00  in 3 weeks   Dev           
-@12  ChatGBT Plus          $20.00  in 3 weeks   Dev           
-@15  Amazoo Prime          $14.99  in 4 weeks   Shopping      
+@5   Ghibli+               $11.99  in 1 week    Streaming
+@9   0Password              $4.99  in 1 week    Security
+@4   Pear TV+              $12.99  in 2 weeks   Streaming
+@3   ViewTube Premium      $15.99  in 2 weeks   Streaming
+@16  Gym                   $45.00  in 2 weeks   Health
+@8   Potion                $10.00  in 2 weeks   Productivity
+@11  GitHug Pro             $4.00  in 3 weeks   Dev
+@12  ChatGBT Plus          $20.00  in 3 weeks   Dev
+@15  Amazoo Prime          $14.99  in 4 weeks   Shopping
 @17  Domain                $15.00  in 6 months  Infrastructure
-@7   Macrosoft 365         $99.99  in 7 months  Productivity  
-@10  FjordVPN              $47.88  in 9 months  Security      
+@7   Macrosoft 365         $99.99  in 7 months  Productivity
+@10  FjordVPN              $47.88  in 9 months  Security
 
 Total  $251.46/month  $3017.55/year
 ```

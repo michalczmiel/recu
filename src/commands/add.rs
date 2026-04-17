@@ -1,11 +1,11 @@
 use chrono::Local;
 use clap::Args;
 
-use crate::commands::prompt::{
+use crate::expense::{Expense, ExpenseInput};
+use crate::prompt::{
     prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval, prompt_name,
     render_config,
 };
-use crate::expense::{Expense, ExpenseInput};
 use crate::store;
 
 /// Add a recurring expense.

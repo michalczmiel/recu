@@ -1,11 +1,11 @@
 use clap::Args;
 use inquire::Select;
 
-use crate::commands::prompt::{
+use crate::expense::{Expense, ExpenseInput};
+use crate::prompt::{
     inquire_err, prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval,
     prompt_name_skippable, render_config,
 };
-use crate::expense::{Expense, ExpenseInput};
 use crate::store;
 
 #[derive(Clone, PartialEq)]
