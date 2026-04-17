@@ -196,12 +196,11 @@ pub(crate) fn categories_from(path: &std::path::Path) -> io::Result<Vec<String>>
     Ok(categories)
 }
 
-fn resolve_index(path: &std::path::Path, target: &str) -> io::Result<usize> {
+fn resolve_index_in(entries: &[StoredExpense], target: &str) -> io::Result<usize> {
     if let Some(id_str) = target.strip_prefix('@') {
         let id: usize = id_str
             .parse()
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid id"))?;
-        let entries = read_all(path)?;
         if id == 0 || id > entries.len() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
@@ -211,18 +210,19 @@ fn resolve_index(path: &std::path::Path, target: &str) -> io::Result<usize> {
         return Ok(id - 1);
     }
 
-    let entries = read_all(path)?;
-    if let Some(index) = entries
+    entries
         .iter()
         .position(|entry| entry.name.eq_ignore_ascii_case(target))
-    {
-        return Ok(index);
-    }
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("expense '{target}' not found"),
+            )
+        })
+}
 
-    Err(io::Error::new(
-        io::ErrorKind::NotFound,
-        format!("expense '{target}' not found"),
-    ))
+fn resolve_index(path: &std::path::Path, target: &str) -> io::Result<usize> {
+    resolve_index_in(&read_all(path)?, target)
 }
 
 pub fn get(target: &str) -> io::Result<(String, Expense)> {
@@ -290,17 +290,37 @@ pub(crate) fn update_from(
     Ok(())
 }
 
-pub fn remove(target: &str) -> io::Result<String> {
-    remove_from(&storage_file(), target)
+pub fn remove(targets: &[&str]) -> io::Result<Vec<String>> {
+    remove_from(&storage_file(), targets)
 }
 
-pub(crate) fn remove_from(path: &std::path::Path, target: &str) -> io::Result<String> {
+pub(crate) fn remove_from(path: &std::path::Path, targets: &[&str]) -> io::Result<Vec<String>> {
     snapshot(path)?;
-    let index = resolve_index(path, target)?;
     let mut entries = read_all(path)?;
-    let name = entries.remove(index).name;
+
+    let mut indices: Vec<usize> = Vec::with_capacity(targets.len());
+    for target in targets {
+        let index = resolve_index_in(&entries, target)?;
+        if indices.contains(&index) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("duplicate target: {target}"),
+            ));
+        }
+        indices.push(index);
+    }
+
+    // Remove highest indices first so earlier removals don't shift remaining ones
+    let mut order: Vec<usize> = (0..indices.len()).collect();
+    order.sort_unstable_by(|&a, &b| indices[b].cmp(&indices[a]));
+
+    let mut names = vec![String::new(); indices.len()];
+    for pos in order {
+        names[pos] = entries.remove(indices[pos]).name;
+    }
+
     write_all(path, &entries)?;
-    Ok(name)
+    Ok(names)
 }
 
 pub fn clear_category(category: &str) -> io::Result<usize> {
@@ -397,7 +417,7 @@ mod tests {
     fn restore_after_remove() -> io::Result<()> {
         let file = make_test_file("remove");
         save_to(&file, "Netflix", &expense(9.99))?;
-        remove_from(&file, "Netflix")?;
+        remove_from(&file, &["Netflix"])?;
         assert!(list_from(&file)?.is_empty());
         let msg = restore_from(&file)?;
         assert_eq!(msg, "Restored 'Netflix'");
@@ -442,7 +462,7 @@ mod tests {
     fn restore_is_single_use() -> io::Result<()> {
         let file = make_test_file("singleuse");
         save_to(&file, "Netflix", &expense(9.99))?;
-        remove_from(&file, "Netflix")?;
+        remove_from(&file, &["Netflix"])?;
         restore_from(&file)?;
         let err = restore_from(&file).expect_err("second restore should fail");
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
@@ -486,8 +506,8 @@ mod tests {
         let file = make_test_file("remove-by-id");
         save_to(&file, "Netflix", &expense(9.99))?;
         save_to(&file, "Spotify", &expense(5.99))?;
-        let name = remove_from(&file, "@1")?;
-        assert_eq!(name, "Netflix");
+        let names = remove_from(&file, &["@1"])?;
+        assert_eq!(names, vec!["Netflix"]);
         let entries = list_from(&file)?;
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].0, "Spotify");
@@ -516,7 +536,7 @@ mod tests {
         ];
 
         for (input, expected) in cases {
-            let err = remove_from(&file, input).expect_err("invalid id should fail");
+            let err = remove_from(&file, &[input]).expect_err("invalid id should fail");
             assert_eq!(err.kind(), expected, "input: {input}");
         }
         Ok(())
@@ -530,6 +550,55 @@ mod tests {
         let err = update_from(&file, "Netflix", Some("spotify"), &expense(9.99))
             .expect_err("rename conflict should fail");
         assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
+        Ok(())
+    }
+
+    #[test]
+    fn remove_many_by_name() -> io::Result<()> {
+        let file = make_test_file("remove-many-name");
+        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, "Spotify", &expense(5.99))?;
+        save_to(&file, "Rent", &expense(999.0))?;
+        let names = remove_from(&file, &["Netflix", "Rent"])?;
+        assert_eq!(names, vec!["Netflix", "Rent"]);
+        let remaining = list_from(&file)?;
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].0, "Spotify");
+        Ok(())
+    }
+
+    #[test]
+    fn remove_many_by_id_reverse_order() -> io::Result<()> {
+        let file = make_test_file("remove-many-id");
+        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, "Spotify", &expense(5.99))?;
+        save_to(&file, "Rent", &expense(999.0))?;
+        // @3 then @1 — internal reverse order must not corrupt indices
+        let names = remove_from(&file, &["@3", "@1"])?;
+        assert_eq!(names, vec!["Rent", "Netflix"]);
+        let remaining = list_from(&file)?;
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].0, "Spotify");
+        Ok(())
+    }
+
+    #[test]
+    fn remove_many_duplicate_target_returns_error() -> io::Result<()> {
+        let file = make_test_file("remove-many-dup");
+        save_to(&file, "Netflix", &expense(9.99))?;
+        let err = remove_from(&file, &["Netflix", "Netflix"]).expect_err("duplicate should fail");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        Ok(())
+    }
+
+    #[test]
+    fn remove_many_single_behaves_like_remove() -> io::Result<()> {
+        let file = make_test_file("remove-many-single");
+        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, "Spotify", &expense(5.99))?;
+        let names = remove_from(&file, &["Netflix"])?;
+        assert_eq!(names, vec!["Netflix"]);
+        assert_eq!(list_from(&file)?.len(), 1);
         Ok(())
     }
 

@@ -22,7 +22,7 @@ enum Commands {
     Add(add::AddArgs),
     /// Edit a recurring expense
     Edit(edit::EditArgs),
-    /// Remove a recurring expense
+    /// Remove one or more recurring expenses
     Rm(rm::RmArgs),
     /// Visualize expenses as a treemap
     Treemap,
