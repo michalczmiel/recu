@@ -50,11 +50,12 @@ mod tests {
 
         for (name, amount, currency) in expenses {
             let expense = Expense {
+                name: name.to_string(),
                 amount: Some(amount),
                 currency: Some(currency.to_string()),
                 ..Default::default()
             };
-            store::save_to(file, name, &expense).expect("seed save should succeed");
+            store::save_to(file, &expense).expect("seed save should succeed");
         }
     }
 
@@ -62,7 +63,7 @@ mod tests {
         let mut items = store::list_from(file)
             .expect("list should succeed")
             .into_iter()
-            .map(|(name, _)| name)
+            .map(|e| e.name)
             .collect::<Vec<_>>();
         items.sort();
         items
@@ -85,7 +86,7 @@ mod tests {
             seed_expenses(&file);
 
             let entries = store::list_from(&file).expect("list should succeed");
-            let target_name = entries[index].0.clone();
+            let target_name = entries[index].name.clone();
 
             assert!(store::remove_from(&file, &[id]).is_ok());
             let remaining = names_in(&file);

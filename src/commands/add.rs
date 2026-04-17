@@ -21,7 +21,7 @@ pub struct AddArgs {
     pub fields: ExpenseInput,
 }
 
-fn prompt_fields(fields: &ExpenseInput) -> std::io::Result<(String, Expense)> {
+fn prompt_fields(fields: &ExpenseInput) -> std::io::Result<Expense> {
     let name = prompt_name(fields.name.as_deref().unwrap_or(""))?;
     let amount = prompt_amount(fields.amount)?;
     let currency = prompt_currency(fields.currency.as_deref().unwrap_or(""))?;
@@ -29,57 +29,36 @@ fn prompt_fields(fields: &ExpenseInput) -> std::io::Result<(String, Expense)> {
     let interval = prompt_interval(fields.interval.as_ref())?;
     let categories = store::categories()?;
     let category = prompt_category(&categories, fields.category.as_deref())?;
-    Ok((
+    Ok(Expense {
         name,
-        Expense {
-            amount,
-            currency,
-            start_date,
-            interval,
-            category,
-        },
-    ))
+        amount,
+        currency,
+        start_date,
+        interval,
+        category,
+    })
 }
 
 pub fn execute(add: &AddArgs) -> std::io::Result<()> {
     let f = &add.fields;
-    let (name, expense) = if let (Some(name), Some(amount), Some(currency), Some(interval)) =
+    let expense = if let (Some(name), Some(amount), Some(currency), Some(interval)) =
         (&f.name, f.amount, &f.currency, &f.interval)
     {
         let start_date = Some(f.date.unwrap_or_else(|| Local::now().date_naive()));
-        (
-            name.clone(),
-            Expense {
-                amount: Some(amount),
-                currency: Some(currency.to_lowercase()),
-                start_date,
-                interval: Some(interval.clone()),
-                category: f.category.clone(),
-            },
-        )
+        Expense {
+            name: name.clone(),
+            amount: Some(amount),
+            currency: Some(currency.to_lowercase()),
+            start_date,
+            interval: Some(interval.clone()),
+            category: f.category.clone(),
+        }
     } else {
         inquire::set_global_render_config(render_config());
         prompt_fields(f)?
     };
 
-    crate::store::save(&name, &expense)?;
-    let amount_str = match (expense.amount, expense.currency.as_deref()) {
-        (Some(a), Some(c)) => format!("{a} {c}"),
-        (Some(a), None) => format!("{a}"),
-        _ => String::new(),
-    };
-    let interval_str = expense
-        .interval
-        .as_ref()
-        .map_or(String::new(), ToString::to_string);
-    let parts: Vec<&str> = [amount_str.as_str(), interval_str.as_str()]
-        .into_iter()
-        .filter(|s| !s.is_empty())
-        .collect();
-    if parts.is_empty() {
-        println!("Added {name}");
-    } else {
-        println!("Added {name}: {}", parts.join(", "));
-    }
+    store::save(&expense)?;
+    println!("Added {}", expense.summary());
     Ok(())
 }

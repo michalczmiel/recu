@@ -4,33 +4,6 @@ use std::io;
 use std::path::PathBuf;
 
 use crate::expense::Expense;
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
-struct StoredExpense {
-    name: String,
-    amount: Option<f64>,
-    currency: Option<String>,
-    start_date: Option<chrono::NaiveDate>,
-    interval: Option<crate::expense::Interval>,
-    #[serde(default)]
-    category: Option<String>,
-}
-
-impl StoredExpense {
-    fn into_parts(self) -> (String, Expense) {
-        (
-            self.name,
-            Expense {
-                amount: self.amount,
-                currency: self.currency,
-                start_date: self.start_date,
-                interval: self.interval,
-                category: self.category,
-            },
-        )
-    }
-}
 
 fn storage_file_from(value: Option<OsString>) -> PathBuf {
     value.map_or_else(|| PathBuf::from("recu.csv"), PathBuf::from)
@@ -44,7 +17,7 @@ fn io_invalid_data<E: std::error::Error + Send + Sync + 'static>(err: E) -> io::
     io::Error::new(io::ErrorKind::InvalidData, err)
 }
 
-fn read_all(path: &std::path::Path) -> io::Result<Vec<StoredExpense>> {
+fn read_all(path: &std::path::Path) -> io::Result<Vec<Expense>> {
     if !path.exists() {
         return Ok(vec![]);
     }
@@ -67,7 +40,7 @@ fn snapshot(path: &std::path::Path) -> io::Result<()> {
     Ok(())
 }
 
-fn diff_description(before: &[StoredExpense], after: &[StoredExpense]) -> String {
+fn diff_description(before: &[Expense], after: &[Expense]) -> String {
     match after.len().cmp(&before.len()) {
         std::cmp::Ordering::Greater => {
             if let Some(e) = after
@@ -114,7 +87,7 @@ pub(crate) fn restore_from(path: &std::path::Path) -> io::Result<String> {
     Ok(msg)
 }
 
-fn write_all(path: &std::path::Path, entries: &[StoredExpense]) -> io::Result<()> {
+fn write_all(path: &std::path::Path, entries: &[Expense]) -> io::Result<()> {
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
     {
@@ -133,48 +106,34 @@ fn write_all(path: &std::path::Path, entries: &[StoredExpense]) -> io::Result<()
     Ok(())
 }
 
-pub fn save(name: &str, expense: &Expense) -> io::Result<PathBuf> {
-    save_to(&storage_file(), name, expense)
+pub fn save(expense: &Expense) -> io::Result<PathBuf> {
+    save_to(&storage_file(), expense)
 }
 
-pub(crate) fn save_to(
-    path: &std::path::Path,
-    name: &str,
-    expense: &Expense,
-) -> io::Result<PathBuf> {
+pub(crate) fn save_to(path: &std::path::Path, expense: &Expense) -> io::Result<PathBuf> {
     snapshot(path)?;
     let mut entries = read_all(path)?;
     if entries
         .iter()
-        .any(|entry| entry.name.eq_ignore_ascii_case(name))
+        .any(|entry| entry.name.eq_ignore_ascii_case(&expense.name))
     {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("expense '{name}' already exists"),
+            format!("expense '{}' already exists", expense.name),
         ));
     }
 
-    entries.push(StoredExpense {
-        name: name.to_string(),
-        amount: expense.amount,
-        currency: expense.currency.clone(),
-        start_date: expense.start_date,
-        interval: expense.interval.clone(),
-        category: expense.category.clone(),
-    });
+    entries.push(expense.clone());
     write_all(path, &entries)?;
     Ok(path.to_path_buf())
 }
 
-pub fn list() -> io::Result<Vec<(String, Expense)>> {
+pub fn list() -> io::Result<Vec<Expense>> {
     list_from(&storage_file())
 }
 
-pub(crate) fn list_from(path: &std::path::Path) -> io::Result<Vec<(String, Expense)>> {
-    Ok(read_all(path)?
-        .into_iter()
-        .map(StoredExpense::into_parts)
-        .collect())
+pub(crate) fn list_from(path: &std::path::Path) -> io::Result<Vec<Expense>> {
+    read_all(path)
 }
 
 pub fn categories() -> io::Result<Vec<String>> {
@@ -184,7 +143,7 @@ pub fn categories() -> io::Result<Vec<String>> {
 pub(crate) fn categories_from(path: &std::path::Path) -> io::Result<Vec<String>> {
     let mut seen = std::collections::HashSet::<String>::new();
     let mut categories = Vec::<String>::new();
-    for (_, expense) in list_from(path)? {
+    for expense in list_from(path)? {
         let Some(category) = expense.category else {
             continue;
         };
@@ -196,7 +155,7 @@ pub(crate) fn categories_from(path: &std::path::Path) -> io::Result<Vec<String>>
     Ok(categories)
 }
 
-fn resolve_index_in(entries: &[StoredExpense], target: &str) -> io::Result<usize> {
+fn resolve_index_in(entries: &[Expense], target: &str) -> io::Result<usize> {
     if let Some(id_str) = target.strip_prefix('@') {
         let id: usize = id_str
             .parse()
@@ -225,16 +184,15 @@ fn resolve_index(path: &std::path::Path, target: &str) -> io::Result<usize> {
     resolve_index_in(&read_all(path)?, target)
 }
 
-pub fn get(target: &str) -> io::Result<(String, Expense)> {
+pub fn get(target: &str) -> io::Result<Expense> {
     get_from(&storage_file(), target)
 }
 
-pub(crate) fn get_from(path: &std::path::Path, target: &str) -> io::Result<(String, Expense)> {
+pub(crate) fn get_from(path: &std::path::Path, target: &str) -> io::Result<Expense> {
     let index = resolve_index(path, target)?;
     read_all(path)?
         .into_iter()
         .nth(index)
-        .map(StoredExpense::into_parts)
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "not found"))
 }
 
@@ -355,20 +313,23 @@ pub(crate) fn clear_category_from(path: &std::path::Path, category: &str) -> io:
 mod tests {
     use super::*;
 
+    fn named(name: &str, amount: f64) -> Expense {
+        Expense {
+            name: name.to_string(),
+            amount: Some(amount),
+            currency: Some("usd".into()),
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn save_rejects_duplicate_case_insensitive() -> io::Result<()> {
         let file = std::env::temp_dir().join("recu-test-storage-dup.csv");
         let _ = fs::remove_file(&file);
 
-        let expense = Expense {
-            amount: Some(9.99),
-            currency: Some("usd".into()),
-            ..Default::default()
-        };
+        save_to(&file, &named("Netflix", 9.99))?;
 
-        save_to(&file, "Netflix", &expense)?;
-
-        let err = save_to(&file, "netflix", &expense).expect_err("duplicate save should fail");
+        let err = save_to(&file, &named("netflix", 9.99)).expect_err("duplicate save should fail");
         assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
 
         assert_eq!(list_from(&file)?.len(), 1);
@@ -405,18 +366,10 @@ mod tests {
         file
     }
 
-    fn expense(amount: f64) -> Expense {
-        Expense {
-            amount: Some(amount),
-            currency: Some("usd".into()),
-            ..Default::default()
-        }
-    }
-
     #[test]
     fn restore_after_remove() -> io::Result<()> {
         let file = make_test_file("remove");
-        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, &named("Netflix", 9.99))?;
         remove_from(&file, &["Netflix"])?;
         assert!(list_from(&file)?.is_empty());
         let msg = restore_from(&file)?;
@@ -428,20 +381,20 @@ mod tests {
     #[test]
     fn restore_after_update() -> io::Result<()> {
         let file = make_test_file("update");
-        save_to(&file, "Netflix", &expense(9.99))?;
-        update_from(&file, "Netflix", None, &expense(14.99))?;
-        assert_eq!(list_from(&file)?[0].1.amount, Some(14.99));
+        save_to(&file, &named("Netflix", 9.99))?;
+        update_from(&file, "Netflix", None, &named("Netflix", 14.99))?;
+        assert_eq!(list_from(&file)?[0].amount, Some(14.99));
         let msg = restore_from(&file)?;
         assert_eq!(msg, "Reverted edit of 'Netflix'");
-        assert_eq!(list_from(&file)?[0].1.amount, Some(9.99));
+        assert_eq!(list_from(&file)?[0].amount, Some(9.99));
         Ok(())
     }
 
     #[test]
     fn restore_after_add() -> io::Result<()> {
         let file = make_test_file("add");
-        save_to(&file, "Netflix", &expense(9.99))?;
-        save_to(&file, "Spotify", &expense(5.99))?;
+        save_to(&file, &named("Netflix", 9.99))?;
+        save_to(&file, &named("Spotify", 5.99))?;
         assert_eq!(list_from(&file)?.len(), 2);
         let msg = restore_from(&file)?;
         assert_eq!(msg, "Undid add of 'Spotify'");
@@ -452,7 +405,7 @@ mod tests {
     #[test]
     fn restore_with_no_snapshot_returns_error() -> io::Result<()> {
         let file = make_test_file("nosnap");
-        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, &named("Netflix", 9.99))?;
         let err = restore_from(&file).expect_err("restore without snapshot should fail");
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
         Ok(())
@@ -461,7 +414,7 @@ mod tests {
     #[test]
     fn restore_is_single_use() -> io::Result<()> {
         let file = make_test_file("singleuse");
-        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, &named("Netflix", 9.99))?;
         remove_from(&file, &["Netflix"])?;
         restore_from(&file)?;
         let err = restore_from(&file).expect_err("second restore should fail");
@@ -474,26 +427,23 @@ mod tests {
         let file = make_test_file("categories");
         save_to(
             &file,
-            "Netflix",
             &Expense {
                 category: Some("Streaming".into()),
-                ..expense(9.99)
+                ..named("Netflix", 9.99)
             },
         )?;
         save_to(
             &file,
-            "Spotify",
             &Expense {
                 category: Some("streaming".into()),
-                ..expense(5.99)
+                ..named("Spotify", 5.99)
             },
         )?;
         save_to(
             &file,
-            "Rent",
             &Expense {
                 category: Some("Housing".into()),
-                ..expense(999.0)
+                ..named("Rent", 999.0)
             },
         )?;
 
@@ -504,30 +454,30 @@ mod tests {
     #[test]
     fn remove_by_id() -> io::Result<()> {
         let file = make_test_file("remove-by-id");
-        save_to(&file, "Netflix", &expense(9.99))?;
-        save_to(&file, "Spotify", &expense(5.99))?;
+        save_to(&file, &named("Netflix", 9.99))?;
+        save_to(&file, &named("Spotify", 5.99))?;
         let names = remove_from(&file, &["@1"])?;
         assert_eq!(names, vec!["Netflix"]);
         let entries = list_from(&file)?;
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].0, "Spotify");
+        assert_eq!(entries[0].name, "Spotify");
         Ok(())
     }
 
     #[test]
     fn update_by_id() -> io::Result<()> {
         let file = make_test_file("update-by-id");
-        save_to(&file, "Netflix", &expense(9.99))?;
-        save_to(&file, "Spotify", &expense(5.99))?;
-        update_from(&file, "@2", None, &expense(7.99))?;
-        assert_eq!(list_from(&file)?[1].1.amount, Some(7.99));
+        save_to(&file, &named("Netflix", 9.99))?;
+        save_to(&file, &named("Spotify", 5.99))?;
+        update_from(&file, "@2", None, &named("Spotify", 7.99))?;
+        assert_eq!(list_from(&file)?[1].amount, Some(7.99));
         Ok(())
     }
 
     #[test]
     fn resolve_index_invalid_ids() -> io::Result<()> {
         let file = make_test_file("id-invalid");
-        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, &named("Netflix", 9.99))?;
 
         let cases = [
             ("@0", io::ErrorKind::NotFound),  // zero is not a valid 1-based id
@@ -545,9 +495,9 @@ mod tests {
     #[test]
     fn update_rejects_rename_to_existing_name() -> io::Result<()> {
         let file = make_test_file("rename-conflict");
-        save_to(&file, "Netflix", &expense(9.99))?;
-        save_to(&file, "Spotify", &expense(5.99))?;
-        let err = update_from(&file, "Netflix", Some("spotify"), &expense(9.99))
+        save_to(&file, &named("Netflix", 9.99))?;
+        save_to(&file, &named("Spotify", 5.99))?;
+        let err = update_from(&file, "Netflix", Some("spotify"), &Expense::default())
             .expect_err("rename conflict should fail");
         assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
         Ok(())
@@ -556,36 +506,36 @@ mod tests {
     #[test]
     fn remove_many_by_name() -> io::Result<()> {
         let file = make_test_file("remove-many-name");
-        save_to(&file, "Netflix", &expense(9.99))?;
-        save_to(&file, "Spotify", &expense(5.99))?;
-        save_to(&file, "Rent", &expense(999.0))?;
+        save_to(&file, &named("Netflix", 9.99))?;
+        save_to(&file, &named("Spotify", 5.99))?;
+        save_to(&file, &named("Rent", 999.0))?;
         let names = remove_from(&file, &["Netflix", "Rent"])?;
         assert_eq!(names, vec!["Netflix", "Rent"]);
         let remaining = list_from(&file)?;
         assert_eq!(remaining.len(), 1);
-        assert_eq!(remaining[0].0, "Spotify");
+        assert_eq!(remaining[0].name, "Spotify");
         Ok(())
     }
 
     #[test]
     fn remove_many_by_id_reverse_order() -> io::Result<()> {
         let file = make_test_file("remove-many-id");
-        save_to(&file, "Netflix", &expense(9.99))?;
-        save_to(&file, "Spotify", &expense(5.99))?;
-        save_to(&file, "Rent", &expense(999.0))?;
+        save_to(&file, &named("Netflix", 9.99))?;
+        save_to(&file, &named("Spotify", 5.99))?;
+        save_to(&file, &named("Rent", 999.0))?;
         // @3 then @1 — internal reverse order must not corrupt indices
         let names = remove_from(&file, &["@3", "@1"])?;
         assert_eq!(names, vec!["Rent", "Netflix"]);
         let remaining = list_from(&file)?;
         assert_eq!(remaining.len(), 1);
-        assert_eq!(remaining[0].0, "Spotify");
+        assert_eq!(remaining[0].name, "Spotify");
         Ok(())
     }
 
     #[test]
     fn remove_many_duplicate_target_returns_error() -> io::Result<()> {
         let file = make_test_file("remove-many-dup");
-        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, &named("Netflix", 9.99))?;
         let err = remove_from(&file, &["Netflix", "Netflix"]).expect_err("duplicate should fail");
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
         Ok(())
@@ -594,8 +544,8 @@ mod tests {
     #[test]
     fn remove_many_single_behaves_like_remove() -> io::Result<()> {
         let file = make_test_file("remove-many-single");
-        save_to(&file, "Netflix", &expense(9.99))?;
-        save_to(&file, "Spotify", &expense(5.99))?;
+        save_to(&file, &named("Netflix", 9.99))?;
+        save_to(&file, &named("Spotify", 5.99))?;
         let names = remove_from(&file, &["Netflix"])?;
         assert_eq!(names, vec!["Netflix"]);
         assert_eq!(list_from(&file)?.len(), 1);
@@ -607,10 +557,9 @@ mod tests {
         let file = make_test_file("clear-no-match");
         save_to(
             &file,
-            "Netflix",
             &Expense {
                 category: Some("streaming".into()),
-                ..expense(9.99)
+                ..named("Netflix", 9.99)
             },
         )?;
         assert_eq!(clear_category_from(&file, "housing")?, 0);
@@ -632,35 +581,32 @@ mod tests {
         let file = make_test_file("clear-category");
         save_to(
             &file,
-            "Netflix",
             &Expense {
                 category: Some("streaming".into()),
-                ..expense(9.99)
+                ..named("Netflix", 9.99)
             },
         )?;
         save_to(
             &file,
-            "Spotify",
             &Expense {
                 category: Some("Streaming".into()),
-                ..expense(5.99)
+                ..named("Spotify", 5.99)
             },
         )?;
         save_to(
             &file,
-            "Rent",
             &Expense {
                 category: Some("housing".into()),
-                ..expense(999.0)
+                ..named("Rent", 999.0)
             },
         )?;
 
         assert_eq!(clear_category_from(&file, "streaming")?, 2);
 
         let expenses = list_from(&file)?;
-        assert_eq!(expenses[0].1.category, None);
-        assert_eq!(expenses[1].1.category, None);
-        assert_eq!(expenses[2].1.category.as_deref(), Some("housing"));
+        assert_eq!(expenses[0].category, None);
+        assert_eq!(expenses[1].category, None);
+        assert_eq!(expenses[2].category.as_deref(), Some("housing"));
         Ok(())
     }
 }

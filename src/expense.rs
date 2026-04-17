@@ -90,12 +90,14 @@ pub enum DueStatus {
     Unknown,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Expense {
+    pub name: String,
     pub amount: Option<f64>,
     pub currency: Option<String>,
     pub start_date: Option<NaiveDate>,
     pub interval: Option<Interval>,
+    #[serde(default)]
     pub category: Option<String>,
 }
 
@@ -108,6 +110,30 @@ impl Expense {
 
     pub fn days_until_next(&self, today: NaiveDate) -> Option<i64> {
         Some((self.next_payment(today)? - today).num_days())
+    }
+
+    pub fn summary(&self) -> String {
+        let amount_str = match (
+            self.currency.as_deref().and_then(find_currency),
+            self.amount,
+        ) {
+            (Some(c), Some(a)) => format_amount(c, a),
+            (None, Some(a)) => format!("{a:.2}"),
+            _ => String::new(),
+        };
+        let interval_str = self
+            .interval
+            .as_ref()
+            .map_or(String::new(), ToString::to_string);
+        let parts: Vec<&str> = [amount_str.as_str(), interval_str.as_str()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect();
+        if parts.is_empty() {
+            self.name.clone()
+        } else {
+            format!("{}: {}", self.name, parts.join(", "))
+        }
     }
 
     pub fn due_status(&self, today: NaiveDate) -> DueStatus {
@@ -226,9 +252,9 @@ pub fn monthly_total(
 }
 
 /// Returns the single shared currency if every expense has the same one, otherwise `None`.
-pub fn uniform_currency(expenses: &[(String, Expense)]) -> Option<&'static iso::Currency> {
+pub fn uniform_currency(expenses: &[Expense]) -> Option<&'static iso::Currency> {
     let mut cur: Option<&str> = None;
-    for (_, e) in expenses {
+    for e in expenses {
         let c = e.currency.as_deref()?;
         match cur {
             None => cur = Some(c),

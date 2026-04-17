@@ -1,10 +1,10 @@
+use crate::expense::{Interval, find_currency};
 use chrono::NaiveDate;
 use inquire::{
     Autocomplete, CustomType, DateSelect, Select, Text,
     ui::{Color, RenderConfig, Styled},
     validator::Validation,
 };
-use crate::expense::{Interval, find_currency};
 
 fn is_currency(s: &str) -> bool {
     find_currency(s).is_some()

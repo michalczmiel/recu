@@ -152,7 +152,7 @@ pub(crate) fn execute_with(
     out: &mut impl Write,
     today: NaiveDate,
     cfg: &Config,
-    expenses: &[(String, Expense)],
+    expenses: &[Expense],
     days: u32,
     past_days: u32,
 ) -> std::io::Result<()> {
@@ -172,9 +172,9 @@ pub(crate) fn execute_with(
 
     let mut all: Vec<Occurrence> = expenses
         .iter()
-        .flat_map(|(name, exp)| {
+        .flat_map(|exp| {
             occurrences_in_range(
-                name,
+                &exp.name,
                 exp,
                 start,
                 end,
@@ -233,7 +233,7 @@ mod tests {
         NaiveDate::from_ymd_opt(y, m, day).expect("valid date")
     }
 
-    fn run(expenses: &[(String, Expense)], days: u32, past_days: u32) -> String {
+    fn run(expenses: &[Expense], days: u32, past_days: u32) -> String {
         let mut buf = Vec::new();
         execute_with(
             &mut buf,
@@ -247,8 +247,9 @@ mod tests {
         String::from_utf8(buf).expect("utf8")
     }
 
-    fn monthly_usd(amount: f64, start_date: NaiveDate) -> Expense {
+    fn monthly_usd(name: &str, amount: f64, start_date: NaiveDate) -> Expense {
         Expense {
+            name: name.to_string(),
             amount: Some(amount),
             currency: Some("usd".to_string()),
             start_date: Some(start_date),
@@ -270,34 +271,22 @@ mod tests {
 
         // Due June 1 = 47 days away, outside 30-day window
         out += "\n=== no occurrences in window ===\n";
-        out += &run(
-            &[("Netflix".to_string(), monthly_usd(15.99, d(2026, 6, 1)))],
-            30,
-            0,
-        );
+        out += &run(&[monthly_usd("Netflix", 15.99, d(2026, 6, 1))], 30, 0);
 
         // April 20 = 5 days away, within 30-day window
         out += "\n=== single in range ===\n";
-        out += &run(
-            &[("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 20)))],
-            30,
-            0,
-        );
+        out += &run(&[monthly_usd("Netflix", 15.99, d(2026, 4, 20))], 30, 0);
 
         // 60-day window: April 20 + May 20 both appear
         out += "\n=== monthly spans two months ===\n";
-        out += &run(
-            &[("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 20)))],
-            60,
-            0,
-        );
+        out += &run(&[monthly_usd("Netflix", 15.99, d(2026, 4, 20))], 60, 0);
 
         // Two expenses, 60-day window → entries across April, May, June
         out += "\n=== multiple across months ===\n";
         out += &run(
             &[
-                ("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 20))),
-                ("Spotify".to_string(), monthly_usd(9.99, d(2026, 5, 1))),
+                monthly_usd("Netflix", 15.99, d(2026, 4, 20)),
+                monthly_usd("Spotify", 9.99, d(2026, 5, 1)),
             ],
             60,
             0,
@@ -307,8 +296,8 @@ mod tests {
         out += "\n=== totals with uniform currency ===\n";
         out += &run(
             &[
-                ("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 20))),
-                ("Spotify".to_string(), monthly_usd(9.99, d(2026, 4, 25))),
+                monthly_usd("Netflix", 15.99, d(2026, 4, 20)),
+                monthly_usd("Spotify", 9.99, d(2026, 4, 25)),
             ],
             30,
             0,
@@ -316,19 +305,11 @@ mod tests {
 
         // Past 14 days: April 1 is in range (today is April 15, past=14 → start=April 1)
         out += "\n=== past occurrences ===\n";
-        out += &run(
-            &[("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 1)))],
-            0,
-            14,
-        );
+        out += &run(&[monthly_usd("Netflix", 15.99, d(2026, 4, 1))], 0, 14);
 
         // Past + future: April 1 (past) + May 1 (future) both appear
         out += "\n=== past and future combined ===\n";
-        out += &run(
-            &[("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 1)))],
-            30,
-            14,
-        );
+        out += &run(&[monthly_usd("Netflix", 15.99, d(2026, 4, 1))], 30, 14);
 
         insta::assert_snapshot!(out);
     }

@@ -367,7 +367,7 @@ pub fn execute() -> std::io::Result<()> {
 
     let mut items: Vec<(String, f64, String, bool)> = expenses
         .into_iter()
-        .filter_map(|(name, expense)| {
+        .filter_map(|expense| {
             let amount = expense.amount?;
             let interval = expense.interval.as_ref()?;
             let (converted, cur) = crate::expense::convert_amount(
@@ -379,7 +379,12 @@ pub fn execute() -> std::io::Result<()> {
             );
             let symbol = cur.map_or("", |c| c.symbol).to_string();
             let symbol_first = cur.is_none_or(|c| c.symbol_first);
-            Some((name, interval.to_monthly(converted), symbol, symbol_first))
+            Some((
+                expense.name,
+                interval.to_monthly(converted),
+                symbol,
+                symbol_first,
+            ))
         })
         .collect();
 

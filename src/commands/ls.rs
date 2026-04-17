@@ -42,7 +42,7 @@ fn format_days(days: i64) -> String {
     }
 }
 
-fn build_row(index: usize, name: &str, expense: &Expense, today: NaiveDate) -> [String; 5] {
+fn build_row(index: usize, expense: &Expense, today: NaiveDate) -> [String; 5] {
     let cur = expense.currency.as_deref().and_then(find_currency);
 
     let amount = match (cur, expense.amount) {
@@ -57,7 +57,7 @@ fn build_row(index: usize, name: &str, expense: &Expense, today: NaiveDate) -> [
 
     [
         format!("@{}", index + 1),
-        name.to_string(),
+        expense.name.clone(),
         amount,
         days_str,
         expense.category.clone().unwrap_or_default(),
@@ -140,7 +140,7 @@ pub(crate) fn execute_with(
     out: &mut impl Write,
     today: NaiveDate,
     cfg: &Config,
-    expenses: &[(String, Expense)],
+    expenses: &[Expense],
 ) -> std::io::Result<()> {
     if expenses.is_empty() {
         writeln!(out, "No recurring expenses found.")?;
@@ -153,26 +153,22 @@ pub(crate) fn execute_with(
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
 
-    let mut indexed: Vec<(usize, &str, &Expense)> = expenses
-        .iter()
-        .enumerate()
-        .map(|(i, (name, expense))| (i, name.as_str(), expense))
-        .collect();
-    indexed.sort_by_key(|(_, _, expense)| expense.days_until_next(today).unwrap_or(i64::MAX));
+    let mut indexed: Vec<(usize, &Expense)> = expenses.iter().enumerate().collect();
+    indexed.sort_by_key(|(_, expense)| expense.days_until_next(today).unwrap_or(i64::MAX));
 
     let rows: Vec<[String; 5]> = indexed
         .iter()
-        .map(|(i, name, expense)| build_row(*i, name, expense, today))
+        .map(|(i, expense)| build_row(*i, expense, today))
         .collect();
 
     let statuses: Vec<DueStatus> = indexed
         .iter()
-        .map(|(_, _, expense)| expense.due_status(today))
+        .map(|(_, expense)| expense.due_status(today))
         .collect();
 
     print_table(out, &rows, &statuses)?;
 
-    let expense_refs: Vec<&Expense> = indexed.iter().map(|(_, _, e)| *e).collect();
+    let expense_refs: Vec<&Expense> = indexed.iter().map(|(_, e)| *e).collect();
     print_totals(
         out,
         &expense_refs,
@@ -204,14 +200,15 @@ mod tests {
         NaiveDate::from_ymd_opt(y, m, day).expect("valid date")
     }
 
-    fn run(expenses: &[(String, Expense)]) -> String {
+    fn run(expenses: &[Expense]) -> String {
         let mut buf = Vec::new();
         execute_with(&mut buf, today(), &Config::default(), expenses).expect("execute_with");
         String::from_utf8(buf).expect("utf8")
     }
 
-    fn monthly_usd(amount: f64, start_date: NaiveDate) -> Expense {
+    fn monthly_usd(name: &str, amount: f64, start_date: NaiveDate) -> Expense {
         Expense {
+            name: name.to_string(),
             amount: Some(amount),
             currency: Some("usd".to_string()),
             start_date: Some(start_date),
@@ -233,46 +230,47 @@ mod tests {
 
         // start_date == today → days = 0 → Overdue
         out += "\n=== single due today ===\n";
-        out += &run(&[("Netflix".to_string(), monthly_usd(15.99, today()))]);
+        out += &run(&[monthly_usd("Netflix", 15.99, today())]);
 
         // 5 days away → DueSoon
         out += "\n=== single due soon ===\n";
-        out += &run(&[("Netflix".to_string(), monthly_usd(15.99, d(2026, 4, 20)))]);
+        out += &run(&[monthly_usd("Netflix", 15.99, d(2026, 4, 20))]);
 
         // 77 days away → Distant
         out += "\n=== single distant ===\n";
-        out += &run(&[("Netflix".to_string(), monthly_usd(15.99, d(2026, 7, 1)))]);
+        out += &run(&[monthly_usd("Netflix", 15.99, d(2026, 7, 1))]);
 
         // Added in reverse order; output sorted by due date, @ids reflect insertion order
         out += "\n=== sorted by due date ===\n";
         out += &run(&[
-            ("Notion".to_string(), monthly_usd(16.00, d(2026, 7, 1))),
-            ("Spotify".to_string(), monthly_usd(9.99, d(2026, 4, 20))),
-            ("Netflix".to_string(), monthly_usd(15.99, today())),
+            monthly_usd("Notion", 16.00, d(2026, 7, 1)),
+            monthly_usd("Spotify", 9.99, d(2026, 4, 20)),
+            monthly_usd("Netflix", 15.99, today()),
         ]);
 
         // All USD → uniform_currency → totals shown
         out += "\n=== totals with uniform currency ===\n";
         out += &run(&[
-            ("Netflix".to_string(), monthly_usd(15.99, d(2026, 5, 1))),
-            ("Spotify".to_string(), monthly_usd(9.99, d(2026, 5, 15))),
+            monthly_usd("Netflix", 15.99, d(2026, 5, 1)),
+            monthly_usd("Spotify", 9.99, d(2026, 5, 15)),
         ]);
 
         // No currency → uniform_currency returns None → no totals line
         out += "\n=== no currency, no totals ===\n";
-        out += &run(&[(
-            "Rent".to_string(),
-            Expense {
-                amount: Some(1000.0),
-                start_date: Some(d(2026, 5, 1)),
-                interval: Some(Interval::Monthly),
-                ..Default::default()
-            },
-        )]);
+        out += &run(&[Expense {
+            name: "Rent".to_string(),
+            amount: Some(1000.0),
+            start_date: Some(d(2026, 5, 1)),
+            interval: Some(Interval::Monthly),
+            ..Default::default()
+        }]);
 
         // No amount or date → dashes in amount and due columns
         out += "\n=== incomplete expense ===\n";
-        out += &run(&[("Unknown".to_string(), Expense::default())]);
+        out += &run(&[Expense {
+            name: "Unknown".to_string(),
+            ..Default::default()
+        }]);
 
         insta::assert_snapshot!(out);
     }

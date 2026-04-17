@@ -42,14 +42,14 @@ pub struct EditArgs {
     pub fields: ExpenseInput,
 }
 
-fn menu_items(name: &str, e: &Expense) -> Vec<MenuItem> {
+fn menu_items(e: &Expense) -> Vec<MenuItem> {
     let d = "—";
     let item = |field, label: &str, val: &str| MenuItem {
         field,
         display: format!("{label:<14} {val}"),
     };
     vec![
-        item(Field::Name, "Name", name),
+        item(Field::Name, "Name", &e.name),
         item(
             Field::Amount,
             "Amount",
@@ -85,21 +85,11 @@ fn menu_items(name: &str, e: &Expense) -> Vec<MenuItem> {
     ]
 }
 
-fn prompt_fields(
-    current_name: &str,
-    current: &Expense,
-) -> std::io::Result<(Option<String>, Expense)> {
-    let mut working_name = current_name.to_string();
-    let mut working = Expense {
-        amount: current.amount,
-        currency: current.currency.clone(),
-        start_date: current.start_date,
-        interval: current.interval.clone(),
-        category: current.category.clone(),
-    };
+fn prompt_fields(current: &Expense) -> std::io::Result<(Option<String>, Expense)> {
+    let mut working = current.clone();
 
     loop {
-        let choice = Select::new("Edit:", menu_items(&working_name, &working))
+        let choice = Select::new("Edit:", menu_items(&working))
             .prompt_skippable()
             .map_err(|e| inquire_err(&e))?;
 
@@ -108,8 +98,8 @@ fn prompt_fields(
             Some(item) => match item.field {
                 Field::Done => break,
                 Field::Name => {
-                    if let Some(new) = prompt_name_skippable(&working_name)? {
-                        working_name = new;
+                    if let Some(new) = prompt_name_skippable(&working.name)? {
+                        working.name = new;
                     }
                 }
                 Field::Amount => {
@@ -142,10 +132,10 @@ fn prompt_fields(
         }
     }
 
-    let new_name = if working_name == current_name {
+    let new_name = if working.name == current.name {
         None
     } else {
-        Some(working_name)
+        Some(working.name.clone())
     };
     Ok((new_name, working))
 }
@@ -168,12 +158,13 @@ pub fn execute(args: &EditArgs) -> std::io::Result<()> {
             start_date: f.date,
             interval: f.interval.clone(),
             category: f.category.clone(),
+            ..Default::default()
         };
         store::update(&args.target, f.name.as_deref(), &patch)?;
     } else {
         inquire::set_global_render_config(render_config());
-        let (current_name, current_expense) = store::get(&args.target)?;
-        let (new_name, patch) = prompt_fields(&current_name, &current_expense)?;
+        let current = store::get(&args.target)?;
+        let (new_name, patch) = prompt_fields(&current)?;
 
         store::update(&args.target, new_name.as_deref(), &patch)?;
     }
@@ -208,11 +199,12 @@ mod tests {
         ];
         for (name, amount, currency) in expenses {
             let expense = Expense {
+                name: name.to_string(),
                 amount: Some(amount),
                 currency: Some(currency.to_string()),
                 ..Default::default()
             };
-            store::save_to(file, name, &expense).expect("seed save should succeed");
+            store::save_to(file, &expense).expect("seed save should succeed");
         }
     }
 
@@ -220,9 +212,8 @@ mod tests {
         store::list_from(file)
             .expect("list should succeed")
             .into_iter()
-            .find(|(n, _)| n == name)
+            .find(|e| e.name == name)
             .expect("expense should exist")
-            .1
     }
 
     fn date(s: &str) -> NaiveDate {
@@ -344,7 +335,7 @@ mod tests {
         let names: Vec<String> = store::list_from(&file)
             .expect("list should succeed")
             .into_iter()
-            .map(|(n, _)| n)
+            .map(|e| e.name)
             .collect();
         assert!(names.contains(&"Netflix Plus".to_string()));
         assert!(!names.contains(&"Netflix".to_string()));
