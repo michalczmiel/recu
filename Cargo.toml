@@ -2,6 +2,15 @@
 name = "recu"
 version = "0.1.0"
 edition = "2024"
+description = "CLI tool for tracking recurring expenses"
+license = "MIT"
+repository = "https://github.com/michalczmiel/recu"
+homepage = "https://github.com/michalczmiel/recu"
+authors = ["Michał Czmiel"]
+keywords = ["cli", "expenses", "budget", "finance", "recurring"]
+categories = ["command-line-utilities"]
+readme = "README.md"
+exclude = [".claude/", ".agents/", ".github/", "examples/", "Makefile", "clippy.toml", ".editorconfig"]
 
 [lints.rust]
 unsafe_code = "forbid"

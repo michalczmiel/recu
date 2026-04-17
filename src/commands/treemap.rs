@@ -432,18 +432,18 @@ mod tests {
 
     #[test]
     fn to_monthly_all_intervals() {
-        assert_eq!(Interval::Monthly.to_monthly(12.0), 12.0);
+        assert!((Interval::Monthly.to_monthly(12.0) - 12.0).abs() < 1e-10);
         // 12 * 52 / 12 = 52
         assert!((Interval::Weekly.to_monthly(12.0) - 52.0).abs() < 1e-10);
-        assert_eq!(Interval::Quarterly.to_monthly(30.0), 10.0);
-        assert_eq!(Interval::Yearly.to_monthly(120.0), 10.0);
+        assert!((Interval::Quarterly.to_monthly(30.0) - 10.0).abs() < 1e-10);
+        assert!((Interval::Yearly.to_monthly(120.0) - 10.0).abs() < 1e-10);
     }
 
     #[test]
     fn worst_ratio_edge_cases() {
-        assert_eq!(worst_ratio(&[], 10.0), f64::INFINITY);
-        assert_eq!(worst_ratio(&[1.0], 0.0), f64::INFINITY);
-        assert_eq!(worst_ratio(&[0.0], 10.0), f64::INFINITY);
+        assert!(worst_ratio(&[], 10.0).is_infinite());
+        assert!(worst_ratio(&[1.0], 0.0).is_infinite());
+        assert!(worst_ratio(&[0.0], 10.0).is_infinite());
     }
 
     #[test]

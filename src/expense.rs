@@ -158,13 +158,13 @@ mod tests {
 
     #[test]
     fn format_amount_symbol_first() {
-        let cur = iso::Currency::find("USD").unwrap();
+        let cur = iso::Currency::find("USD").expect("USD is a valid currency code");
         assert_eq!(format_amount(cur, 42.5), "$42.50");
     }
 
     #[test]
     fn format_amount_symbol_last() {
-        let cur = iso::Currency::find("PLN").unwrap();
+        let cur = iso::Currency::find("PLN").expect("PLN is a valid currency code");
         assert_eq!(format_amount(cur, 42.5), "42.50 zł");
     }
 }

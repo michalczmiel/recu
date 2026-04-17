@@ -339,7 +339,7 @@ mod tests {
     fn edit_name_updates_stored_name() {
         let file = test_file();
         seed_expenses(&file);
-        store::update_from(&file, "Netflix", Some("Netflix Plus"), &Default::default())
+        store::update_from(&file, "Netflix", Some("Netflix Plus"), &Expense::default())
             .expect("update should succeed");
         let names: Vec<String> = store::list_from(&file)
             .expect("list should succeed")
@@ -354,7 +354,7 @@ mod tests {
     fn edit_name_conflict_returns_error() {
         let file = test_file();
         seed_expenses(&file);
-        let result = store::update_from(&file, "Netflix", Some("Spotify"), &Default::default());
+        let result = store::update_from(&file, "Netflix", Some("Spotify"), &Expense::default());
         assert!(result.is_err());
     }
 
@@ -408,7 +408,7 @@ mod tests {
     fn empty_patch_leaves_expense_unchanged() {
         let file = test_file();
         seed_expenses(&file);
-        store::update_from(&file, "Netflix", None, &Default::default())
+        store::update_from(&file, "Netflix", None, &Expense::default())
             .expect("update should succeed");
         let e = load(&file, "Netflix");
         assert_eq!(e.amount, Some(9.99));

@@ -336,7 +336,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn save_rejects_duplicate_case_insensitive() {
+    fn save_rejects_duplicate_case_insensitive() -> io::Result<()> {
         let file = std::env::temp_dir().join("recu-test-storage-dup.csv");
         let _ = fs::remove_file(&file);
 
@@ -346,20 +346,22 @@ mod tests {
             ..Default::default()
         };
 
-        save_to(&file, "Netflix", &expense).expect("first save should succeed");
+        save_to(&file, "Netflix", &expense)?;
 
-        let err = save_to(&file, "netflix", &expense).unwrap_err();
+        let err = save_to(&file, "netflix", &expense).expect_err("duplicate save should fail");
         assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
 
-        assert_eq!(list_from(&file).expect("list should succeed").len(), 1);
+        assert_eq!(list_from(&file)?.len(), 1);
+        Ok(())
     }
 
     #[test]
-    fn list_from_missing_file_returns_empty() {
+    fn list_from_missing_file_returns_empty() -> io::Result<()> {
         let file = std::env::temp_dir().join("recu-test-storage-missing.csv");
         let _ = fs::remove_file(&file);
 
-        assert!(list_from(&file).expect("list should succeed").is_empty());
+        assert!(list_from(&file)?.is_empty());
+        Ok(())
     }
 
     #[test]
@@ -392,58 +394,63 @@ mod tests {
     }
 
     #[test]
-    fn restore_after_remove() {
+    fn restore_after_remove() -> io::Result<()> {
         let file = make_test_file("remove");
-        save_to(&file, "Netflix", &expense(9.99)).unwrap();
-        remove_from(&file, "Netflix").unwrap();
-        assert!(list_from(&file).unwrap().is_empty());
-        let msg = restore_from(&file).unwrap();
+        save_to(&file, "Netflix", &expense(9.99))?;
+        remove_from(&file, "Netflix")?;
+        assert!(list_from(&file)?.is_empty());
+        let msg = restore_from(&file)?;
         assert_eq!(msg, "Restored 'Netflix'");
-        assert_eq!(list_from(&file).unwrap().len(), 1);
+        assert_eq!(list_from(&file)?.len(), 1);
+        Ok(())
     }
 
     #[test]
-    fn restore_after_update() {
+    fn restore_after_update() -> io::Result<()> {
         let file = make_test_file("update");
-        save_to(&file, "Netflix", &expense(9.99)).unwrap();
-        update_from(&file, "Netflix", None, &expense(14.99)).unwrap();
-        assert_eq!(list_from(&file).unwrap()[0].1.amount, Some(14.99));
-        let msg = restore_from(&file).unwrap();
+        save_to(&file, "Netflix", &expense(9.99))?;
+        update_from(&file, "Netflix", None, &expense(14.99))?;
+        assert_eq!(list_from(&file)?[0].1.amount, Some(14.99));
+        let msg = restore_from(&file)?;
         assert_eq!(msg, "Reverted edit of 'Netflix'");
-        assert_eq!(list_from(&file).unwrap()[0].1.amount, Some(9.99));
+        assert_eq!(list_from(&file)?[0].1.amount, Some(9.99));
+        Ok(())
     }
 
     #[test]
-    fn restore_after_add() {
+    fn restore_after_add() -> io::Result<()> {
         let file = make_test_file("add");
-        save_to(&file, "Netflix", &expense(9.99)).unwrap();
-        save_to(&file, "Spotify", &expense(5.99)).unwrap();
-        assert_eq!(list_from(&file).unwrap().len(), 2);
-        let msg = restore_from(&file).unwrap();
+        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, "Spotify", &expense(5.99))?;
+        assert_eq!(list_from(&file)?.len(), 2);
+        let msg = restore_from(&file)?;
         assert_eq!(msg, "Undid add of 'Spotify'");
-        assert_eq!(list_from(&file).unwrap().len(), 1);
+        assert_eq!(list_from(&file)?.len(), 1);
+        Ok(())
     }
 
     #[test]
-    fn restore_with_no_snapshot_returns_error() {
+    fn restore_with_no_snapshot_returns_error() -> io::Result<()> {
         let file = make_test_file("nosnap");
-        save_to(&file, "Netflix", &expense(9.99)).unwrap();
-        let err = restore_from(&file).unwrap_err();
+        save_to(&file, "Netflix", &expense(9.99))?;
+        let err = restore_from(&file).expect_err("restore without snapshot should fail");
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        Ok(())
     }
 
     #[test]
-    fn restore_is_single_use() {
+    fn restore_is_single_use() -> io::Result<()> {
         let file = make_test_file("singleuse");
-        save_to(&file, "Netflix", &expense(9.99)).unwrap();
-        remove_from(&file, "Netflix").unwrap();
-        restore_from(&file).unwrap();
-        let err = restore_from(&file).unwrap_err();
+        save_to(&file, "Netflix", &expense(9.99))?;
+        remove_from(&file, "Netflix")?;
+        restore_from(&file)?;
+        let err = restore_from(&file).expect_err("second restore should fail");
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        Ok(())
     }
 
     #[test]
-    fn categories_from_lists_unique_categories_case_insensitive() {
+    fn categories_from_lists_unique_categories_case_insensitive() -> io::Result<()> {
         let file = make_test_file("categories");
         save_to(
             &file,
@@ -452,8 +459,7 @@ mod tests {
                 category: Some("Streaming".into()),
                 ..expense(9.99)
             },
-        )
-        .unwrap();
+        )?;
         save_to(
             &file,
             "Spotify",
@@ -461,8 +467,7 @@ mod tests {
                 category: Some("streaming".into()),
                 ..expense(5.99)
             },
-        )
-        .unwrap();
+        )?;
         save_to(
             &file,
             "Rent",
@@ -470,40 +475,39 @@ mod tests {
                 category: Some("Housing".into()),
                 ..expense(999.0)
             },
-        )
-        .unwrap();
+        )?;
 
-        assert_eq!(
-            categories_from(&file).unwrap(),
-            vec!["Housing", "Streaming"]
-        );
+        assert_eq!(categories_from(&file)?, vec!["Housing", "Streaming"]);
+        Ok(())
     }
 
     #[test]
-    fn remove_by_id() {
+    fn remove_by_id() -> io::Result<()> {
         let file = make_test_file("remove-by-id");
-        save_to(&file, "Netflix", &expense(9.99)).unwrap();
-        save_to(&file, "Spotify", &expense(5.99)).unwrap();
-        let name = remove_from(&file, "@1").unwrap();
+        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, "Spotify", &expense(5.99))?;
+        let name = remove_from(&file, "@1")?;
         assert_eq!(name, "Netflix");
-        let entries = list_from(&file).unwrap();
+        let entries = list_from(&file)?;
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].0, "Spotify");
+        Ok(())
     }
 
     #[test]
-    fn update_by_id() {
+    fn update_by_id() -> io::Result<()> {
         let file = make_test_file("update-by-id");
-        save_to(&file, "Netflix", &expense(9.99)).unwrap();
-        save_to(&file, "Spotify", &expense(5.99)).unwrap();
-        update_from(&file, "@2", None, &expense(7.99)).unwrap();
-        assert_eq!(list_from(&file).unwrap()[1].1.amount, Some(7.99));
+        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, "Spotify", &expense(5.99))?;
+        update_from(&file, "@2", None, &expense(7.99))?;
+        assert_eq!(list_from(&file)?[1].1.amount, Some(7.99));
+        Ok(())
     }
 
     #[test]
-    fn resolve_index_invalid_ids() {
+    fn resolve_index_invalid_ids() -> io::Result<()> {
         let file = make_test_file("id-invalid");
-        save_to(&file, "Netflix", &expense(9.99)).unwrap();
+        save_to(&file, "Netflix", &expense(9.99))?;
 
         let cases = [
             ("@0", io::ErrorKind::NotFound),  // zero is not a valid 1-based id
@@ -512,22 +516,25 @@ mod tests {
         ];
 
         for (input, expected) in cases {
-            let err = remove_from(&file, input).unwrap_err();
+            let err = remove_from(&file, input).expect_err("invalid id should fail");
             assert_eq!(err.kind(), expected, "input: {input}");
         }
+        Ok(())
     }
 
     #[test]
-    fn update_rejects_rename_to_existing_name() {
+    fn update_rejects_rename_to_existing_name() -> io::Result<()> {
         let file = make_test_file("rename-conflict");
-        save_to(&file, "Netflix", &expense(9.99)).unwrap();
-        save_to(&file, "Spotify", &expense(5.99)).unwrap();
-        let err = update_from(&file, "Netflix", Some("spotify"), &expense(9.99)).unwrap_err();
+        save_to(&file, "Netflix", &expense(9.99))?;
+        save_to(&file, "Spotify", &expense(5.99))?;
+        let err = update_from(&file, "Netflix", Some("spotify"), &expense(9.99))
+            .expect_err("rename conflict should fail");
         assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
+        Ok(())
     }
 
     #[test]
-    fn clear_category_no_match_returns_zero_and_no_snapshot() {
+    fn clear_category_no_match_returns_zero_and_no_snapshot() -> io::Result<()> {
         let file = make_test_file("clear-no-match");
         save_to(
             &file,
@@ -536,22 +543,23 @@ mod tests {
                 category: Some("streaming".into()),
                 ..expense(9.99)
             },
-        )
-        .unwrap();
-        assert_eq!(clear_category_from(&file, "housing").unwrap(), 0);
+        )?;
+        assert_eq!(clear_category_from(&file, "housing")?, 0);
         // no snapshot means undo is unavailable
-        let err = restore_from(&file).unwrap_err();
+        let err = restore_from(&file).expect_err("restore without snapshot should fail");
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        Ok(())
     }
 
     #[test]
-    fn categories_from_empty_file_returns_empty() {
+    fn categories_from_empty_file_returns_empty() -> io::Result<()> {
         let file = make_test_file("categories-empty");
-        assert!(categories_from(&file).unwrap().is_empty());
+        assert!(categories_from(&file)?.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn clear_category_from_removes_category_from_matching_expenses() {
+    fn clear_category_from_removes_category_from_matching_expenses() -> io::Result<()> {
         let file = make_test_file("clear-category");
         save_to(
             &file,
@@ -560,8 +568,7 @@ mod tests {
                 category: Some("streaming".into()),
                 ..expense(9.99)
             },
-        )
-        .unwrap();
+        )?;
         save_to(
             &file,
             "Spotify",
@@ -569,8 +576,7 @@ mod tests {
                 category: Some("Streaming".into()),
                 ..expense(5.99)
             },
-        )
-        .unwrap();
+        )?;
         save_to(
             &file,
             "Rent",
@@ -578,14 +584,14 @@ mod tests {
                 category: Some("housing".into()),
                 ..expense(999.0)
             },
-        )
-        .unwrap();
+        )?;
 
-        assert_eq!(clear_category_from(&file, "streaming").unwrap(), 2);
+        assert_eq!(clear_category_from(&file, "streaming")?, 2);
 
-        let expenses = list_from(&file).unwrap();
+        let expenses = list_from(&file)?;
         assert_eq!(expenses[0].1.category, None);
         assert_eq!(expenses[1].1.category, None);
         assert_eq!(expenses[2].1.category.as_deref(), Some("housing"));
+        Ok(())
     }
 }
