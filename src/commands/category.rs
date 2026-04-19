@@ -2,7 +2,7 @@ use std::io;
 
 use clap::{Args, Subcommand};
 
-use crate::store;
+use crate::store::Store;
 
 #[derive(Subcommand, Debug)]
 pub enum CategoryCommand {
@@ -20,10 +20,10 @@ pub struct CategoryRmArgs {
     pub name: String,
 }
 
-pub fn run(cmd: &CategoryCommand) -> io::Result<()> {
+pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
     match cmd {
         CategoryCommand::List => {
-            let categories = store::categories()?;
+            let categories = store.categories()?;
             if categories.is_empty() {
                 println!("No categories found.");
             } else {
@@ -33,7 +33,7 @@ pub fn run(cmd: &CategoryCommand) -> io::Result<()> {
             }
         }
         CategoryCommand::Rm(args) => {
-            let updated = store::clear_category(&args.name)?;
+            let updated = store.clear_category(&args.name)?;
             if updated == 0 {
                 return Err(io::Error::new(
                     io::ErrorKind::NotFound,

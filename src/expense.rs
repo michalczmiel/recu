@@ -15,20 +15,6 @@ pub enum Interval {
     Yearly,
 }
 
-impl std::str::FromStr for Interval {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "weekly" | "week" => Ok(Interval::Weekly),
-            "monthly" | "month" => Ok(Interval::Monthly),
-            "quarterly" | "quarter" => Ok(Interval::Quarterly),
-            "yearly" | "year" | "annual" | "annually" => Ok(Interval::Yearly),
-            _ => Err(()),
-        }
-    }
-}
-
 impl std::fmt::Display for Interval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -152,38 +138,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn interval_aliases() {
-        assert_eq!(
-            "week".parse::<Interval>().expect("valid alias"),
-            Interval::Weekly
-        );
-        assert_eq!(
-            "month".parse::<Interval>().expect("valid alias"),
-            Interval::Monthly
-        );
-        assert_eq!(
-            "quarter".parse::<Interval>().expect("valid alias"),
-            Interval::Quarterly
-        );
-        assert_eq!(
-            "year".parse::<Interval>().expect("valid alias"),
-            Interval::Yearly
-        );
-        assert_eq!(
-            "annual".parse::<Interval>().expect("valid alias"),
-            Interval::Yearly
-        );
-        assert_eq!(
-            "annually".parse::<Interval>().expect("valid alias"),
-            Interval::Yearly
-        );
-        assert_eq!(
-            "YEARLY".parse::<Interval>().expect("valid alias"),
-            Interval::Yearly
-        );
-    }
-
-    #[test]
     fn format_amount_symbol_first() {
         let cur = iso::Currency::find("USD").expect("USD is a valid currency code");
         assert_eq!(format_amount(cur, 42.5), "$42.50");
@@ -193,6 +147,26 @@ mod tests {
     fn format_amount_symbol_last() {
         let cur = iso::Currency::find("PLN").expect("PLN is a valid currency code");
         assert_eq!(format_amount(cur, 42.5), "42.50 zł");
+    }
+
+    #[test]
+    fn recurring_totals_compute() {
+        let monthly = Expense {
+            amount: Some(10.0),
+            currency: Some("USD".to_string()),
+            interval: Some(Interval::Monthly),
+            ..Default::default()
+        };
+        let yearly = Expense {
+            amount: Some(120.0),
+            currency: Some("USD".to_string()),
+            interval: Some(Interval::Yearly),
+            ..Default::default()
+        };
+        let totals = RecurringTotals::compute([&monthly, &yearly], None, Some("USD"));
+
+        assert!((totals.monthly - 20.0).abs() < 1e-9);
+        assert!((totals.yearly - 240.0).abs() < 1e-9);
     }
 }
 
@@ -209,46 +183,65 @@ pub fn find_currency(code: &str) -> Option<&'static iso::Currency> {
     iso::Currency::find(&code.to_ascii_uppercase())
 }
 
-/// Convert `amount` from `expense_currency` to `target`, using `rates`.
-/// Returns `(converted_amount, currency_to_display)`.
-/// Falls back to the original currency if conversion is not possible.
-pub fn convert_amount(
+pub fn convert(
     amount: f64,
     expense_currency: Option<&str>,
     rates: Option<&HashMap<String, f64>>,
     target: Option<&str>,
-    target_cur: Option<&'static iso::Currency>,
-) -> (f64, Option<&'static iso::Currency>) {
-    let original_cur = expense_currency.and_then(find_currency);
+) -> f64 {
     if let (Some(rates_map), Some(target_code), Some(exp_cur)) = (rates, target, expense_currency) {
         let exp_upper = exp_cur.to_ascii_uppercase();
         if exp_upper == target_code {
-            return (amount, target_cur);
+            return amount;
         }
         if let Some(&rate) = rates_map.get(exp_upper.as_str()) {
-            return (amount / rate, target_cur);
+            return amount / rate;
         }
     }
-    (amount, original_cur)
+    amount
 }
 
-/// Sum of all expenses converted to `target_cur` and normalised to monthly amounts.
-pub fn monthly_total(
-    expenses: &[&Expense],
+pub fn display_currency(
+    expense_currency: Option<&str>,
     rates: Option<&HashMap<String, f64>>,
     target: Option<&str>,
     target_cur: Option<&'static iso::Currency>,
-) -> f64 {
-    expenses
-        .iter()
-        .filter_map(|e| {
-            let amt = e.amount?;
-            let interval = e.interval.as_ref()?;
-            let (converted, _) =
-                convert_amount(amt, e.currency.as_deref(), rates, target, target_cur);
-            Some(interval.to_monthly(converted))
-        })
-        .sum()
+) -> Option<&'static iso::Currency> {
+    if let (Some(rates_map), Some(target_code), Some(exp_cur)) = (rates, target, expense_currency) {
+        let exp_upper = exp_cur.to_ascii_uppercase();
+        if exp_upper == target_code || rates_map.contains_key(exp_upper.as_str()) {
+            return target_cur;
+        }
+    }
+    expense_currency.and_then(find_currency)
+}
+
+pub struct RecurringTotals {
+    pub monthly: f64,
+    pub yearly: f64,
+}
+
+impl RecurringTotals {
+    pub fn compute<'a>(
+        expenses: impl IntoIterator<Item = &'a Expense>,
+        rates: Option<&HashMap<String, f64>>,
+        target: Option<&str>,
+    ) -> Self {
+        let monthly: f64 = expenses
+            .into_iter()
+            .filter_map(|e| {
+                let amt = e.amount?;
+                let interval = e.interval.as_ref()?;
+                let converted = convert(amt, e.currency.as_deref(), rates, target);
+                Some(interval.to_monthly(converted))
+            })
+            .sum();
+
+        Self {
+            monthly,
+            yearly: monthly * 12.0,
+        }
+    }
 }
 
 /// Returns the single shared currency if every expense has the same one, otherwise `None`.

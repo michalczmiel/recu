@@ -6,7 +6,7 @@ use crate::prompt::{
     inquire_err, prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval,
     prompt_name_skippable, render_config,
 };
-use crate::store;
+use crate::store::Store;
 
 #[derive(Clone, PartialEq)]
 enum Field {
@@ -85,7 +85,7 @@ fn menu_items(e: &Expense) -> Vec<MenuItem> {
     ]
 }
 
-fn prompt_fields(current: &Expense) -> std::io::Result<(Option<String>, Expense)> {
+fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<(Option<String>, Expense)> {
     let mut working = current.clone();
 
     loop {
@@ -123,7 +123,7 @@ fn prompt_fields(current: &Expense) -> std::io::Result<(Option<String>, Expense)
                     }
                 }
                 Field::Category => {
-                    let categories = store::categories()?;
+                    let categories = store.categories()?;
                     if let Some(cat) = prompt_category(&categories, working.category.as_deref())? {
                         working.category = Some(cat);
                     }
@@ -149,7 +149,7 @@ fn has_any_field(f: &ExpenseInput) -> bool {
         || f.category.is_some()
 }
 
-pub fn execute(args: &EditArgs) -> std::io::Result<()> {
+pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
     if has_any_field(&args.fields) {
         let f = &args.fields;
         let patch = Expense {
@@ -160,13 +160,12 @@ pub fn execute(args: &EditArgs) -> std::io::Result<()> {
             category: f.category.clone(),
             ..Default::default()
         };
-        store::update(&args.target, f.name.as_deref(), &patch)?;
+        store.update(&args.target, f.name.as_deref(), &patch)?;
     } else {
         inquire::set_global_render_config(render_config());
-        let current = store::get(&args.target)?;
-        let (new_name, patch) = prompt_fields(&current)?;
-
-        store::update(&args.target, new_name.as_deref(), &patch)?;
+        let current = store.get(&args.target)?;
+        let (new_name, patch) = prompt_fields(&current, store)?;
+        store.update(&args.target, new_name.as_deref(), &patch)?;
     }
     println!("Updated '{}'", args.target);
     Ok(())
@@ -179,37 +178,34 @@ mod tests {
     use chrono::NaiveDate;
     use std::fs;
 
-    fn test_file() -> std::path::PathBuf {
-        let file = std::env::temp_dir().join("recu-test-edit").join(format!(
-            "{}.csv",
-            std::thread::current()
-                .name()
-                .unwrap_or("test")
-                .replace("::", "-"),
-        ));
+    fn make_store(test_name: &str) -> Store {
+        let file = std::env::temp_dir()
+            .join("recu-test-edit")
+            .join(format!("{}.csv", test_name.replace("::", "-")));
         let _ = fs::remove_file(&file);
-        file
+        Store::at(file)
     }
 
-    fn seed_expenses(file: &std::path::Path) {
-        let expenses = vec![
+    fn seed_expenses(store: &Store) {
+        for (name, amount, currency) in [
             ("Netflix", 9.99, "usd"),
             ("Spotify", 5.99, "usd"),
             ("NY Times", 15.99, "eur"),
-        ];
-        for (name, amount, currency) in expenses {
-            let expense = Expense {
-                name: name.to_string(),
-                amount: Some(amount),
-                currency: Some(currency.to_string()),
-                ..Default::default()
-            };
-            store::save_to(file, &expense).expect("seed save should succeed");
+        ] {
+            store
+                .save(&Expense {
+                    name: name.to_string(),
+                    amount: Some(amount),
+                    currency: Some(currency.to_string()),
+                    ..Default::default()
+                })
+                .expect("seed save should succeed");
         }
     }
 
-    fn load(file: &std::path::Path, name: &str) -> Expense {
-        store::list_from(file)
+    fn load(store: &Store, name: &str) -> Expense {
+        store
+            .list()
             .expect("list should succeed")
             .into_iter()
             .find(|e| e.name == name)
@@ -222,117 +218,119 @@ mod tests {
 
     #[test]
     fn edit_amount_by_name() {
-        let file = test_file();
-        seed_expenses(&file);
-        store::update_from(
-            &file,
-            "Netflix",
-            None,
-            &Expense {
-                amount: Some(12.99),
-                ..Default::default()
-            },
-        )
-        .expect("update should succeed");
-        assert_eq!(load(&file, "Netflix").amount, Some(12.99));
+        let store = make_store("edit-amount-by-name");
+        seed_expenses(&store);
+        store
+            .update(
+                "Netflix",
+                None,
+                &Expense {
+                    amount: Some(12.99),
+                    ..Default::default()
+                },
+            )
+            .expect("update should succeed");
+        assert_eq!(load(&store, "Netflix").amount, Some(12.99));
     }
 
     #[test]
     fn edit_amount_by_id() {
-        let file = test_file();
-        seed_expenses(&file);
+        let store = make_store("edit-amount-by-id");
+        seed_expenses(&store);
         // insertion order: Netflix=@1, Spotify=@2, NY Times=@3
-        store::update_from(
-            &file,
-            "@1",
-            None,
-            &Expense {
-                amount: Some(11.11),
-                ..Default::default()
-            },
-        )
-        .expect("update should succeed");
-        assert_eq!(load(&file, "Netflix").amount, Some(11.11));
+        store
+            .update(
+                "@1",
+                None,
+                &Expense {
+                    amount: Some(11.11),
+                    ..Default::default()
+                },
+            )
+            .expect("update should succeed");
+        assert_eq!(load(&store, "Netflix").amount, Some(11.11));
     }
 
     #[test]
     fn edit_currency() {
-        let file = test_file();
-        seed_expenses(&file);
-        store::update_from(
-            &file,
-            "Spotify",
-            None,
-            &Expense {
-                currency: Some("eur".into()),
-                ..Default::default()
-            },
-        )
-        .expect("update should succeed");
-        assert_eq!(load(&file, "Spotify").currency.as_deref(), Some("eur"));
+        let store = make_store("edit-currency");
+        seed_expenses(&store);
+        store
+            .update(
+                "Spotify",
+                None,
+                &Expense {
+                    currency: Some("eur".into()),
+                    ..Default::default()
+                },
+            )
+            .expect("update should succeed");
+        assert_eq!(load(&store, "Spotify").currency.as_deref(), Some("eur"));
     }
 
     #[test]
     fn edit_interval() {
-        let file = test_file();
-        seed_expenses(&file);
-        store::update_from(
-            &file,
-            "Netflix",
-            None,
-            &Expense {
-                interval: Some(Interval::Yearly),
-                ..Default::default()
-            },
-        )
-        .expect("update should succeed");
-        assert_eq!(load(&file, "Netflix").interval, Some(Interval::Yearly));
+        let store = make_store("edit-interval");
+        seed_expenses(&store);
+        store
+            .update(
+                "Netflix",
+                None,
+                &Expense {
+                    interval: Some(Interval::Yearly),
+                    ..Default::default()
+                },
+            )
+            .expect("update should succeed");
+        assert_eq!(load(&store, "Netflix").interval, Some(Interval::Yearly));
     }
 
     #[test]
     fn edit_date() {
-        let file = test_file();
-        seed_expenses(&file);
-        store::update_from(
-            &file,
-            "Netflix",
-            None,
-            &Expense {
-                start_date: Some(date("2025-01-01")),
-                ..Default::default()
-            },
-        )
-        .expect("update should succeed");
-        assert_eq!(load(&file, "Netflix").start_date, Some(date("2025-01-01")));
+        let store = make_store("edit-date");
+        seed_expenses(&store);
+        store
+            .update(
+                "Netflix",
+                None,
+                &Expense {
+                    start_date: Some(date("2025-01-01")),
+                    ..Default::default()
+                },
+            )
+            .expect("update should succeed");
+        assert_eq!(load(&store, "Netflix").start_date, Some(date("2025-01-01")));
     }
 
     #[test]
     fn edit_multiple_fields_at_once() {
-        let file = test_file();
-        seed_expenses(&file);
-        store::update_from(
-            &file,
-            "Spotify",
-            None,
-            &Expense {
-                amount: Some(9.99),
-                currency: Some("eur".into()),
-                ..Default::default()
-            },
-        )
-        .expect("update should succeed");
-        let e = load(&file, "Spotify");
+        let store = make_store("edit-multiple-fields");
+        seed_expenses(&store);
+        store
+            .update(
+                "Spotify",
+                None,
+                &Expense {
+                    amount: Some(9.99),
+                    currency: Some("eur".into()),
+                    ..Default::default()
+                },
+            )
+            .expect("update should succeed");
+        let e = load(&store, "Spotify");
         assert_eq!(e.amount, Some(9.99));
         assert_eq!(e.currency.as_deref(), Some("eur"));
     }
 
     #[test]
     fn edit_name_updates_stored_name() {
-        let file = test_file();
-        seed_expenses(&file);
-        store::update_from(&file, "Netflix", Some("Netflix Plus"), &Expense::default())
+        let store = make_store("edit-name-updates");
+        seed_expenses(&store);
+        store
+            .update("Netflix", Some("Netflix Plus"), &Expense::default())
             .expect("update should succeed");
-        let names: Vec<String> = store::list_from(&file)
+        let names: Vec<String> = store
+            .list()
             .expect("list should succeed")
             .into_iter()
             .map(|e| e.name)
@@ -343,65 +341,71 @@ mod tests {
 
     #[test]
     fn edit_name_conflict_returns_error() {
-        let file = test_file();
-        seed_expenses(&file);
-        let result = store::update_from(&file, "Netflix", Some("Spotify"), &Expense::default());
-        assert!(result.is_err());
+        let store = make_store("edit-name-conflict");
+        seed_expenses(&store);
+        assert!(
+            store
+                .update("Netflix", Some("Spotify"), &Expense::default())
+                .is_err()
+        );
     }
 
     #[test]
     fn edit_nonexistent_returns_error() {
-        let file = test_file();
-        seed_expenses(&file);
-        let result = store::update_from(
-            &file,
-            "Hulu",
-            None,
-            &Expense {
-                amount: Some(5.0),
-                ..Default::default()
-            },
+        let store = make_store("edit-nonexistent");
+        seed_expenses(&store);
+        assert!(
+            store
+                .update(
+                    "Hulu",
+                    None,
+                    &Expense {
+                        amount: Some(5.0),
+                        ..Default::default()
+                    }
+                )
+                .is_err()
         );
-        assert!(result.is_err());
     }
 
     #[test]
     fn edit_id_out_of_range_returns_error() {
-        let file = test_file();
-        seed_expenses(&file);
+        let store = make_store("edit-id-out-of-range");
+        seed_expenses(&store);
         assert!(
-            store::update_from(
-                &file,
-                "@0",
-                None,
-                &Expense {
-                    amount: Some(1.0),
-                    ..Default::default()
-                }
-            )
-            .is_err()
+            store
+                .update(
+                    "@0",
+                    None,
+                    &Expense {
+                        amount: Some(1.0),
+                        ..Default::default()
+                    }
+                )
+                .is_err()
         );
         assert!(
-            store::update_from(
-                &file,
-                "@99",
-                None,
-                &Expense {
-                    amount: Some(1.0),
-                    ..Default::default()
-                }
-            )
-            .is_err()
+            store
+                .update(
+                    "@99",
+                    None,
+                    &Expense {
+                        amount: Some(1.0),
+                        ..Default::default()
+                    }
+                )
+                .is_err()
         );
     }
 
     #[test]
     fn empty_patch_leaves_expense_unchanged() {
-        let file = test_file();
-        seed_expenses(&file);
-        store::update_from(&file, "Netflix", None, &Expense::default())
+        let store = make_store("edit-empty-patch");
+        seed_expenses(&store);
+        store
+            .update("Netflix", None, &Expense::default())
             .expect("update should succeed");
-        let e = load(&file, "Netflix");
+        let e = load(&store, "Netflix");
         assert_eq!(e.amount, Some(9.99));
         assert_eq!(e.currency.as_deref(), Some("usd"));
     }

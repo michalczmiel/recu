@@ -7,9 +7,9 @@ use colored::Colorize;
 use rusty_money::iso;
 
 use crate::config::{self, Config};
-use crate::expense::{self, Expense, convert_amount, find_currency, format_amount};
+use crate::expense::{self, Expense, convert, find_currency, format_amount};
 use crate::rates;
-use crate::store;
+use crate::store::Store;
 
 #[derive(Args, Debug)]
 #[command(after_help = "Examples:
@@ -40,7 +40,6 @@ fn occurrences_in_range(
     end: NaiveDate,
     rates: Option<&HashMap<String, f64>>,
     target: Option<&str>,
-    target_cur: Option<&'static iso::Currency>,
 ) -> Vec<Occurrence> {
     let (Some(first), Some(interval), Some(amount)) = (
         expense.start_date,
@@ -57,13 +56,7 @@ fn occurrences_in_range(
         None => format!("{amount:.2}"),
     };
 
-    let (converted, _) = convert_amount(
-        amount,
-        expense.currency.as_deref(),
-        rates,
-        target,
-        target_cur,
-    );
+    let converted = convert(amount, expense.currency.as_deref(), rates, target);
 
     let mut result = vec![];
     let mut d = interval.next_payment(first, start);
@@ -173,15 +166,7 @@ pub(crate) fn execute_with(
     let mut all: Vec<Occurrence> = expenses
         .iter()
         .flat_map(|exp| {
-            occurrences_in_range(
-                &exp.name,
-                exp,
-                start,
-                end,
-                exchange_rates.as_ref(),
-                target,
-                target_cur,
-            )
+            occurrences_in_range(&exp.name, exp, start, end, exchange_rates.as_ref(), target)
         })
         .collect();
 
@@ -206,8 +191,8 @@ pub(crate) fn execute_with(
     Ok(())
 }
 
-pub fn execute(args: &TimelineArgs) -> std::io::Result<()> {
-    let expenses = store::list()?;
+pub fn execute(args: &TimelineArgs, store: &Store) -> std::io::Result<()> {
+    let expenses = store.list()?;
     let cfg = config::load()?;
     let today = chrono::Local::now().date_naive();
     execute_with(

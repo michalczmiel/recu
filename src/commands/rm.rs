@@ -1,6 +1,6 @@
 use clap::Args;
 
-use crate::store;
+use crate::store::Store;
 
 #[derive(Args, Debug)]
 #[command(after_help = "Examples:
@@ -17,9 +17,9 @@ pub struct RmArgs {
     pub targets: Vec<String>,
 }
 
-pub fn execute(args: &RmArgs) -> std::io::Result<()> {
+pub fn execute(args: &RmArgs, store: &Store) -> std::io::Result<()> {
     let targets: Vec<&str> = args.targets.iter().map(String::as_str).collect();
-    let names = store::remove(&targets)?;
+    let names = store.remove(&targets)?;
     for name in names {
         println!("Removed '{name}'");
     }
@@ -32,35 +32,34 @@ mod tests {
     use crate::expense::Expense;
     use std::fs;
 
-    fn test_file() -> std::path::PathBuf {
-        let file = std::env::temp_dir().join("recu-test-rm").join(format!(
-            "{}.csv",
-            std::thread::current().name().unwrap_or("test")
-        ));
+    fn make_store(test_name: &str) -> Store {
+        let file = std::env::temp_dir()
+            .join("recu-test-rm")
+            .join(format!("{test_name}.csv"));
         let _ = fs::remove_file(&file);
-        file
+        Store::at(file)
     }
 
-    fn seed_expenses(file: &std::path::Path) {
-        let expenses = vec![
+    fn seed_expenses(store: &Store) {
+        for (name, amount, currency) in [
             ("Netflix", 9.99, "usd"),
             ("Spotify", 5.99, "usd"),
             ("NY Times", 15.99, "eur"),
-        ];
-
-        for (name, amount, currency) in expenses {
-            let expense = Expense {
-                name: name.to_string(),
-                amount: Some(amount),
-                currency: Some(currency.to_string()),
-                ..Default::default()
-            };
-            store::save_to(file, &expense).expect("seed save should succeed");
+        ] {
+            store
+                .save(&Expense {
+                    name: name.to_string(),
+                    amount: Some(amount),
+                    currency: Some(currency.to_string()),
+                    ..Default::default()
+                })
+                .expect("seed save should succeed");
         }
     }
 
-    fn names_in(file: &std::path::Path) -> Vec<String> {
-        let mut items = store::list_from(file)
+    fn names_in(store: &Store) -> Vec<String> {
+        let mut items = store
+            .list()
             .expect("list should succeed")
             .into_iter()
             .map(|e| e.name)
@@ -71,10 +70,10 @@ mod tests {
 
     #[test]
     fn remove_by_full_name() {
-        let file = test_file();
-        seed_expenses(&file);
-        assert!(store::remove_from(&file, &["Netflix"]).is_ok());
-        let remaining = names_in(&file);
+        let store = make_store("remove-by-full-name");
+        seed_expenses(&store);
+        assert!(store.remove(&["Netflix"]).is_ok());
+        let remaining = names_in(&store);
         assert!(!remaining.contains(&"Netflix".to_string()));
         assert_eq!(remaining.len(), 2);
     }
@@ -82,14 +81,13 @@ mod tests {
     #[test]
     fn remove_by_id_first_and_last() {
         for (id, index) in [("@1", 0), ("@3", 2)] {
-            let file = test_file();
-            seed_expenses(&file);
-
-            let entries = store::list_from(&file).expect("list should succeed");
-            let target_name = entries[index].name.clone();
-
-            assert!(store::remove_from(&file, &[id]).is_ok());
-            let remaining = names_in(&file);
+            let store = make_store(&format!("remove-by-id-{index}"));
+            seed_expenses(&store);
+            let target_name = store.list().expect("list should succeed")[index]
+                .name
+                .clone();
+            assert!(store.remove(&[id]).is_ok());
+            let remaining = names_in(&store);
             assert!(!remaining.contains(&target_name));
             assert_eq!(remaining.len(), 2);
         }
@@ -97,48 +95,49 @@ mod tests {
 
     #[test]
     fn remove_nonexistent_returns_error() {
-        let file = test_file();
-        seed_expenses(&file);
-        let result = store::remove_from(&file, &["Hulu"]);
-        assert!(result.is_err());
+        let store = make_store("remove-nonexistent");
+        seed_expenses(&store);
+        assert!(store.remove(&["Hulu"]).is_err());
     }
 
     #[test]
     fn remove_id_out_of_range_returns_error() {
-        let file = test_file();
-        seed_expenses(&file);
-        assert!(store::remove_from(&file, &["@0"]).is_err());
-        assert!(store::remove_from(&file, &["@99"]).is_err());
+        let store = make_store("remove-id-out-of-range");
+        seed_expenses(&store);
+        assert!(store.remove(&["@0"]).is_err());
+        assert!(store.remove(&["@99"]).is_err());
     }
 
     #[test]
     fn remove_by_name_case_insensitive() {
-        let file = test_file();
-        seed_expenses(&file);
-        assert!(store::remove_from(&file, &["netflix"]).is_ok());
-        let remaining = names_in(&file);
+        let store = make_store("remove-by-name-case");
+        seed_expenses(&store);
+        assert!(store.remove(&["netflix"]).is_ok());
+        let remaining = names_in(&store);
         assert!(!remaining.contains(&"Netflix".to_string()));
     }
 
     #[test]
     fn remove_many_by_name() {
-        let file = test_file();
-        seed_expenses(&file);
-        let names =
-            store::remove_from(&file, &["Netflix", "Spotify"]).expect("remove_many should succeed");
+        let store = make_store("remove-many-by-name");
+        seed_expenses(&store);
+        let names = store
+            .remove(&["Netflix", "Spotify"])
+            .expect("remove_many should succeed");
         assert_eq!(names, vec!["Netflix", "Spotify"]);
-        let remaining = names_in(&file);
+        let remaining = names_in(&store);
         assert_eq!(remaining, vec!["NY Times"]);
     }
 
     #[test]
     fn remove_many_by_id_out_of_order() {
-        let file = test_file();
-        seed_expenses(&file);
-        // @3=NY Times, @1=Netflix — specifying highest last; internal reverse must still work
-        let names = store::remove_from(&file, &["@3", "@1"]).expect("remove_many should succeed");
+        let store = make_store("remove-many-by-id-out-of-order");
+        seed_expenses(&store);
+        let names = store
+            .remove(&["@3", "@1"])
+            .expect("remove_many should succeed");
         assert_eq!(names, vec!["NY Times", "Netflix"]);
-        let remaining = names_in(&file);
+        let remaining = names_in(&store);
         assert_eq!(remaining, vec!["Spotify"]);
     }
 }

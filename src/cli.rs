@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 use crate::commands::{add, category, config, edit, ls, rm, timeline, treemap, undo};
+use crate::store::Store;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -50,16 +51,17 @@ enum Commands {
 
 pub fn run() -> std::io::Result<()> {
     let cli = Cli::parse();
-    match cli.command {
-        None | Some(Commands::Ls) => ls::execute()?,
-        Some(Commands::Add(args)) => add::execute(&args)?,
-        Some(Commands::Edit(args)) => edit::execute(&args)?,
-        Some(Commands::Rm(args)) => rm::execute(&args)?,
-        Some(Commands::Treemap) => treemap::execute()?,
-        Some(Commands::Config { command }) => config::run(&command)?,
-        Some(Commands::Category { command }) => category::run(&command)?,
-        Some(Commands::Timeline(args)) => timeline::execute(&args)?,
-        Some(Commands::Undo) => undo::execute()?,
+    let store = Store::open();
+    match cli.command.unwrap_or(Commands::Ls) {
+        Commands::Ls => ls::execute(&store)?,
+        Commands::Add(args) => add::execute(&args, &store)?,
+        Commands::Edit(args) => edit::execute(&args, &store)?,
+        Commands::Rm(args) => rm::execute(&args, &store)?,
+        Commands::Treemap => treemap::execute(&store)?,
+        Commands::Config { command } => config::run(&command)?,
+        Commands::Category { command } => category::run(&command, &store)?,
+        Commands::Timeline(args) => timeline::execute(&args, &store)?,
+        Commands::Undo => undo::execute(&store)?,
     }
     Ok(())
 }

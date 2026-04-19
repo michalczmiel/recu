@@ -3,7 +3,7 @@ use std::io::{self, Write as _};
 
 use crate::config;
 use crate::rates;
-use crate::store;
+use crate::store::Store;
 use colored::Colorize;
 use rusty_money::{Findable, iso};
 
@@ -353,8 +353,8 @@ fn query_terminal_size() -> (usize, usize) {
     (cols, rows)
 }
 
-pub fn execute() -> std::io::Result<()> {
-    let expenses = store::list()?;
+pub fn execute(store: &Store) -> std::io::Result<()> {
+    let expenses = store.list()?;
     if expenses.is_empty() {
         println!("No recurring expenses found.");
         return Ok(());
@@ -370,8 +370,13 @@ pub fn execute() -> std::io::Result<()> {
         .filter_map(|expense| {
             let amount = expense.amount?;
             let interval = expense.interval.as_ref()?;
-            let (converted, cur) = crate::expense::convert_amount(
+            let converted = crate::expense::convert(
                 amount,
+                expense.currency.as_deref(),
+                exchange_rates.as_ref(),
+                target,
+            );
+            let cur = crate::expense::display_currency(
                 expense.currency.as_deref(),
                 exchange_rates.as_ref(),
                 target,

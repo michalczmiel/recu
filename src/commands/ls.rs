@@ -7,9 +7,9 @@ use colored::Colorize;
 use crate::config::{self, Config};
 use rusty_money::iso;
 
-use crate::expense::{self, DueStatus, Expense, find_currency, format_amount};
+use crate::expense::{self, DueStatus, Expense, RecurringTotals, find_currency, format_amount};
 use crate::rates;
-use crate::store;
+use crate::store::Store;
 
 fn colorize_row(row: &[String; 5], status: &DueStatus) -> [String; 5] {
     let apply = |s: &String| -> String {
@@ -66,17 +66,14 @@ fn build_row(index: usize, expense: &Expense, today: NaiveDate) -> [String; 5] {
 
 fn print_totals(
     out: &mut impl Write,
-    expenses: &[&Expense],
-    rates: Option<&HashMap<String, f64>>,
-    target: Option<&str>,
+    totals: &RecurringTotals,
     target_cur: Option<&'static iso::Currency>,
 ) -> std::io::Result<()> {
     let Some(cur) = target_cur else { return Ok(()) };
-    let monthly = expense::monthly_total(expenses, rates, target, target_cur);
     let line = format!(
         "\nTotal  {}/month  {}/year",
-        format_amount(cur, monthly),
-        format_amount(cur, monthly * 12.0)
+        format_amount(cur, totals.monthly),
+        format_amount(cur, totals.yearly)
     );
     writeln!(out, "{}", line.bold())
 }
@@ -168,20 +165,18 @@ pub(crate) fn execute_with(
 
     print_table(out, &rows, &statuses)?;
 
-    let expense_refs: Vec<&Expense> = indexed.iter().map(|(_, e)| *e).collect();
-    print_totals(
-        out,
-        &expense_refs,
+    let totals = RecurringTotals::compute(
+        indexed.iter().map(|(_, e)| *e),
         exchange_rates.as_ref(),
         target,
-        target_cur,
-    )?;
+    );
+    print_totals(out, &totals, target_cur)?;
 
     Ok(())
 }
 
-pub fn execute() -> std::io::Result<()> {
-    let expenses = store::list()?;
+pub fn execute(store: &Store) -> std::io::Result<()> {
+    let expenses = store.list()?;
     let cfg = config::load()?;
     let today = chrono::Local::now().date_naive();
     execute_with(&mut std::io::stdout(), today, &cfg, &expenses)
