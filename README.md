@@ -38,6 +38,14 @@ Options:
           Print version
 ```
 
+### Tip: version your data
+
+Keep `recu.csv` in a git repo for free history and diffs. An example is a dedicated folder like `~/.finances` pointed to via `RECU_FILE` in your `~/.bashrc` or `~/.zshrc`:
+
+```
+export RECU_FILE=~/.finances/recu.csv
+```
+
 ### Example
 
 ```
