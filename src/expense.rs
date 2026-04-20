@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::num::ParseFloatError;
 
 use chrono::{Datelike, NaiveDate};
 use clap::{Args, ValueEnum};
@@ -149,6 +148,53 @@ mod tests {
         assert_eq!(format_amount(cur, 42.5), "42.50 zł");
     }
 
+    fn assert_parses(input: &str, expected: f64) {
+        let got = parse_amount(input).expect("parse_amount should succeed");
+        assert!(
+            (got - expected).abs() < 1e-9,
+            "{input} -> {got}, expected {expected}"
+        );
+    }
+
+    #[test]
+    fn parse_amount_plain_decimal() {
+        assert_parses("9.99", 9.99);
+        assert_parses("9,99", 9.99);
+    }
+
+    #[test]
+    fn parse_amount_us_format() {
+        assert_parses("1,234.56", 1234.56);
+        assert_parses("1,234,567.89", 1_234_567.89);
+    }
+
+    #[test]
+    fn parse_amount_european_format() {
+        assert_parses("1.234,56", 1234.56);
+        assert_parses("1.234.567,89", 1_234_567.89);
+    }
+
+    #[test]
+    fn parse_amount_thousands_only() {
+        assert_parses("1,234", 1234.0);
+        assert_parses("1,234,567", 1_234_567.0);
+    }
+
+    #[test]
+    fn parse_amount_trims_whitespace() {
+        assert_parses("  42.50  ", 42.50);
+    }
+
+    #[test]
+    fn parse_amount_rejects_invalid() {
+        assert!(parse_amount("").is_err());
+        assert!(parse_amount("abc").is_err());
+        assert!(parse_amount("0").is_err());
+        assert!(parse_amount("-1").is_err());
+        assert!(parse_amount("inf").is_err());
+        assert!(parse_amount("NaN").is_err());
+    }
+
     #[test]
     fn recurring_totals_compute() {
         let monthly = Expense {
@@ -258,8 +304,44 @@ pub fn uniform_currency(expenses: &[Expense]) -> Option<&'static iso::Currency> 
     cur.and_then(find_currency)
 }
 
-fn parse_amount(s: &str) -> Result<f64, ParseFloatError> {
-    s.replace(',', ".").parse::<f64>()
+fn parse_amount(s: &str) -> Result<f64, String> {
+    let trimmed = s.trim();
+    if trimmed.is_empty() {
+        return Err("amount is empty".into());
+    }
+    let normalized = normalize_amount(trimmed);
+    let v = normalized
+        .parse::<f64>()
+        .map_err(|_| format!("'{s}' is not a valid amount"))?;
+    if !v.is_finite() {
+        return Err("amount must be finite".into());
+    }
+    if v <= 0.0 {
+        return Err("must be greater than 0".into());
+    }
+    Ok(v)
+}
+
+/// Normalize thousands/decimal separators so both `1,234.56` and `1.234,56` parse.
+///
+/// Heuristic: the last `,` or `.` is the decimal point iff it's followed by 1-2 digits;
+/// otherwise every separator is treated as a thousands grouping and stripped.
+fn normalize_amount(s: &str) -> String {
+    let Some(pos) = s.rfind([',', '.']) else {
+        return s.to_string();
+    };
+    let after = &s[pos + 1..];
+    let is_decimal =
+        !after.is_empty() && after.len() <= 2 && after.chars().all(|c| c.is_ascii_digit());
+    if is_decimal {
+        let head: String = s[..pos]
+            .chars()
+            .filter(|c| *c != ',' && *c != '.')
+            .collect();
+        format!("{head}.{after}")
+    } else {
+        s.chars().filter(|c| *c != ',' && *c != '.').collect()
+    }
 }
 
 #[derive(Args, Debug, Default)]
