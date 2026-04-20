@@ -2,6 +2,8 @@
 
 CLI tool for tracking recurring expenses.
 
+> This project is still in development, the interfaces and features may change.
+
 ## Install
 
 ```
