@@ -1,4 +1,4 @@
-use crate::expense::{Interval, find_currency};
+use crate::expense::{Interval, find_currency, parse_amount};
 use chrono::NaiveDate;
 use inquire::{
     Autocomplete, CustomType, DateSelect, Select, Text,
@@ -83,10 +83,7 @@ pub fn prompt_name_skippable(current: &str) -> std::io::Result<Option<String>> {
 }
 
 pub fn prompt_amount(default: Option<f64>) -> std::io::Result<Option<f64>> {
-    let amount_parser = |input: &str| -> Result<f64, ()> {
-        let v = input.replace(',', ".").parse::<f64>().map_err(|_| ())?;
-        if v <= 0.0 { Err(()) } else { Ok(v) }
-    };
+    let amount_parser = |input: &str| -> Result<f64, ()> { parse_amount(input).map_err(|_| ()) };
     let mut prompt = CustomType::<f64>::new("Amount:")
         .with_placeholder("e.g. 9.99 or 9,99")
         .with_parser(&amount_parser)

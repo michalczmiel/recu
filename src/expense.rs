@@ -304,7 +304,7 @@ pub fn uniform_currency(expenses: &[Expense]) -> Option<&'static iso::Currency> 
     cur.and_then(find_currency)
 }
 
-fn parse_amount(s: &str) -> Result<f64, String> {
+pub fn parse_amount(s: &str) -> Result<f64, String> {
     let trimmed = s.trim();
     if trimmed.is_empty() {
         return Err("amount is empty".into());
