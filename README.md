@@ -1,6 +1,6 @@
 # recu
 
-CLI tool for tracking recurring expenses.
+CLI tool for tracking recurring expenses. Parses expenses data and outputs it in one of three formats (list, timeline or treemap). Data is stored in a single CSV file
 
 > This project is still in development, the interfaces and features may change.
 
@@ -38,7 +38,9 @@ Options:
           Print version
 ```
 
-### Tip: version your data
+## Tips
+
+### Version your data
 
 Keep `recu.csv` in a git repo for free history and diffs. An example is a dedicated folder like `~/.finances` pointed to via `RECU_FILE` in your `~/.bashrc` or `~/.zshrc`:
 
@@ -46,72 +48,19 @@ Keep `recu.csv` in a git repo for free history and diffs. An example is a dedica
 export RECU_FILE=~/.finances/recu.csv
 ```
 
-### Example
+### Set a display currency
+
+Set a default currency and `recu` auto-converts multi-currency entries to it on display:
 
 ```
-$ recu help add
-Add a recurring expense
-
-Usage: recu add [OPTIONS]
-
-Options:
-  -n, --name <NAME>          Expense name
-  -a, --amount <AMOUNT>      Amount (e.g. 9.99 or 9,99)
-  -c, --currency <CURRENCY>  ISO 4217 currency code (e.g. usd, eur)
-  -d, --date <DATE>          Start date (YYYY-MM-DD)
-  -i, --interval <INTERVAL>  Billing interval [possible values: weekly, monthly, quarterly, yearly]
-      --ca <CATEGORY>        Category label (e.g. streaming, utilities)
-  -h, --help                 Print help
-
-Examples:
-  recu add -n Netflix -a 9.99 -c usd -d 2026-05-01 -i monthly
-  recu add --name Netflix --amount 9.99 --currency usd --date 2026-05-01 --interval monthly
-  recu add          # interactive mode
+recu config set currency usd
 ```
 
-```
-$ recu help edit
-Edit a recurring expense
+### Let an LLM agent do the grunt work
 
-Usage: recu edit [OPTIONS] <TARGET>
+Point any coding agent (Pi, OpenCode, Claude Code, Codex etc.) at your shell and ask it to "import my subscriptions into recu, suggest categories, and find overlapping subscriptions". It can discover the interface via `recu help` and each subcommand's `--help`.
 
-Arguments:
-  <TARGET>  Expense to edit: @id or name (case-insensitive)
-
-Options:
-  -n, --name <NAME>          Expense name
-  -a, --amount <AMOUNT>      Amount (e.g. 9.99 or 9,99)
-  -c, --currency <CURRENCY>  ISO 4217 currency code (e.g. usd, eur)
-  -d, --date <DATE>          Start date (YYYY-MM-DD)
-  -i, --interval <INTERVAL>  Billing interval [possible values: weekly, monthly, quarterly, yearly]
-      --ca <CATEGORY>        Category label (e.g. streaming, utilities)
-  -h, --help                 Print help
-
-Examples:
-  recu edit @1 -a 12.99
-  recu edit Netflix --interval yearly
-  recu edit Netflix          # interactive mode
-```
-
-```
-$ recu help rm
-Remove one or more recurring expenses
-
-Usage: recu rm [TARGETS]...
-
-Arguments:
-  [TARGETS]...  Expense(s) to remove: @id or name (case-insensitive), comma-separated. When using @id, run 'recu ls' first to see current indices. For multiple targets, prefer @id to avoid ambiguity
-
-Options:
-  -h, --help  Print help
-
-Examples:
-  recu rm Netflix
-  recu rm netflix              (case-insensitive)
-  recu rm @2                   (run 'recu ls' first to see indices)
-  recu rm @3,@1                (indices resolved before any removal; use 'recu ls' first)
-  recu rm Netflix,Spotify      (comma-separated; prefer @id when mixing with index targets)
-```
+## Example
 
 ```
 $ recu ls
@@ -186,4 +135,69 @@ $ recu treemap
 │                              ││691 zł/yr       ││432 zł/…││0Passw…││iS…│Gogg…│
 │                              ││                ││        ││18 zł/…││   └─────┘
 └──────────────────────────────┘└────────────────┘└────────┘└───────┘└───┘
+```
+
+```
+$ recu help add
+Add a recurring expense
+
+Usage: recu add [OPTIONS]
+
+Options:
+  -n, --name <NAME>          Expense name
+  -a, --amount <AMOUNT>      Amount (e.g. 9.99 or 9,99)
+  -c, --currency <CURRENCY>  ISO 4217 currency code (e.g. usd, eur)
+  -d, --date <DATE>          Start date (YYYY-MM-DD)
+  -i, --interval <INTERVAL>  Billing interval [possible values: weekly, monthly, quarterly, yearly]
+      --ca <CATEGORY>        Category label (e.g. streaming, utilities)
+  -h, --help                 Print help
+
+Examples:
+  recu add -n Netflix -a 9.99 -c usd -d 2026-05-01 -i monthly
+  recu add --name Netflix --amount 9.99 --currency usd --date 2026-05-01 --interval monthly
+  recu add          # interactive mode
+```
+
+```
+$ recu help edit
+Edit a recurring expense
+
+Usage: recu edit [OPTIONS] <TARGET>
+
+Arguments:
+  <TARGET>  Expense to edit: @id or name (case-insensitive)
+
+Options:
+  -n, --name <NAME>          Expense name
+  -a, --amount <AMOUNT>      Amount (e.g. 9.99 or 9,99)
+  -c, --currency <CURRENCY>  ISO 4217 currency code (e.g. usd, eur)
+  -d, --date <DATE>          Start date (YYYY-MM-DD)
+  -i, --interval <INTERVAL>  Billing interval [possible values: weekly, monthly, quarterly, yearly]
+      --ca <CATEGORY>        Category label (e.g. streaming, utilities)
+  -h, --help                 Print help
+
+Examples:
+  recu edit @1 -a 12.99
+  recu edit Netflix --interval yearly
+  recu edit Netflix          # interactive mode
+```
+
+```
+$ recu help rm
+Remove one or more recurring expenses
+
+Usage: recu rm [TARGETS]...
+
+Arguments:
+  [TARGETS]...  Expense(s) to remove: @id or name (case-insensitive), comma-separated. When using @id, run 'recu ls' first to see current indices. For multiple targets, prefer @id to avoid ambiguity
+
+Options:
+  -h, --help  Print help
+
+Examples:
+  recu rm Netflix
+  recu rm netflix              (case-insensitive)
+  recu rm @2                   (run 'recu ls' first to see indices)
+  recu rm @3,@1                (indices resolved before any removal; use 'recu ls' first)
+  recu rm Netflix,Spotify      (comma-separated; prefer @id when mixing with index targets)
 ```
