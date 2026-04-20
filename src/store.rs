@@ -94,9 +94,18 @@ impl Store {
         new_name: Option<&str>,
         changes: &Expense,
     ) -> io::Result<()> {
-        self.snapshot()?;
         let mut entries = self.read_all()?;
         let index = resolve_index_in(&entries, target)?;
+
+        if new_name.is_none()
+            && changes.amount.is_none()
+            && changes.currency.is_none()
+            && changes.start_date.is_none()
+            && changes.interval.is_none()
+            && changes.category.is_none()
+        {
+            return Ok(());
+        }
 
         if let Some(name) = new_name
             && entries
@@ -109,6 +118,8 @@ impl Store {
                 format!("expense '{name}' already exists"),
             ));
         }
+
+        self.snapshot()?;
 
         let expense = &mut entries[index];
         expense.amount = changes.amount.or(expense.amount);
@@ -139,25 +150,24 @@ impl Store {
         self.snapshot()?;
         let mut entries = self.read_all()?;
 
-        let mut indices: Vec<usize> = Vec::with_capacity(targets.len());
-        for target in targets {
+        let mut resolved: Vec<(usize, usize)> = Vec::with_capacity(targets.len());
+        for (pos, target) in targets.iter().enumerate() {
             let index = resolve_index_in(&entries, target)?;
-            if indices.contains(&index) {
+            if resolved.iter().any(|&(_, i)| i == index) {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     format!("duplicate target: {target}"),
                 ));
             }
-            indices.push(index);
+            resolved.push((pos, index));
         }
 
-        // Remove highest indices first so earlier removals don't shift remaining ones
-        let mut order: Vec<usize> = (0..indices.len()).collect();
-        order.sort_unstable_by(|&a, &b| indices[b].cmp(&indices[a]));
+        // Remove from highest index first so earlier removals don't shift remaining ones.
+        resolved.sort_unstable_by_key(|&(_, idx)| std::cmp::Reverse(idx));
 
-        let mut names = vec![String::new(); indices.len()];
-        for pos in order {
-            names[pos] = entries.remove(indices[pos]).name;
+        let mut names = vec![String::new(); resolved.len()];
+        for (pos, idx) in resolved {
+            names[pos] = entries.remove(idx).name;
         }
 
         self.write_all(&entries)?;
@@ -369,6 +379,18 @@ mod tests {
         store.restore()?;
         let err = store.restore().expect_err("second restore should fail");
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        Ok(())
+    }
+
+    #[test]
+    fn empty_patch_preserves_prior_undo() -> io::Result<()> {
+        let store = make_store("update-empty-preserves-undo");
+        store.save(&named("Netflix", 9.99))?;
+        store.update("Netflix", None, &named("Netflix", 14.99))?;
+        // Empty patch should be a no-op that does not consume the undo snapshot.
+        store.update("Netflix", None, &Expense::default())?;
+        store.restore()?;
+        assert_eq!(store.list()?[0].amount, Some(9.99));
         Ok(())
     }
 
