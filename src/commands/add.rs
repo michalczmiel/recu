@@ -48,7 +48,7 @@ pub fn execute(add: &AddArgs, store: &Store) -> std::io::Result<()> {
         Expense {
             name: name.clone(),
             amount: f.amount,
-            currency: f.currency.as_ref().map(|c| c.to_lowercase()),
+            currency: f.currency.clone(),
             start_date,
             interval: f.interval.clone(),
             category: f.category.clone(),

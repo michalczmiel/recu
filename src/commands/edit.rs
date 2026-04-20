@@ -154,7 +154,7 @@ pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
         let f = &args.fields;
         let patch = Expense {
             amount: f.amount,
-            currency: f.currency.as_ref().map(|c| c.to_lowercase()),
+            currency: f.currency.clone(),
             start_date: f.date,
             interval: f.interval.clone(),
             category: f.category.clone(),

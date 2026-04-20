@@ -7,7 +7,9 @@ use colored::Colorize;
 use crate::config::{self, Config};
 use rusty_money::iso;
 
-use crate::expense::{self, DueStatus, Expense, RecurringTotals, find_currency, format_amount};
+use crate::expense::{
+    self, DueStatus, Expense, RecurringTotals, find_currency, format_amount, format_expense_amount,
+};
 use crate::rates;
 use crate::store::Store;
 
@@ -43,13 +45,10 @@ fn format_days(days: i64) -> String {
 }
 
 fn build_row(index: usize, expense: &Expense, today: NaiveDate) -> [String; 5] {
-    let cur = expense.currency.as_deref().and_then(find_currency);
-
-    let amount = match (cur, expense.amount) {
-        (Some(c), Some(a)) => format_amount(c, a),
-        (None, Some(a)) => format!("{a:.2}"),
-        _ => "-".into(),
-    };
+    let amount = expense.amount.map_or_else(
+        || "-".into(),
+        |a| format_expense_amount(expense.currency.as_deref(), a),
+    );
     let days_str = expense
         .days_until_next(today)
         .map(format_days)

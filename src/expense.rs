@@ -98,14 +98,10 @@ impl Expense {
     }
 
     pub fn summary(&self) -> String {
-        let amount_str = match (
-            self.currency.as_deref().and_then(find_currency),
-            self.amount,
-        ) {
-            (Some(c), Some(a)) => format_amount(c, a),
-            (None, Some(a)) => format!("{a:.2}"),
-            _ => String::new(),
-        };
+        let amount_str = self
+            .amount
+            .map(|a| format_expense_amount(self.currency.as_deref(), a))
+            .unwrap_or_default();
         let interval_str = self
             .interval
             .as_ref()
@@ -224,6 +220,14 @@ pub fn format_amount(cur: &iso::Currency, amount: f64) -> String {
     }
 }
 
+/// Format an amount with optional currency code, falling back to plain `{:.2}`.
+pub fn format_expense_amount(currency: Option<&str>, amount: f64) -> String {
+    match currency.and_then(find_currency) {
+        Some(c) => format_amount(c, amount),
+        None => format!("{amount:.2}"),
+    }
+}
+
 /// Look up an ISO 4217 currency by code (case-insensitive).
 pub fn find_currency(code: &str) -> Option<&'static iso::Currency> {
     iso::Currency::find(&code.to_ascii_uppercase())
@@ -304,6 +308,14 @@ pub fn uniform_currency(expenses: &[Expense]) -> Option<&'static iso::Currency> 
     cur.and_then(find_currency)
 }
 
+pub fn normalize_currency(s: &str) -> Result<String, String> {
+    let lower = s.trim().to_lowercase();
+    if find_currency(&lower).is_none() {
+        return Err(format!("'{s}' is not a valid ISO 4217 currency code"));
+    }
+    Ok(lower)
+}
+
 pub fn parse_amount(s: &str) -> Result<f64, String> {
     let trimmed = s.trim();
     if trimmed.is_empty() {
@@ -353,7 +365,7 @@ pub struct ExpenseInput {
     #[arg(short, long, value_parser = parse_amount)]
     pub amount: Option<f64>,
     /// ISO 4217 currency code (e.g. usd, eur)
-    #[arg(short, long)]
+    #[arg(short, long, value_parser = normalize_currency)]
     pub currency: Option<String>,
     /// Start date (YYYY-MM-DD)
     #[arg(short, long)]

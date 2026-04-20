@@ -7,7 +7,7 @@ use colored::Colorize;
 use rusty_money::iso;
 
 use crate::config::{self, Config};
-use crate::expense::{self, Expense, convert, find_currency, format_amount};
+use crate::expense::{self, Expense, convert, find_currency, format_amount, format_expense_amount};
 use crate::rates;
 use crate::store::Store;
 
@@ -49,12 +49,7 @@ fn occurrences_in_range(
         return vec![];
     };
 
-    let display_cur = expense.currency.as_deref().and_then(find_currency);
-
-    let display_amount = match display_cur {
-        Some(c) => format_amount(c, amount),
-        None => format!("{amount:.2}"),
-    };
+    let display_amount = format_expense_amount(expense.currency.as_deref(), amount);
 
     let converted = convert(amount, expense.currency.as_deref(), rates, target);
 
