@@ -10,6 +10,8 @@ pub enum CategoryCommand {
     List,
     /// Remove categories from all matching expenses
     Rm(CategoryRmArgs),
+    /// Rename one or more categories into a destination (merges if dst already exists)
+    Rename(CategoryRenameArgs),
 }
 
 #[derive(Args, Debug)]
@@ -21,6 +23,19 @@ pub struct CategoryRmArgs {
     /// Categories to remove: @id or name (case-insensitive), comma-separated.
     #[arg(value_delimiter = ',')]
     pub targets: Vec<String>,
+}
+
+#[derive(Args, Debug)]
+#[command(after_help = "Examples:
+  recu category rename streaming Streaming
+  recu category rename @1 Streaming
+  recu category rename streaming,subs Streaming  (comma-separated merges into dst)")]
+pub struct CategoryRenameArgs {
+    /// Source categories: @id or name (case-insensitive), comma-separated.
+    #[arg(value_delimiter = ',', num_args = 1)]
+    pub sources: Vec<String>,
+    /// Destination category name
+    pub dst: String,
 }
 
 fn resolve_target(target: &str, categories: &[String]) -> io::Result<String> {
@@ -56,6 +71,32 @@ fn resolve_target(target: &str, categories: &[String]) -> io::Result<String> {
         })
 }
 
+fn validate_dst(dst: &str) -> io::Result<&str> {
+    let trimmed = dst.trim();
+    if trimmed.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "destination category name cannot be empty",
+        ));
+    }
+    Ok(trimmed)
+}
+
+fn resolve_sources(targets: &[String], categories: &[String]) -> io::Result<Vec<String>> {
+    let mut resolved: Vec<String> = Vec::with_capacity(targets.len());
+    for target in targets {
+        let name = resolve_target(target, categories)?;
+        if resolved.iter().any(|n| n.eq_ignore_ascii_case(&name)) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("duplicate source '{target}'"),
+            ));
+        }
+        resolved.push(name);
+    }
+    Ok(resolved)
+}
+
 pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
     match cmd {
         CategoryCommand::List => {
@@ -78,22 +119,39 @@ pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
                 ));
             }
             let categories = store.categories()?;
-            let mut resolved: Vec<String> = Vec::with_capacity(args.targets.len());
-            for target in &args.targets {
-                let name = resolve_target(target, &categories)?;
-                if resolved.iter().any(|n| n.eq_ignore_ascii_case(&name)) {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("duplicate target '{target}'"),
-                    ));
-                }
-                resolved.push(name);
-            }
+            let resolved = resolve_sources(&args.targets, &categories)?;
 
             let refs: Vec<&str> = resolved.iter().map(String::as_str).collect();
             let counts = store.clear_categories(&refs)?;
             for (name, count) in resolved.iter().zip(counts.iter()) {
                 println!("Removed category '{name}' from {count} expense(s).");
+            }
+        }
+        CategoryCommand::Rename(args) => {
+            if args.sources.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "no source category specified",
+                ));
+            }
+            let dst = validate_dst(&args.dst)?;
+            let categories = store.categories()?;
+            let resolved = resolve_sources(&args.sources, &categories)?;
+
+            let refs: Vec<&str> = resolved.iter().map(String::as_str).collect();
+            let counts = store.reassign_category(&refs, dst)?;
+
+            if resolved.len() == 1 {
+                println!(
+                    "Renamed category '{}' to '{}' in {} expense(s).",
+                    resolved[0], dst, counts[0]
+                );
+            } else {
+                for (name, count) in resolved.iter().zip(counts.iter()) {
+                    println!("  '{name}': {count} expense(s)");
+                }
+                let total: usize = counts.iter().sum();
+                println!("Renamed into '{dst}' ({total} expense(s) total).");
             }
         }
     }
@@ -160,5 +218,41 @@ mod tests {
         let cats = sample();
         let err = resolve_target("nope", &cats).expect_err("unknown name should fail");
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn validate_dst_rejects_empty_and_whitespace() {
+        assert_eq!(
+            validate_dst("").expect_err("empty dst").kind(),
+            io::ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            validate_dst("   ").expect_err("whitespace dst").kind(),
+            io::ErrorKind::InvalidInput
+        );
+    }
+
+    #[test]
+    fn validate_dst_trims_whitespace() {
+        assert_eq!(
+            validate_dst("  Streaming  ").expect("valid dst"),
+            "Streaming"
+        );
+    }
+
+    #[test]
+    fn resolve_sources_rejects_duplicates_case_insensitive() {
+        let cats = sample();
+        let err = resolve_sources(&["food".into(), "FOOD".into()], &cats)
+            .expect_err("duplicate sources should fail");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn resolve_sources_by_mixed_id_and_name() {
+        let cats = sample();
+        let resolved = resolve_sources(&["@1".into(), "Housing".into()], &cats)
+            .expect("resolve should succeed");
+        assert_eq!(resolved, vec!["food", "housing"]);
     }
 }

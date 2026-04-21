@@ -183,6 +183,33 @@ impl Store {
         Ok(categories)
     }
 
+    pub fn reassign_category(&self, sources: &[&str], dst: &str) -> io::Result<Vec<usize>> {
+        let mut entries = self.read_all()?;
+        let mut counts = vec![0usize; sources.len()];
+        let mut changed = false;
+
+        for entry in &mut entries {
+            let Some(current) = entry.category.as_deref() else {
+                continue;
+            };
+            if let Some(i) = sources.iter().position(|s| current.eq_ignore_ascii_case(s)) {
+                counts[i] += 1;
+                if current != dst {
+                    entry.category = Some(dst.to_string());
+                    changed = true;
+                }
+            }
+        }
+
+        if !changed {
+            return Ok(counts);
+        }
+
+        self.snapshot()?;
+        self.write_all(&entries)?;
+        Ok(counts)
+    }
+
     pub fn clear_categories(&self, categories: &[&str]) -> io::Result<Vec<usize>> {
         let mut entries = self.read_all()?;
         let mut counts = vec![0usize; categories.len()];
@@ -560,6 +587,106 @@ mod tests {
         assert_eq!(expenses[0].category, None);
         assert_eq!(expenses[1].category, None);
         assert_eq!(expenses[2].category.as_deref(), Some("housing"));
+        Ok(())
+    }
+
+    #[test]
+    fn reassign_renames_matching_expenses() -> io::Result<()> {
+        let store = make_store("reassign-rename");
+        store.save(&Expense {
+            category: Some("streaming".into()),
+            ..named("Netflix", 9.99)
+        })?;
+        store.save(&Expense {
+            category: Some("Streaming".into()),
+            ..named("Spotify", 5.99)
+        })?;
+        store.save(&Expense {
+            category: Some("housing".into()),
+            ..named("Rent", 999.0)
+        })?;
+
+        assert_eq!(store.reassign_category(&["streaming"], "Subs")?, vec![2]);
+
+        let expenses = store.list()?;
+        assert_eq!(expenses[0].category.as_deref(), Some("Subs"));
+        assert_eq!(expenses[1].category.as_deref(), Some("Subs"));
+        assert_eq!(expenses[2].category.as_deref(), Some("housing"));
+        Ok(())
+    }
+
+    #[test]
+    fn reassign_merges_multiple_sources() -> io::Result<()> {
+        let store = make_store("reassign-merge");
+        store.save(&Expense {
+            category: Some("streaming".into()),
+            ..named("Netflix", 9.99)
+        })?;
+        store.save(&Expense {
+            category: Some("subs".into()),
+            ..named("Spotify", 5.99)
+        })?;
+        store.save(&Expense {
+            category: Some("housing".into()),
+            ..named("Rent", 999.0)
+        })?;
+
+        let counts = store.reassign_category(&["streaming", "subs"], "Subs")?;
+        assert_eq!(counts, vec![1, 1]);
+
+        let expenses = store.list()?;
+        assert_eq!(expenses[0].category.as_deref(), Some("Subs"));
+        assert_eq!(expenses[1].category.as_deref(), Some("Subs"));
+        assert_eq!(expenses[2].category.as_deref(), Some("housing"));
+        Ok(())
+    }
+
+    #[test]
+    fn reassign_no_match_skips_snapshot() -> io::Result<()> {
+        let store = make_store("reassign-nomatch");
+        store.save(&Expense {
+            category: Some("streaming".into()),
+            ..named("Netflix", 9.99)
+        })?;
+        assert_eq!(store.reassign_category(&["housing"], "Home")?, vec![0]);
+        let err = store
+            .restore()
+            .expect_err("restore without snapshot should fail");
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        Ok(())
+    }
+
+    #[test]
+    fn reassign_same_casing_skips_snapshot() -> io::Result<()> {
+        let store = make_store("reassign-same");
+        store.save(&Expense {
+            category: Some("Streaming".into()),
+            ..named("Netflix", 9.99)
+        })?;
+        // Source matches dst exactly — counted but no mutation, no snapshot.
+        assert_eq!(
+            store.reassign_category(&["Streaming"], "Streaming")?,
+            vec![1]
+        );
+        let err = store
+            .restore()
+            .expect_err("restore without snapshot should fail");
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        Ok(())
+    }
+
+    #[test]
+    fn reassign_supports_undo() -> io::Result<()> {
+        let store = make_store("reassign-undo");
+        store.save(&Expense {
+            category: Some("streaming".into()),
+            ..named("Netflix", 9.99)
+        })?;
+        store.reassign_category(&["streaming"], "Subs")?;
+        assert_eq!(store.list()?[0].category.as_deref(), Some("Subs"));
+        let msg = store.restore()?;
+        assert_eq!(msg, "Reverted edit of 'Netflix'");
+        assert_eq!(store.list()?[0].category.as_deref(), Some("streaming"));
         Ok(())
     }
 
