@@ -9,12 +9,6 @@ pub struct Store {
 }
 
 impl Store {
-    pub fn open() -> Self {
-        let path =
-            std::env::var_os("RECU_FILE").map_or_else(|| PathBuf::from("recu.csv"), PathBuf::from);
-        Self { path }
-    }
-
     pub fn at(path: impl Into<PathBuf>) -> Self {
         Self { path: path.into() }
     }

@@ -20,7 +20,7 @@ pedantic = "warn"
 unwrap_used = "warn"
 
 [dependencies]
-clap = { version = "4.6.0", features = ["derive"] }
+clap = { version = "4.6.0", features = ["derive", "env"] }
 serde = { version = "1", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 rusty-money = "0.5.0"

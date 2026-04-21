@@ -1,16 +1,23 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
 use crate::commands::{add, category, config, edit, ls, rm, timeline, treemap, undo};
 use crate::store::Store;
 
 #[derive(Parser, Debug)]
-#[command(
-    name = "recu",
-    version,
-    about = "Track recurring expenses",
-    long_about = "Track recurring expenses. Uses ./recu.csv by default, or RECU_FILE to override the storage file path."
-)]
+#[command(name = "recu", version, about = "Track recurring expenses")]
 struct Cli {
+    /// Path to the CSV storage file
+    #[arg(
+        short,
+        long,
+        env = "RECU_FILE",
+        default_value = "recu.csv",
+        global = true
+    )]
+    file: PathBuf,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -51,7 +58,7 @@ enum Commands {
 
 pub fn run() -> std::io::Result<()> {
     let cli = Cli::parse();
-    let store = Store::open();
+    let store = Store::at(cli.file);
     match cli.command.unwrap_or(Commands::Ls) {
         Commands::Ls => ls::execute(&store)?,
         Commands::Add(args) => add::execute(&args, &store)?,
