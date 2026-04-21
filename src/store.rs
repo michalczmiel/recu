@@ -183,27 +183,30 @@ impl Store {
         Ok(categories)
     }
 
-    pub fn clear_category(&self, category: &str) -> io::Result<usize> {
+    pub fn clear_categories(&self, categories: &[&str]) -> io::Result<Vec<usize>> {
         let mut entries = self.read_all()?;
-        let updated = entries
-            .iter_mut()
-            .filter(|e| {
-                e.category
-                    .as_deref()
-                    .is_some_and(|c| c.eq_ignore_ascii_case(category))
-            })
-            .map(|e| {
-                e.category = None;
-            })
-            .count();
+        let mut counts = vec![0usize; categories.len()];
 
-        if updated == 0 {
-            return Ok(0);
+        for entry in &mut entries {
+            let Some(current) = entry.category.as_deref() else {
+                continue;
+            };
+            if let Some(i) = categories
+                .iter()
+                .position(|c| current.eq_ignore_ascii_case(c))
+            {
+                counts[i] += 1;
+                entry.category = None;
+            }
+        }
+
+        if counts.iter().all(|&n| n == 0) {
+            return Ok(counts);
         }
 
         self.snapshot()?;
         self.write_all(&entries)?;
-        Ok(updated)
+        Ok(counts)
     }
 
     pub fn restore(&self) -> io::Result<String> {
@@ -517,7 +520,7 @@ mod tests {
             category: Some("streaming".into()),
             ..named("Netflix", 9.99)
         })?;
-        assert_eq!(store.clear_category("housing")?, 0);
+        assert_eq!(store.clear_categories(&["housing"])?, vec![0]);
         let err = store
             .restore()
             .expect_err("restore without snapshot should fail");
@@ -548,12 +551,38 @@ mod tests {
             ..named("Rent", 999.0)
         })?;
 
-        assert_eq!(store.clear_category("streaming")?, 2);
+        assert_eq!(store.clear_categories(&["streaming"])?, vec![2]);
 
         let expenses = store.list()?;
         assert_eq!(expenses[0].category, None);
         assert_eq!(expenses[1].category, None);
         assert_eq!(expenses[2].category.as_deref(), Some("housing"));
+        Ok(())
+    }
+
+    #[test]
+    fn clear_categories_multiple() -> io::Result<()> {
+        let store = make_store("clear-categories-multi");
+        store.save(&Expense {
+            category: Some("streaming".into()),
+            ..named("Netflix", 9.99)
+        })?;
+        store.save(&Expense {
+            category: Some("housing".into()),
+            ..named("Rent", 999.0)
+        })?;
+        store.save(&Expense {
+            category: Some("food".into()),
+            ..named("Groceries", 50.0)
+        })?;
+
+        let counts = store.clear_categories(&["streaming", "housing"])?;
+        assert_eq!(counts, vec![1, 1]);
+
+        let expenses = store.list()?;
+        assert_eq!(expenses[0].category, None);
+        assert_eq!(expenses[1].category, None);
+        assert_eq!(expenses[2].category.as_deref(), Some("food"));
         Ok(())
     }
 }
