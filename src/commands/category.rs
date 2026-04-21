@@ -34,7 +34,9 @@ fn resolve_target(target: &str, categories: &[String]) -> io::Result<String> {
         if id == 0 || id > categories.len() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("no category at @{id}"),
+                format!(
+                    "no category at @{id}. Run 'recu category list' to see available categories"
+                ),
             ));
         }
         return Ok(categories[id - 1].clone());
@@ -47,7 +49,9 @@ fn resolve_target(target: &str, categories: &[String]) -> io::Result<String> {
         .ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("category '{target}' not found"),
+                format!(
+                    "category '{target}' not found. Run 'recu category list' to see available categories"
+                ),
             )
         })
 }
@@ -80,7 +84,7 @@ pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
                 if resolved.iter().any(|n| n.eq_ignore_ascii_case(&name)) {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
-                        format!("duplicate target: {target}"),
+                        format!("duplicate target '{target}'"),
                     ));
                 }
                 resolved.push(name);

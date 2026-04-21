@@ -3,9 +3,9 @@
 use std::io;
 
 use clap::{Args, Subcommand, ValueEnum};
-use rusty_money::{Findable, iso};
 
 use crate::config;
+use crate::expense::normalize_currency;
 
 #[derive(Subcommand, Debug)]
 pub enum ConfigCommand {
@@ -43,13 +43,8 @@ pub fn run(cmd: &ConfigCommand) -> io::Result<()> {
         }
         ConfigCommand::Set(args) => match args.key {
             ConfigKey::Currency => {
-                let code = args.value.to_uppercase();
-                if iso::Currency::find(&code).is_none() {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("unknown currency code: {code}"),
-                    ));
-                }
+                let code = normalize_currency(&args.value)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
                 let mut cfg = config::load()?;
                 cfg.currency = Some(code.clone());
                 config::save(&cfg)?;

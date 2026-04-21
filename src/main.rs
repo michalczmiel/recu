@@ -6,6 +6,11 @@ mod prompt;
 mod rates;
 mod store;
 
-fn main() -> std::io::Result<()> {
-    cli::run()
+use colored::Colorize;
+
+fn main() {
+    if let Err(err) = cli::run() {
+        eprintln!("{} {err}", "Error:".red().bold());
+        std::process::exit(1);
+    }
 }

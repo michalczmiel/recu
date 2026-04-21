@@ -319,7 +319,7 @@ pub fn normalize_currency(s: &str) -> Result<String, String> {
 pub fn parse_amount(s: &str) -> Result<f64, String> {
     let trimmed = s.trim();
     if trimmed.is_empty() {
-        return Err("amount is empty".into());
+        return Err("amount cannot be empty".into());
     }
     let normalized = normalize_amount(trimmed);
     let v = normalized
@@ -329,7 +329,7 @@ pub fn parse_amount(s: &str) -> Result<f64, String> {
         return Err("amount must be finite".into());
     }
     if v <= 0.0 {
-        return Err("must be greater than 0".into());
+        return Err("amount must be greater than 0".into());
     }
     Ok(v)
 }

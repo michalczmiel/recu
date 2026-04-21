@@ -150,7 +150,7 @@ impl Store {
             if resolved.iter().any(|&(_, i)| i == index) {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    format!("duplicate target: {target}"),
+                    format!("duplicate target '{target}'"),
                 ));
             }
             resolved.push((pos, index));
@@ -228,13 +228,16 @@ fn io_invalid_data<E: std::error::Error + Send + Sync + 'static>(err: E) -> io::
 
 fn resolve_index_in(entries: &[Expense], target: &str) -> io::Result<usize> {
     if let Some(id_str) = target.strip_prefix('@') {
-        let id: usize = id_str
-            .parse()
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid id"))?;
+        let id: usize = id_str.parse().map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("invalid id '{target}'"),
+            )
+        })?;
         if id == 0 || id > entries.len() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("no expense at @{id}"),
+                format!("no expense at @{id}. Run 'recu ls' to see available expenses"),
             ));
         }
         return Ok(id - 1);
@@ -246,7 +249,7 @@ fn resolve_index_in(entries: &[Expense], target: &str) -> io::Result<usize> {
         .ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("expense '{target}' not found"),
+                format!("expense '{target}' not found. Run 'recu ls' to see available expenses"),
             )
         })
 }
