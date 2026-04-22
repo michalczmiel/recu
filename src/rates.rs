@@ -48,16 +48,18 @@ fn ureq_err(e: ureq::Error) -> io::Error {
 }
 
 fn fetch_rates(base: &str) -> io::Result<ExchangeRateCache> {
-    let agent = ureq::AgentBuilder::new()
-        .timeout(Duration::from_secs(TIMEOUT_SECS))
+    let config = ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(TIMEOUT_SECS)))
         .build();
+    let agent = ureq::Agent::new_with_config(config);
     let url = format!("https://api.frankfurter.dev/v2/rates?base={base}");
 
     let mut retries = 0u8;
     loop {
         match agent.get(&url).call() {
             Ok(response) => {
-                let records: Vec<RateRecord> = response.into_json()?;
+                let records: Vec<RateRecord> =
+                    response.into_body().read_json().map_err(ureq_err)?;
                 let rates = records.iter().map(|r| (r.quote.clone(), r.rate)).collect();
                 let base = records
                     .first()
@@ -68,7 +70,9 @@ fn fetch_rates(base: &str) -> io::Result<ExchangeRateCache> {
                     fetched_at: Utc::now(),
                 });
             }
-            Err(ureq::Error::Transport(_)) if retries < MAX_RETRIES => {
+            Err(ureq::Error::Io(_) | ureq::Error::Timeout(_) | ureq::Error::HostNotFound)
+                if retries < MAX_RETRIES =>
+            {
                 retries += 1;
             }
             Err(e) => return Err(ureq_err(e)),
