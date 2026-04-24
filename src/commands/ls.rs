@@ -22,7 +22,19 @@ fn colorize_row(row: &[String; 5], status: &DueStatus) -> [String; 5] {
             DueStatus::Normal | DueStatus::Unknown => s.clone(),
         }
     };
-    std::array::from_fn(|i| apply(&row[i]))
+    std::array::from_fn(|i| match i {
+        0 => row[i].dimmed().to_string(),
+        1 => {
+            let styled = row[i].bold().to_string();
+            match status {
+                DueStatus::Overdue => styled.red().to_string(),
+                DueStatus::DueSoon => styled.yellow().to_string(),
+                DueStatus::Distant => styled.dimmed().to_string(),
+                DueStatus::Normal | DueStatus::Unknown => styled,
+            }
+        }
+        _ => apply(&row[i]),
+    })
 }
 
 fn format_days(days: i64) -> String {
@@ -67,10 +79,17 @@ fn print_totals(
     out: &mut impl Write,
     totals: &RecurringTotals,
     target_cur: Option<&'static iso::Currency>,
+    count: usize,
 ) -> std::io::Result<()> {
     let Some(cur) = target_cur else { return Ok(()) };
+    let label = if count == 1 {
+        "1 expense".to_string()
+    } else {
+        format!("{count} expenses")
+    };
     let line = format!(
-        "\nTotal  {}/month  {}/year",
+        "\n{}  {}/month  {}/year",
+        label,
         format_amount(cur, totals.monthly),
         format_amount(cur, totals.yearly)
     );
@@ -139,7 +158,10 @@ pub(crate) fn execute_with(
     expenses: &[Expense],
 ) -> std::io::Result<()> {
     if expenses.is_empty() {
-        writeln!(out, "No recurring expenses found.")?;
+        writeln!(
+            out,
+            "No expenses yet. Run 'recu add' to track your first subscription."
+        )?;
         return Ok(());
     }
 
@@ -169,7 +191,7 @@ pub(crate) fn execute_with(
         exchange_rates.as_ref(),
         target,
     );
-    print_totals(out, &totals, target_cur)?;
+    print_totals(out, &totals, target_cur, expenses.len())?;
 
     Ok(())
 }

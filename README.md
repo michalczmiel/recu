@@ -62,28 +62,28 @@ Point any coding agent (Pi, OpenCode, Claude Code, Codex etc.) at your shell and
 
 ```
 $ recu ls
-@    name                  amount  due          category      
+@    name                  amount  due          category
 ───  ────────────────────  ──────  ───────────  ──────────────
-@1   Streamberry           $19.99  in 1 day     Streaming     
+@1   Streamberry           $19.99  in 1 day     Streaming
 @18  Web Hosting            $6.99  in 3 days    Infrastructure
-@5   Ghibli+               $11.99  in 4 days    Streaming     
-@9   0Password              $4.99  in 1 week    Security      
-@4   Pear TV+              $12.99  in 1 week    Streaming     
-@3   ViewTube Premium      $15.99  in 1 week    Streaming     
-@16  Gym                   $45.00  in 1 week    Health        
-@8   Potion                $10.00  in 1 week    Productivity  
-@11  GitHug Pro             $4.00  in 2 weeks   Dev           
-@12  ChatGBT Plus          $20.00  in 2 weeks   Dev           
-@15  Amazoo Prime          $14.99  in 3 weeks   Shopping      
-@13  iSmog+                 $2.99  in 3 weeks   Cloud         
-@2   Spookify               $9.99  in 3 weeks   Streaming     
-@14  Goggle One             $2.99  in 4 weeks   Cloud         
-@6   Adobo Creative Cloud  $54.99  in 4 weeks   Productivity  
+@5   Ghibli+               $11.99  in 4 days    Streaming
+@9   0Password              $4.99  in 1 week    Security
+@4   Pear TV+              $12.99  in 1 week    Streaming
+@3   ViewTube Premium      $15.99  in 1 week    Streaming
+@16  Gym                   $45.00  in 1 week    Health
+@8   Potion                $10.00  in 1 week    Productivity
+@11  GitHug Pro             $4.00  in 2 weeks   Dev
+@12  ChatGBT Plus          $20.00  in 2 weeks   Dev
+@15  Amazoo Prime          $14.99  in 3 weeks   Shopping
+@13  iSmog+                 $2.99  in 3 weeks   Cloud
+@2   Spookify               $9.99  in 3 weeks   Streaming
+@14  Goggle One             $2.99  in 4 weeks   Cloud
+@6   Adobo Creative Cloud  $54.99  in 4 weeks   Productivity
 @17  Domain                $15.00  in 6 months  Infrastructure
-@7   Macrosoft 365         $99.99  in 7 months  Productivity  
-@10  FjordVPN              $47.88  in 8 months  Security      
+@7   Macrosoft 365         $99.99  in 7 months  Productivity
+@10  FjordVPN              $47.88  in 8 months  Security
 
-Total  904.54 zł/month  10854.50 zł/year
+18 expenses  904.54 zł/month  10854.50 zł/year
 ```
 
 ```
@@ -131,7 +131,7 @@ $ recu treemap
 │                              ││58 zł/mo        ││36 zł/mo│┌───────┐┌───┌─────┐
 │                              ││690 zł/yr       ││432 zł/…││0Passw…││iS…│Gogg…│
 │                              ││                ││        ││18 zł/…││   └─────┘
-└──────────────────────────────┘└────────────────┘└────────┘└───────┘└───┘      
+└──────────────────────────────┘└────────────────┘└────────┘└───────┘└───┘
 ```
 
 ```
