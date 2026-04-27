@@ -1,0 +1,31 @@
+{
+  "name": "@michalczmiel/recu",
+  "version": "0.2.1",
+  "description": "CLI tool for tracking recurring expenses",
+  "license": "MIT",
+  "homepage": "https://github.com/michalczmiel/recu",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/michalczmiel/recu.git"
+  },
+  "author": "Michał Czmiel",
+  "keywords": [
+    "cli",
+    "expenses",
+    "budget",
+    "finance",
+    "recurring"
+  ],
+  "bin": {
+    "recu": "bin/recu.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "optionalDependencies": {
+    "@michalczmiel/recu-darwin-arm64": "0.2.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

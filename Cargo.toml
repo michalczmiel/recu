@@ -10,7 +10,14 @@ authors = ["Michał Czmiel"]
 keywords = ["cli", "expenses", "budget", "finance", "recurring"]
 categories = ["command-line-utilities"]
 readme = "README.md"
-exclude = [".claude/", ".agents/", ".github/", "examples/", "Makefile", "clippy.toml", ".editorconfig"]
+exclude = [".claude/", ".agents/", ".github/", "examples/", "npm/", "Makefile", "clippy.toml", ".editorconfig"]
+
+[profile.release]
+strip = "symbols"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+opt-level = "s"
 
 [lints.rust]
 unsafe_code = "forbid"

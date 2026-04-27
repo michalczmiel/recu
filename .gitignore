@@ -4,3 +4,5 @@
 !examples/*.csv
 
 *.undo
+
+npm/recu-*/bin/recu

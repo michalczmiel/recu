@@ -6,6 +6,14 @@ CLI tool for tracking recurring expenses. Parses expenses data and outputs it in
 
 ## Install
 
+Via npm (macOS arm64 prebuilt binary):
+
+```
+npm install -g @michalczmiel/recu
+```
+
+Via cargo (any platform):
+
 ```
 cargo install recu
 ```
