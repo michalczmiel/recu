@@ -82,17 +82,11 @@ impl Store {
             .expect("index validated above"))
     }
 
-    pub fn update(
-        &self,
-        target: &str,
-        new_name: Option<&str>,
-        changes: &Expense,
-    ) -> io::Result<()> {
+    pub fn update(&self, target: &str, changes: &Expense) -> io::Result<()> {
         let mut entries = self.read_all()?;
         let index = resolve_index_in(&entries, target)?;
 
-        if new_name.is_none()
-            && changes.amount.is_none()
+        if changes.amount.is_none()
             && changes.currency.is_none()
             && changes.start_date.is_none()
             && changes.interval.is_none()
@@ -100,18 +94,6 @@ impl Store {
             && changes.end_date.is_none()
         {
             return Ok(());
-        }
-
-        if let Some(name) = new_name
-            && entries
-                .iter()
-                .enumerate()
-                .any(|(i, e)| i != index && e.name.eq_ignore_ascii_case(name))
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!("expense '{name}' already exists"),
-            ));
         }
 
         self.snapshot()?;
@@ -135,10 +117,27 @@ impl Store {
             .or(expense.category.as_ref())
             .cloned();
         expense.end_date = changes.end_date.or(expense.end_date);
-        if let Some(name) = new_name {
-            expense.name = name.to_string();
+
+        self.write_all(&entries)
+    }
+
+    pub fn rename(&self, target: &str, new_name: &str) -> io::Result<()> {
+        let mut entries = self.read_all()?;
+        let index = resolve_index_in(&entries, target)?;
+
+        if entries
+            .iter()
+            .enumerate()
+            .any(|(i, e)| i != index && e.name.eq_ignore_ascii_case(new_name))
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("expense '{new_name}' already exists"),
+            ));
         }
 
+        self.snapshot()?;
+        entries[index].name = new_name.to_string();
         self.write_all(&entries)
     }
 
@@ -369,7 +368,7 @@ mod tests {
     fn restore_after_update() -> io::Result<()> {
         let store = make_store("undo-update");
         store.save(&named("Netflix", 9.99))?;
-        store.update("Netflix", None, &named("Netflix", 14.99))?;
+        store.update("Netflix", &named("Netflix", 14.99))?;
         assert_eq!(store.list()?[0].amount, Some(14.99));
         let msg = store.restore()?;
         assert_eq!(msg, "Reverted edit of 'Netflix'");
@@ -415,9 +414,9 @@ mod tests {
     fn empty_patch_preserves_prior_undo() -> io::Result<()> {
         let store = make_store("update-empty-preserves-undo");
         store.save(&named("Netflix", 9.99))?;
-        store.update("Netflix", None, &named("Netflix", 14.99))?;
+        store.update("Netflix", &named("Netflix", 14.99))?;
         // Empty patch should be a no-op that does not consume the undo snapshot.
-        store.update("Netflix", None, &Expense::default())?;
+        store.update("Netflix", &Expense::default())?;
         store.restore()?;
         assert_eq!(store.list()?[0].amount, Some(9.99));
         Ok(())
@@ -460,7 +459,7 @@ mod tests {
         let store = make_store("update-by-id");
         store.save(&named("Netflix", 9.99))?;
         store.save(&named("Spotify", 5.99))?;
-        store.update("@2", None, &named("Spotify", 7.99))?;
+        store.update("@2", &named("Spotify", 7.99))?;
         assert_eq!(store.list()?[1].amount, Some(7.99));
         Ok(())
     }
@@ -484,12 +483,12 @@ mod tests {
     }
 
     #[test]
-    fn update_rejects_rename_to_existing_name() -> io::Result<()> {
+    fn rename_rejects_existing_name() -> io::Result<()> {
         let store = make_store("rename-conflict");
         store.save(&named("Netflix", 9.99))?;
         store.save(&named("Spotify", 5.99))?;
         let err = store
-            .update("Netflix", Some("spotify"), &Expense::default())
+            .rename("Netflix", "spotify")
             .expect_err("rename conflict should fail");
         assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
         Ok(())

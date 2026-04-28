@@ -91,7 +91,7 @@ fn menu_items(e: &Expense) -> Vec<MenuItem> {
     ]
 }
 
-fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<(Option<String>, Expense)> {
+fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<Expense> {
     let mut working = current.clone();
 
     loop {
@@ -143,12 +143,7 @@ fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<(Option<St
         }
     }
 
-    let new_name = if working.name == current.name {
-        None
-    } else {
-        Some(working.name.clone())
-    };
-    Ok((new_name, working))
+    Ok(working)
 }
 
 fn has_any_field(f: &ExpenseInput) -> bool {
@@ -164,6 +159,9 @@ fn has_any_field(f: &ExpenseInput) -> bool {
 pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
     if has_any_field(&args.fields) {
         let f = &args.fields;
+        if let Some(name) = f.name.as_deref() {
+            store.rename(&args.target, name)?;
+        }
         let patch = Expense {
             amount: f.amount,
             currency: f.currency.clone(),
@@ -173,12 +171,15 @@ pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
             end_date: f.end_date,
             ..Default::default()
         };
-        store.update(&args.target, f.name.as_deref(), &patch)?;
+        store.update(&args.target, &patch)?;
     } else {
         inquire::set_global_render_config(render_config());
         let current = store.get(&args.target)?;
-        let (new_name, patch) = prompt_fields(&current, store)?;
-        store.update(&args.target, new_name.as_deref(), &patch)?;
+        let patch = prompt_fields(&current, store)?;
+        if patch.name != current.name {
+            store.rename(&args.target, &patch.name)?;
+        }
+        store.update(&args.target, &patch)?;
     }
     println!("Updated '{}'", args.target);
     Ok(())
@@ -236,7 +237,6 @@ mod tests {
         store
             .update(
                 "Netflix",
-                None,
                 &Expense {
                     amount: Some(12.99),
                     ..Default::default()
@@ -254,7 +254,6 @@ mod tests {
         store
             .update(
                 "@1",
-                None,
                 &Expense {
                     amount: Some(11.11),
                     ..Default::default()
@@ -271,7 +270,6 @@ mod tests {
         store
             .update(
                 "Spotify",
-                None,
                 &Expense {
                     currency: Some("eur".into()),
                     ..Default::default()
@@ -288,7 +286,6 @@ mod tests {
         store
             .update(
                 "Netflix",
-                None,
                 &Expense {
                     interval: Some(Interval::Yearly),
                     ..Default::default()
@@ -305,7 +302,6 @@ mod tests {
         store
             .update(
                 "Netflix",
-                None,
                 &Expense {
                     end_date: Some(date("2026-12-31")),
                     ..Default::default()
@@ -322,7 +318,6 @@ mod tests {
         store
             .update(
                 "Netflix",
-                None,
                 &Expense {
                     start_date: Some(date("2025-01-01")),
                     ..Default::default()
@@ -339,7 +334,6 @@ mod tests {
         store
             .update(
                 "Spotify",
-                None,
                 &Expense {
                     amount: Some(9.99),
                     currency: Some("eur".into()),
@@ -357,8 +351,8 @@ mod tests {
         let store = make_store("edit-name-updates");
         seed_expenses(&store);
         store
-            .update("Netflix", Some("Netflix Plus"), &Expense::default())
-            .expect("update should succeed");
+            .rename("Netflix", "Netflix Plus")
+            .expect("rename should succeed");
         let names: Vec<String> = store
             .list()
             .expect("list should succeed")
@@ -373,11 +367,7 @@ mod tests {
     fn edit_name_conflict_returns_error() {
         let store = make_store("edit-name-conflict");
         seed_expenses(&store);
-        assert!(
-            store
-                .update("Netflix", Some("Spotify"), &Expense::default())
-                .is_err()
-        );
+        assert!(store.rename("Netflix", "Spotify").is_err());
     }
 
     #[test]
@@ -388,7 +378,6 @@ mod tests {
             store
                 .update(
                     "Hulu",
-                    None,
                     &Expense {
                         amount: Some(5.0),
                         ..Default::default()
@@ -406,7 +395,6 @@ mod tests {
             store
                 .update(
                     "@0",
-                    None,
                     &Expense {
                         amount: Some(1.0),
                         ..Default::default()
@@ -418,7 +406,6 @@ mod tests {
             store
                 .update(
                     "@99",
-                    None,
                     &Expense {
                         amount: Some(1.0),
                         ..Default::default()
@@ -433,7 +420,7 @@ mod tests {
         let store = make_store("edit-empty-patch");
         seed_expenses(&store);
         store
-            .update("Netflix", None, &Expense::default())
+            .update("Netflix", &Expense::default())
             .expect("update should succeed");
         let e = load(&store, "Netflix");
         assert_eq!(e.amount, Some(9.99));
