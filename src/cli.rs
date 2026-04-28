@@ -18,6 +18,10 @@ struct Cli {
     )]
     file: PathBuf,
 
+    /// Include ended expenses (only used when no subcommand is given; equivalent to `recu ls --all`)
+    #[arg(short, long)]
+    all: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -25,7 +29,7 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// List recurring expenses. Amounts converted to display currency when configured.
-    Ls,
+    Ls(ls::LsArgs),
     /// Add a recurring expense
     Add(add::AddArgs),
     /// Edit a recurring expense
@@ -33,7 +37,7 @@ enum Commands {
     /// Remove one or more recurring expenses
     Rm(rm::RmArgs),
     /// Visualize expenses as a treemap
-    Treemap,
+    Treemap(treemap::TreemapArgs),
     /// Manage configuration
     #[command(after_help = "Examples:
   recu config list
@@ -61,12 +65,15 @@ enum Commands {
 pub fn run() -> std::io::Result<()> {
     let cli = Cli::parse();
     let store = Store::at(cli.file);
-    match cli.command.unwrap_or(Commands::Ls) {
-        Commands::Ls => ls::execute(&store)?,
+    match cli
+        .command
+        .unwrap_or(Commands::Ls(ls::LsArgs { all: cli.all }))
+    {
+        Commands::Ls(args) => ls::execute(&args, &store)?,
         Commands::Add(args) => add::execute(&args, &store)?,
         Commands::Edit(args) => edit::execute(&args, &store)?,
         Commands::Rm(args) => rm::execute(&args, &store)?,
-        Commands::Treemap => treemap::execute(&store)?,
+        Commands::Treemap(args) => treemap::execute(&args, &store)?,
         Commands::Config { command } => config::run(&command)?,
         Commands::Category { command } => category::run(&command, &store)?,
         Commands::Timeline(args) => timeline::execute(&args, &store)?,

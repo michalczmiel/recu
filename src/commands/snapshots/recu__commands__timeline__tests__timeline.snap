@@ -59,3 +59,20 @@ Apr 2026
 May 2026
        1  Netflix  $15.99
 Total  $15.99
+
+=== ended hidden by default ===
+date      name     amount
+────────  ───────  ──────
+Apr 2026
+      20  Netflix  $15.99
+Total  $15.99
+
+=== --all reveals ended occurrences ===
+date      name     amount
+────────  ───────  ──────
+Apr 2026
+       1  OldGym   $30.00
+      20  Netflix  $15.99
+May 2026
+       1  OldGym   $30.00
+Total  $45.99

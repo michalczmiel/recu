@@ -68,7 +68,16 @@ No expenses yet. Run 'recu add' to track your first subscription.
 
 2 expenses  $25.98/month  $311.76/year
 
-=== ended rows sink to bottom ===
+=== ended hidden by default ===
+@   name        amount  due         category  ends       
+──  ──────────  ──────  ──────────  ────────  ───────────
+@2  Netflix     $15.99  in 5 days                        
+@3  AnnualPlan  $50.00  in 2 weeks            in 3 months
+
+2 expenses  $65.99/month  $791.88/year
++ 1 ended (recu ls --all)
+
+=== --all reveals ended rows ===
 @   name        amount  due         category  ends       
 ──  ──────────  ──────  ──────────  ────────  ───────────
 @2  Netflix     $15.99  in 5 days                        
@@ -77,3 +86,6 @@ No expenses yet. Run 'recu add' to track your first subscription.
 @1  OldGym      $30.00                        1 week ago 
 
 2 expenses  $65.99/month  $791.88/year
+
+=== all ended + default hides everything ===
+All 1 expenses are ended. Run 'recu ls --all' to view them.

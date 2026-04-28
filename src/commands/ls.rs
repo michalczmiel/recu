@@ -2,10 +2,18 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use chrono::NaiveDate;
+use clap::Args;
 use colored::Colorize;
 
 use crate::config::{self, Config};
 use rusty_money::iso;
+
+#[derive(Args, Debug, Default)]
+pub struct LsArgs {
+    /// Include ended expenses
+    #[arg(short, long)]
+    pub all: bool,
+}
 
 use crate::expense::{
     self, DueStatus, Expense, RecurringTotals, find_currency, format_amount, format_expense_amount,
@@ -193,6 +201,7 @@ pub(crate) fn execute_with(
     today: NaiveDate,
     cfg: &Config,
     expenses: &[Expense],
+    all: bool,
 ) -> std::io::Result<()> {
     if expenses.is_empty() {
         writeln!(
@@ -208,9 +217,23 @@ pub(crate) fn execute_with(
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
 
-    let show_ends = expenses.iter().any(|e| e.end_date.is_some());
+    let mut indexed: Vec<(usize, &Expense)> = expenses
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| all || !e.is_ended(today))
+        .collect();
+    let hidden_ended = expenses.len() - indexed.len();
 
-    let mut indexed: Vec<(usize, &Expense)> = expenses.iter().enumerate().collect();
+    if indexed.is_empty() {
+        writeln!(
+            out,
+            "All {hidden_ended} expenses are ended. Run 'recu ls --all' to view them."
+        )?;
+        return Ok(());
+    }
+
+    let show_ends = indexed.iter().any(|(_, e)| e.end_date.is_some());
+
     indexed.sort_by_key(|(_, expense)| {
         let due = expense.days_until_next(today).unwrap_or(i64::MAX);
         // Ended rows sink to bottom; within each group, sort by next due date.
@@ -239,14 +262,22 @@ pub(crate) fn execute_with(
     let totals = RecurringTotals::compute(active.iter().copied(), exchange_rates.as_ref(), target);
     print_totals(out, &totals, target_cur, active.len())?;
 
+    if hidden_ended > 0 {
+        writeln!(
+            out,
+            "{}",
+            format!("+ {hidden_ended} ended (recu ls --all)").dimmed()
+        )?;
+    }
+
     Ok(())
 }
 
-pub fn execute(store: &Store) -> std::io::Result<()> {
+pub fn execute(args: &LsArgs, store: &Store) -> std::io::Result<()> {
     let expenses = store.list()?;
     let cfg = config::load()?;
     let today = chrono::Local::now().date_naive();
-    execute_with(&mut std::io::stdout(), today, &cfg, &expenses)
+    execute_with(&mut std::io::stdout(), today, &cfg, &expenses, args.all)
 }
 
 #[cfg(test)]
@@ -263,8 +294,12 @@ mod tests {
     }
 
     fn run(expenses: &[Expense]) -> String {
+        run_with(expenses, false)
+    }
+
+    fn run_with(expenses: &[Expense], all: bool) -> String {
         let mut buf = Vec::new();
-        execute_with(&mut buf, today(), &Config::default(), expenses).expect("execute_with");
+        execute_with(&mut buf, today(), &Config::default(), expenses, all).expect("execute_with");
         String::from_utf8(buf).expect("utf8")
     }
 
@@ -367,9 +402,8 @@ mod tests {
             monthly_usd("Netflix", 15.99, d(2026, 5, 1)),
         ]);
 
-        // Past end_date → row sinks to bottom, shows "N ago"
-        out += "\n=== ended rows sink to bottom ===\n";
-        out += &run(&[
+        // Past end_date → hidden by default, footer hint shown
+        let with_ended = [
             Expense {
                 end_date: Some(d(2026, 4, 5)), // 10 days ago
                 ..monthly_usd("OldGym", 30.00, d(2025, 1, 1))
@@ -379,7 +413,21 @@ mod tests {
                 end_date: Some(d(2026, 7, 15)), // ~3 months future
                 ..monthly_usd("AnnualPlan", 50.00, d(2026, 5, 1))
             },
-        ]);
+        ];
+
+        out += "\n=== ended hidden by default ===\n";
+        out += &run(&with_ended);
+
+        // --all → ended rows visible, sink to bottom
+        out += "\n=== --all reveals ended rows ===\n";
+        out += &run_with(&with_ended, true);
+
+        // All ended + default → friendly empty message
+        out += "\n=== all ended + default hides everything ===\n";
+        out += &run(&[Expense {
+            end_date: Some(d(2026, 4, 5)),
+            ..monthly_usd("OldGym", 30.00, d(2025, 1, 1))
+        }]);
 
         insta::assert_snapshot!(out);
     }

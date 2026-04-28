@@ -24,6 +24,9 @@ pub struct TimelineArgs {
     /// Number of days to look back [default: 0]
     #[arg(short, long, default_value_t = 0)]
     pub past_days: u32,
+    /// Include ended expenses
+    #[arg(short, long)]
+    pub all: bool,
 }
 
 struct Occurrence {
@@ -143,6 +146,7 @@ pub(crate) fn execute_with(
     expenses: &[Expense],
     days: u32,
     past_days: u32,
+    all: bool,
 ) -> std::io::Result<()> {
     if expenses.is_empty() {
         writeln!(out, "No recurring expenses found.")?;
@@ -158,22 +162,23 @@ pub(crate) fn execute_with(
     let start = today - chrono::Days::new(u64::from(past_days));
     let end = today + chrono::Days::new(u64::from(days));
 
-    let mut all: Vec<Occurrence> = expenses
+    let mut all_occ: Vec<Occurrence> = expenses
         .iter()
+        .filter(|exp| all || !exp.is_ended(today))
         .flat_map(|exp| {
             occurrences_in_range(&exp.name, exp, start, end, exchange_rates.as_ref(), target)
         })
         .collect();
 
-    if all.is_empty() {
+    if all_occ.is_empty() {
         writeln!(out, "No expenses in timeline.")?;
         return Ok(());
     }
 
-    all.sort_by_key(|o| o.date);
+    all_occ.sort_by_key(|o| o.date);
 
     let mut by_month: BTreeMap<(i32, u32), Vec<usize>> = BTreeMap::new();
-    for (i, occ) in all.iter().enumerate() {
+    for (i, occ) in all_occ.iter().enumerate() {
         by_month
             .entry((occ.date.year(), occ.date.month()))
             .or_default()
@@ -181,7 +186,14 @@ pub(crate) fn execute_with(
     }
 
     let show_future_total = target_cur.is_some();
-    print_timeline(out, &all, &by_month, target_cur, today, show_future_total)?;
+    print_timeline(
+        out,
+        &all_occ,
+        &by_month,
+        target_cur,
+        today,
+        show_future_total,
+    )?;
 
     Ok(())
 }
@@ -197,6 +209,7 @@ pub fn execute(args: &TimelineArgs, store: &Store) -> std::io::Result<()> {
         &expenses,
         args.days,
         args.past_days,
+        args.all,
     )
 }
 
@@ -214,6 +227,10 @@ mod tests {
     }
 
     fn run(expenses: &[Expense], days: u32, past_days: u32) -> String {
+        run_with(expenses, days, past_days, false)
+    }
+
+    fn run_with(expenses: &[Expense], days: u32, past_days: u32, all: bool) -> String {
         let mut buf = Vec::new();
         execute_with(
             &mut buf,
@@ -222,6 +239,7 @@ mod tests {
             expenses,
             days,
             past_days,
+            all,
         )
         .expect("execute_with");
         String::from_utf8(buf).expect("utf8")
@@ -290,6 +308,27 @@ mod tests {
         // Past + future: April 1 (past) + May 1 (future) both appear
         out += "\n=== past and future combined ===\n";
         out += &run(&[monthly_usd("Netflix", 15.99, d(2026, 4, 1))], 30, 14);
+
+        // Ended expense hidden by default
+        let ended = Expense {
+            end_date: Some(d(2026, 4, 5)),
+            ..monthly_usd("OldGym", 30.00, d(2026, 4, 1))
+        };
+        out += "\n=== ended hidden by default ===\n";
+        out += &run(
+            &[ended.clone(), monthly_usd("Netflix", 15.99, d(2026, 4, 20))],
+            30,
+            0,
+        );
+
+        // --all → ended expense's payments appear
+        out += "\n=== --all reveals ended occurrences ===\n";
+        out += &run_with(
+            &[ended, monthly_usd("Netflix", 15.99, d(2026, 4, 20))],
+            30,
+            14,
+            true,
+        );
 
         insta::assert_snapshot!(out);
     }

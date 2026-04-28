@@ -1,11 +1,20 @@
 use std::collections::HashMap;
 use std::io::{self, Write as _};
 
+use clap::Args;
+
 use crate::config;
 use crate::rates;
 use crate::store::Store;
 use colored::Colorize;
 use rusty_money::{Findable, iso};
+
+#[derive(Args, Debug, Default)]
+pub struct TreemapArgs {
+    /// Include ended expenses
+    #[arg(short, long)]
+    pub all: bool,
+}
 
 // Terminal characters are roughly twice as tall as wide.
 // We scale the logical layout height so cells appear visually square.
@@ -353,13 +362,14 @@ fn query_terminal_size() -> (usize, usize) {
     (cols, rows)
 }
 
-pub fn execute(store: &Store) -> std::io::Result<()> {
+pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     let expenses = store.list()?;
     if expenses.is_empty() {
         println!("No recurring expenses found.");
         return Ok(());
     }
 
+    let today = chrono::Local::now().date_naive();
     let cfg = config::load()?;
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
@@ -367,6 +377,7 @@ pub fn execute(store: &Store) -> std::io::Result<()> {
 
     let mut items: Vec<(String, f64, String, bool)> = expenses
         .into_iter()
+        .filter(|expense| args.all || !expense.is_ended(today))
         .filter_map(|expense| {
             let amount = expense.amount?;
             let interval = expense.interval.as_ref()?;
