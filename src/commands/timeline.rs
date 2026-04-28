@@ -3,13 +3,13 @@ use std::io::Write;
 
 use chrono::{Datelike, NaiveDate};
 use clap::Args;
-use colored::Colorize;
 use rusty_money::iso;
 
 use crate::config::{self, Config};
 use crate::expense::{self, Expense, convert, find_currency, format_amount, format_expense_amount};
 use crate::rates;
 use crate::store::Store;
+use crate::ui;
 
 #[derive(Args, Debug)]
 #[command(after_help = "Examples:
@@ -116,7 +116,7 @@ fn print_timeline(
             .map(|d| d.format("%b %Y").to_string())
             .unwrap_or_default();
 
-        writeln!(out, "{}", month_str.bold())?;
+        writeln!(out, "{}", ui::heading(&month_str))?;
 
         for &i in idxs {
             let occ = &all[i];
@@ -133,7 +133,7 @@ fn print_timeline(
     if show_future_total {
         let cur = target_cur.expect("show_future_total implies target_cur is Some");
         let total_str = format_amount(cur, future_total);
-        writeln!(out, "{}", format!("Total  {total_str}").bold())?;
+        writeln!(out, "{}", ui::heading(&format!("Total  {total_str}")))?;
     }
 
     Ok(())

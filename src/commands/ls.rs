@@ -6,6 +6,7 @@ use clap::Args;
 use colored::Colorize;
 
 use crate::config::{self, Config};
+use crate::ui;
 use rusty_money::iso;
 
 #[derive(Args, Debug, Default)]
@@ -22,59 +23,14 @@ use crate::rates;
 use crate::store::Store;
 
 fn colorize_row(row: &[String], status: &DueStatus) -> Vec<String> {
-    let apply = |s: &String| -> String {
-        match status {
-            DueStatus::Overdue => s.red().to_string(),
-            DueStatus::DueSoon => s.yellow().to_string(),
-            DueStatus::Distant => s.dimmed().to_string(),
-            DueStatus::Normal | DueStatus::Unknown => s.clone(),
-        }
-    };
     row.iter()
         .enumerate()
         .map(|(i, cell)| match i {
-            0 => cell.dimmed().to_string(),
-            1 => {
-                let styled = cell.bold().to_string();
-                match status {
-                    DueStatus::Overdue => styled.red().to_string(),
-                    DueStatus::DueSoon => styled.yellow().to_string(),
-                    DueStatus::Distant => styled.dimmed().to_string(),
-                    DueStatus::Normal | DueStatus::Unknown => styled,
-                }
-            }
-            _ => apply(cell),
+            0 => ui::dim(cell).to_string(),
+            1 => ui::due(status, &cell.bold().to_string()).to_string(),
+            _ => ui::due(status, cell).to_string(),
         })
         .collect()
-}
-
-fn humanize_days(abs_days: i64) -> (i64, &'static str) {
-    match abs_days {
-        0..=6 => (abs_days, "day"),
-        7..=29 => (abs_days / 7, "week"),
-        30..=364 => (abs_days / 30, "month"),
-        _ => (abs_days / 365, "year"),
-    }
-}
-
-fn pluralize(n: i64) -> &'static str {
-    if n == 1 { "" } else { "s" }
-}
-
-fn format_days(days: i64) -> String {
-    if days == 0 {
-        return "today".to_string();
-    }
-    let (n, unit) = humanize_days(days);
-    format!("in {n} {unit}{}", pluralize(n))
-}
-
-fn format_ends_in(days: i64) -> String {
-    if days >= 0 {
-        return format_days(days);
-    }
-    let (n, unit) = humanize_days(-days);
-    format!("{n} {unit}{} ago", pluralize(n))
 }
 
 fn build_row(index: usize, expense: &Expense, today: NaiveDate, show_ends: bool) -> Vec<String> {
@@ -87,7 +43,7 @@ fn build_row(index: usize, expense: &Expense, today: NaiveDate, show_ends: bool)
     } else {
         expense
             .days_until_next(today)
-            .map(format_days)
+            .map(ui::format_in_days)
             .unwrap_or_default()
     };
 
@@ -101,7 +57,7 @@ fn build_row(index: usize, expense: &Expense, today: NaiveDate, show_ends: bool)
     if show_ends {
         let ends_str = expense
             .days_until_end(today)
-            .map(format_ends_in)
+            .map(ui::format_ago_or_in)
             .unwrap_or_default();
         row.push(ends_str);
     }
@@ -126,25 +82,7 @@ fn print_totals(
         format_amount(cur, totals.monthly),
         format_amount(cur, totals.yearly)
     );
-    writeln!(out, "{}", line.bold())
-}
-
-/// Visible width of a plain string in terminal columns.
-/// Uses char count — sufficient for Latin/currency symbols (all 1-column wide).
-fn char_width(s: &str) -> usize {
-    s.chars().count()
-}
-
-/// Pad `colored` (which may contain ANSI codes) to `width` columns,
-/// using `plain_w` (visible char width) for the math.
-fn pad_end(colored: &str, plain_w: usize, width: usize) -> String {
-    let spaces = width.saturating_sub(plain_w);
-    format!("{colored}{}", " ".repeat(spaces))
-}
-
-fn pad_start(colored: &str, plain_w: usize, width: usize) -> String {
-    let spaces = width.saturating_sub(plain_w);
-    format!("{}{colored}", " ".repeat(spaces))
+    writeln!(out, "{}", ui::heading(&line))
 }
 
 fn print_table(
@@ -162,17 +100,18 @@ fn print_table(
     let n = headers.len();
     let widths: Vec<usize> = (0..n)
         .map(|i| {
-            rows.iter()
-                .fold(char_width(headers[i]), |w, row| w.max(char_width(&row[i])))
+            rows.iter().fold(ui::char_width(headers[i]), |w, row| {
+                w.max(ui::char_width(&row[i]))
+            })
         })
         .collect();
 
     let render_cell = |cell: &str, plain: &str, i: usize| -> String {
         // amount column (index 2) is right-aligned; rest left-aligned
         if i == 2 {
-            pad_start(cell, char_width(plain), widths[i])
+            ui::pad_start(cell, ui::char_width(plain), widths[i])
         } else {
-            pad_end(cell, char_width(plain), widths[i])
+            ui::pad_end(cell, ui::char_width(plain), widths[i])
         }
     };
 
@@ -266,7 +205,7 @@ pub(crate) fn execute_with(
         writeln!(
             out,
             "{}",
-            format!("+ {hidden_ended} ended (recu ls --all)").dimmed()
+            ui::dim(&format!("+ {hidden_ended} ended (recu ls --all)"))
         )?;
     }
 
@@ -312,25 +251,6 @@ mod tests {
             interval: Some(Interval::Monthly),
             ..Default::default()
         }
-    }
-
-    #[test]
-    fn format_ends_in_future_uses_in_prefix() {
-        assert_eq!(format_ends_in(0), "today");
-        assert_eq!(format_ends_in(1), "in 1 day");
-        assert_eq!(format_ends_in(5), "in 5 days");
-        assert_eq!(format_ends_in(14), "in 2 weeks");
-        assert_eq!(format_ends_in(60), "in 2 months");
-        assert_eq!(format_ends_in(800), "in 2 years");
-    }
-
-    #[test]
-    fn format_ends_in_past_uses_ago_suffix() {
-        assert_eq!(format_ends_in(-1), "1 day ago");
-        assert_eq!(format_ends_in(-5), "5 days ago");
-        assert_eq!(format_ends_in(-14), "2 weeks ago");
-        assert_eq!(format_ends_in(-60), "2 months ago");
-        assert_eq!(format_ends_in(-800), "2 years ago");
     }
 
     #[test]

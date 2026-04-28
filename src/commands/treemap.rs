@@ -6,6 +6,7 @@ use clap::Args;
 use crate::config;
 use crate::rates;
 use crate::store::Store;
+use crate::ui;
 use colored::Colorize;
 use rusty_money::{Findable, iso};
 
@@ -242,16 +243,6 @@ fn write_str(
     }
 }
 
-fn truncate(s: &str, max: usize) -> String {
-    if s.chars().count() <= max {
-        s.to_string()
-    } else if max > 1 {
-        format!("{}…", s.chars().take(max - 1).collect::<String>())
-    } else {
-        s.chars().take(max).collect()
-    }
-}
-
 struct Tile {
     name: String,
     monthly: f64,
@@ -284,7 +275,7 @@ fn render(tiles: &[Tile], cols: usize, rows: usize) {
 
         let inner_w = rw.saturating_sub(2);
         if rh >= 3 && inner_w > 0 {
-            let name = truncate(&tile.name, inner_w);
+            let name = ui::truncate(&tile.name, inner_w);
             write_str(
                 &mut grid,
                 row0 + 1,
@@ -304,7 +295,7 @@ fn render(tiles: &[Tile], cols: usize, rows: usize) {
                 &mut grid,
                 row0 + 2,
                 col0 + 1,
-                &truncate(&mo_label, inner_w),
+                &ui::truncate(&mo_label, inner_w),
                 tile.color,
                 lighten(tile.color),
             );
@@ -319,7 +310,7 @@ fn render(tiles: &[Tile], cols: usize, rows: usize) {
                 &mut grid,
                 row0 + 3,
                 col0 + 1,
-                &truncate(&yr_label, inner_w),
+                &ui::truncate(&yr_label, inner_w),
                 tile.color,
                 lighten(tile.color),
             );
@@ -472,22 +463,6 @@ mod tests {
         // Single element with area == side²: ratio == 1.0 (perfectly square).
         let ratio = worst_ratio(&[4.0], 2.0);
         assert!((ratio - 1.0).abs() < 1e-10);
-    }
-
-    #[test]
-    fn truncate_fits() {
-        assert_eq!(truncate("hello", 10), "hello");
-        assert_eq!(truncate("hello", 5), "hello");
-    }
-
-    #[test]
-    fn truncate_with_ellipsis() {
-        assert_eq!(truncate("hello world", 6), "hello…");
-    }
-
-    #[test]
-    fn truncate_max_one() {
-        assert_eq!(truncate("hello", 1), "h");
     }
 
     #[test]

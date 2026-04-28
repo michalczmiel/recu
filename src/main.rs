@@ -5,12 +5,11 @@ mod expense;
 mod prompt;
 mod rates;
 mod store;
-
-use colored::Colorize;
+mod ui;
 
 fn main() {
     if let Err(err) = cli::run() {
-        eprintln!("{} {err}", "Error:".red().bold());
+        eprintln!("{} {err}", ui::error_label("Error:"));
         std::process::exit(1);
     }
 }
