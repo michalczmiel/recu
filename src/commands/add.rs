@@ -1,4 +1,3 @@
-use chrono::Local;
 use clap::Args;
 
 use crate::expense::{Expense, ExpenseInput};
@@ -44,14 +43,11 @@ fn prompt_fields(fields: &ExpenseInput, store: &Store) -> std::io::Result<Expens
 pub fn execute(add: &AddArgs, store: &Store) -> std::io::Result<()> {
     let f = &add.fields;
     let expense = if let Some(name) = &f.name {
-        let start_date = f
-            .date
-            .or_else(|| f.interval.as_ref().map(|_| Local::now().date_naive()));
         Expense {
             name: name.clone(),
             amount: f.amount,
             currency: f.currency.clone(),
-            start_date,
+            start_date: f.date,
             interval: f.interval.clone(),
             category: f.category.clone(),
             end_date: f.end_date,

@@ -49,8 +49,6 @@ impl Autocomplete for CurrencyCompleter {
     }
 }
 
-const NEW_CATEGORY_SENTINEL: &str = "+ New category...";
-
 /// Prompt for a required name (used by `add`).
 pub fn prompt_name(initial: &str) -> std::io::Result<String> {
     Text::new("Name:")
@@ -136,6 +134,8 @@ pub fn prompt_interval(default: Option<&Interval>) -> std::io::Result<Option<Int
         .prompt_skippable()
         .map_err(|e| inquire_err(&e))
 }
+
+const NEW_CATEGORY_SENTINEL: &str = "+ New category...";
 
 pub fn prompt_category(
     existing: &[String],
