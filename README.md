@@ -48,10 +48,23 @@ Options:
 
 ### Version your data
 
-Keep `recu.csv` in a git repo for free history and diffs. An example is a dedicated folder like `~/.finances` pointed to via `RECU_FILE` in your `~/.bashrc` or `~/.zshrc`:
+Keep `recu.csv` in a git repo for free history and diffs. A dedicated folder like `~/.finances` works well.
+
+### Set a default file
+
+Point `RECU_FILE` at your main file in `~/.bashrc` or `~/.zshrc`:
 
 ```
 export RECU_FILE=~/.finances/recu.csv
+```
+
+### Multiple accounts via multiple files
+
+`recu` is just one CSV per dataset — keep separate files for personal, business, shared household etc. Add bash aliases pointing each to its own file:
+
+```
+alias recu-biz='recu -f ~/.finances/biz.csv'
+alias recu-home='recu -f ~/.finances/home.csv'
 ```
 
 ### Set a display currency
@@ -59,8 +72,12 @@ export RECU_FILE=~/.finances/recu.csv
 Set a default currency and `recu` auto-converts multi-currency entries to it on display:
 
 ```
-recu config set currency usd
+recu config set currency pln
 ```
+
+### End-date instead of removing
+
+When a subscription stops, set `--end` instead of `rm` to keep it in history. `recu ls --all` shows ended ones.
 
 ### Let an LLM agent do the grunt work
 
