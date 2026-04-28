@@ -113,10 +113,7 @@ pub fn prompt_currency(initial: &str) -> std::io::Result<Option<String>> {
         .map(|opt| opt.filter(|s| !s.is_empty()).map(|s| s.to_lowercase()))
 }
 
-pub fn prompt_date(
-    label: &str,
-    default: Option<NaiveDate>,
-) -> std::io::Result<Option<NaiveDate>> {
+pub fn prompt_date(label: &str, default: Option<NaiveDate>) -> std::io::Result<Option<NaiveDate>> {
     let mut prompt = DateSelect::new(label);
     if let Some(d) = default {
         prompt = prompt.with_default(d);
