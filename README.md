@@ -160,7 +160,7 @@ Options:
 
 Examples:
   recu add -n Netflix -a 9.99 -c usd -d 2026-05-01 -i monthly
-  recu add -n Netflix          # partial — just the name
+  recu add -n Netflix          # stored with name only, fill in later via 'recu edit'
   recu add          # interactive mode
 ```
 

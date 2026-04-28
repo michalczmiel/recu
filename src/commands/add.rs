@@ -10,11 +10,12 @@ use crate::store::Store;
 
 /// Add a recurring expense.
 ///
-/// Only the name is required. Omit all arguments to run interactively.
+/// Pass --name to skip prompts; any missing fields stay unset (fill in later via
+/// 'recu edit'). Without --name, runs interactively.
 #[derive(Args, Debug)]
 #[command(after_help = "Examples:
   recu add -n Netflix -a 9.99 -c usd -d 2026-05-01 -i monthly
-  recu add -n Netflix          # partial — just the name
+  recu add -n Netflix          # stored with name only, fill in later via 'recu edit'
   recu add          # interactive mode")]
 pub struct AddArgs {
     #[command(flatten)]
