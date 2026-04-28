@@ -51,4 +51,29 @@ No expenses yet. Run 'recu add' to track your first subscription.
 === incomplete expense ===
 @   name     amount  due  category
 ──  ───────  ──────  ───  ────────
-@1  Unknown       -
+@1  Unknown       -               
+
+=== no ends column when none set ===
+@   name     amount  due         category
+──  ───────  ──────  ──────────  ────────
+@1  Netflix  $15.99  in 2 weeks          
+
+1 expense  $15.99/month  $191.88/year
+
+=== ends column with future end ===
+@   name     amount  due         category  ends       
+──  ───────  ──────  ──────────  ────────  ───────────
+@1  Trial     $9.99  in 2 weeks            in 2 months
+@2  Netflix  $15.99  in 2 weeks                       
+
+2 expenses  $25.98/month  $311.76/year
+
+=== ended rows sink to bottom ===
+@   name        amount  due         category  ends       
+──  ──────────  ──────  ──────────  ────────  ───────────
+@2  Netflix     $15.99  in 5 days                        
+@3  AnnualPlan  $50.00  in 2 weeks            in 3 months
+──  ──────────  ──────  ──────────  ────────  ───────────
+@1  OldGym      $30.00                        1 week ago 
+
+2 expenses  $65.99/month  $791.88/year

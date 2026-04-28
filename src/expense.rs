@@ -84,6 +84,8 @@ pub struct Expense {
     pub interval: Option<Interval>,
     #[serde(default)]
     pub category: Option<String>,
+    #[serde(default)]
+    pub end_date: Option<NaiveDate>,
 }
 
 impl Expense {
@@ -95,6 +97,14 @@ impl Expense {
 
     pub fn days_until_next(&self, today: NaiveDate) -> Option<i64> {
         Some((self.next_payment(today)? - today).num_days())
+    }
+
+    pub fn days_until_end(&self, today: NaiveDate) -> Option<i64> {
+        Some((self.end_date? - today).num_days())
+    }
+
+    pub fn is_ended(&self, today: NaiveDate) -> bool {
+        self.days_until_end(today).is_some_and(|d| d < 0)
     }
 
     pub fn summary(&self) -> String {
@@ -189,6 +199,42 @@ mod tests {
         assert!(parse_amount("-1").is_err());
         assert!(parse_amount("inf").is_err());
         assert!(parse_amount("NaN").is_err());
+    }
+
+    fn d(y: i32, m: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, day).expect("valid date")
+    }
+
+    #[test]
+    fn days_until_end_signed_or_none() {
+        let today = d(2026, 4, 15);
+        assert_eq!(Expense::default().days_until_end(today), None);
+        let future = Expense {
+            end_date: Some(d(2026, 5, 15)),
+            ..Default::default()
+        };
+        let past = Expense {
+            end_date: Some(d(2026, 4, 10)),
+            ..Default::default()
+        };
+        assert_eq!(future.days_until_end(today), Some(30));
+        assert_eq!(past.days_until_end(today), Some(-5));
+    }
+
+    #[test]
+    fn is_ended_only_when_end_in_past() {
+        let today = d(2026, 4, 15);
+        let same_day = Expense {
+            end_date: Some(today),
+            ..Default::default()
+        };
+        let past = Expense {
+            end_date: Some(d(2026, 4, 1)),
+            ..Default::default()
+        };
+        assert!(!Expense::default().is_ended(today));
+        assert!(!same_day.is_ended(today));
+        assert!(past.is_ended(today));
     }
 
     #[test]
@@ -376,4 +422,7 @@ pub struct ExpenseInput {
     /// Category label (e.g. streaming, utilities)
     #[arg(long = "ca")]
     pub category: Option<String>,
+    /// End date — when the subscription stops (YYYY-MM-DD)
+    #[arg(long = "end")]
+    pub end_date: Option<NaiveDate>,
 }

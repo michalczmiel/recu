@@ -16,6 +16,7 @@ enum Field {
     Date,
     Interval,
     Category,
+    EndDate,
     Done,
 }
 
@@ -78,6 +79,11 @@ fn menu_items(e: &Expense) -> Vec<MenuItem> {
             "Category",
             e.category.as_deref().unwrap_or(d),
         ),
+        item(
+            Field::EndDate,
+            "End date",
+            &e.end_date.map_or_else(|| d.to_string(), |d| d.to_string()),
+        ),
         MenuItem {
             field: Field::Done,
             display: "Done".to_string(),
@@ -113,7 +119,7 @@ fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<(Option<St
                     }
                 }
                 Field::Date => {
-                    if let Some(d) = prompt_date(working.start_date)? {
+                    if let Some(d) = prompt_date("Start date:", working.start_date)? {
                         working.start_date = Some(d);
                     }
                 }
@@ -126,6 +132,11 @@ fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<(Option<St
                     let categories = store.categories()?;
                     if let Some(cat) = prompt_category(&categories, working.category.as_deref())? {
                         working.category = Some(cat);
+                    }
+                }
+                Field::EndDate => {
+                    if let Some(d) = prompt_date("End date:", working.end_date)? {
+                        working.end_date = Some(d);
                     }
                 }
             },
@@ -147,6 +158,7 @@ fn has_any_field(f: &ExpenseInput) -> bool {
         || f.date.is_some()
         || f.interval.is_some()
         || f.category.is_some()
+        || f.end_date.is_some()
 }
 
 pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
@@ -158,6 +170,7 @@ pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
             start_date: f.date,
             interval: f.interval.clone(),
             category: f.category.clone(),
+            end_date: f.end_date,
             ..Default::default()
         };
         store.update(&args.target, f.name.as_deref(), &patch)?;
@@ -283,6 +296,23 @@ mod tests {
             )
             .expect("update should succeed");
         assert_eq!(load(&store, "Netflix").interval, Some(Interval::Yearly));
+    }
+
+    #[test]
+    fn edit_end_date() {
+        let store = make_store("edit-end-date");
+        seed_expenses(&store);
+        store
+            .update(
+                "Netflix",
+                None,
+                &Expense {
+                    end_date: Some(date("2026-12-31")),
+                    ..Default::default()
+                },
+            )
+            .expect("update should succeed");
+        assert_eq!(load(&store, "Netflix").end_date, Some(date("2026-12-31")));
     }
 
     #[test]

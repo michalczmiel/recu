@@ -25,7 +25,7 @@ fn prompt_fields(fields: &ExpenseInput, store: &Store) -> std::io::Result<Expens
     let name = prompt_name(fields.name.as_deref().unwrap_or(""))?;
     let amount = prompt_amount(fields.amount)?;
     let currency = prompt_currency(fields.currency.as_deref().unwrap_or(""))?;
-    let start_date = prompt_date(fields.date)?;
+    let start_date = prompt_date("Start date:", fields.date)?;
     let interval = prompt_interval(fields.interval.as_ref())?;
     let categories = store.categories()?;
     let category = prompt_category(&categories, fields.category.as_deref())?;
@@ -36,6 +36,7 @@ fn prompt_fields(fields: &ExpenseInput, store: &Store) -> std::io::Result<Expens
         start_date,
         interval,
         category,
+        end_date: None,
     })
 }
 
@@ -52,6 +53,7 @@ pub fn execute(add: &AddArgs, store: &Store) -> std::io::Result<()> {
             start_date,
             interval: f.interval.clone(),
             category: f.category.clone(),
+            end_date: f.end_date,
         }
     } else {
         inquire::set_global_render_config(render_config());

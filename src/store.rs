@@ -97,6 +97,7 @@ impl Store {
             && changes.start_date.is_none()
             && changes.interval.is_none()
             && changes.category.is_none()
+            && changes.end_date.is_none()
         {
             return Ok(());
         }
@@ -133,6 +134,7 @@ impl Store {
             .as_ref()
             .or(expense.category.as_ref())
             .cloned();
+        expense.end_date = changes.end_date.or(expense.end_date);
         if let Some(name) = new_name {
             expense.name = name.to_string();
         }

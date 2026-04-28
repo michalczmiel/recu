@@ -13,7 +13,7 @@ use crate::expense::{
 use crate::rates;
 use crate::store::Store;
 
-fn colorize_row(row: &[String; 5], status: &DueStatus) -> [String; 5] {
+fn colorize_row(row: &[String], status: &DueStatus) -> Vec<String> {
     let apply = |s: &String| -> String {
         match status {
             DueStatus::Overdue => s.red().to_string(),
@@ -22,57 +22,82 @@ fn colorize_row(row: &[String; 5], status: &DueStatus) -> [String; 5] {
             DueStatus::Normal | DueStatus::Unknown => s.clone(),
         }
     };
-    std::array::from_fn(|i| match i {
-        0 => row[i].dimmed().to_string(),
-        1 => {
-            let styled = row[i].bold().to_string();
-            match status {
-                DueStatus::Overdue => styled.red().to_string(),
-                DueStatus::DueSoon => styled.yellow().to_string(),
-                DueStatus::Distant => styled.dimmed().to_string(),
-                DueStatus::Normal | DueStatus::Unknown => styled,
+    row.iter()
+        .enumerate()
+        .map(|(i, cell)| match i {
+            0 => cell.dimmed().to_string(),
+            1 => {
+                let styled = cell.bold().to_string();
+                match status {
+                    DueStatus::Overdue => styled.red().to_string(),
+                    DueStatus::DueSoon => styled.yellow().to_string(),
+                    DueStatus::Distant => styled.dimmed().to_string(),
+                    DueStatus::Normal | DueStatus::Unknown => styled,
+                }
             }
-        }
-        _ => apply(&row[i]),
-    })
+            _ => apply(cell),
+        })
+        .collect()
 }
 
-fn format_days(days: i64) -> String {
-    match days {
-        0 => "today".to_string(),
-        1..=6 => format!("in {} day{}", days, if days == 1 { "" } else { "s" }),
-        7..=29 => {
-            let w = days / 7;
-            format!("in {} week{}", w, if w == 1 { "" } else { "s" })
-        }
-        30..=364 => {
-            let m = days / 30;
-            format!("in {} month{}", m, if m == 1 { "" } else { "s" })
-        }
-        _ => {
-            let y = days / 365;
-            format!("in {} year{}", y, if y == 1 { "" } else { "s" })
-        }
+fn humanize_days(abs_days: i64) -> (i64, &'static str) {
+    match abs_days {
+        0..=6 => (abs_days, "day"),
+        7..=29 => (abs_days / 7, "week"),
+        30..=364 => (abs_days / 30, "month"),
+        _ => (abs_days / 365, "year"),
     }
 }
 
-fn build_row(index: usize, expense: &Expense, today: NaiveDate) -> [String; 5] {
+fn pluralize(n: i64) -> &'static str {
+    if n == 1 { "" } else { "s" }
+}
+
+fn format_days(days: i64) -> String {
+    if days == 0 {
+        return "today".to_string();
+    }
+    let (n, unit) = humanize_days(days);
+    format!("in {n} {unit}{}", pluralize(n))
+}
+
+fn format_ends_in(days: i64) -> String {
+    if days >= 0 {
+        return format_days(days);
+    }
+    let (n, unit) = humanize_days(-days);
+    format!("{n} {unit}{} ago", pluralize(n))
+}
+
+fn build_row(index: usize, expense: &Expense, today: NaiveDate, show_ends: bool) -> Vec<String> {
     let amount = expense.amount.map_or_else(
         || "-".into(),
         |a| format_expense_amount(expense.currency.as_deref(), a),
     );
-    let days_str = expense
-        .days_until_next(today)
-        .map(format_days)
-        .unwrap_or_default();
+    let days_str = if expense.is_ended(today) {
+        String::new()
+    } else {
+        expense
+            .days_until_next(today)
+            .map(format_days)
+            .unwrap_or_default()
+    };
 
-    [
+    let mut row = vec![
         format!("@{}", index + 1),
         expense.name.clone(),
         amount,
         days_str,
         expense.category.clone().unwrap_or_default(),
-    ]
+    ];
+    if show_ends {
+        let ends_str = expense
+            .days_until_end(today)
+            .map(format_ends_in)
+            .unwrap_or_default();
+        row.push(ends_str);
+    }
+    row
 }
 
 fn print_totals(
@@ -116,37 +141,49 @@ fn pad_start(colored: &str, plain_w: usize, width: usize) -> String {
 
 fn print_table(
     out: &mut impl Write,
-    rows: &[[String; 5]],
+    rows: &[Vec<String>],
     statuses: &[DueStatus],
+    show_ends: bool,
+    ended_start: Option<usize>,
 ) -> std::io::Result<()> {
-    let headers = ["@", "name", "amount", "due", "category"];
-    // Widths in visible columns (char count), not bytes.
-    let widths: [usize; 5] = std::array::from_fn(|i| {
-        rows.iter()
-            .fold(char_width(headers[i]), |w, row| w.max(char_width(&row[i])))
-    });
-    let [w0, w1, w2, w3, w4] = widths;
-    writeln!(
-        out,
-        "{:<w0$}  {:<w1$}  {:>w2$}  {:<w3$}  {:<w4$}",
-        headers[0], headers[1], headers[2], headers[3], headers[4]
-    )?;
-    writeln!(
-        out,
-        "{:─<w0$}  {:─<w1$}  {:─<w2$}  {:─<w3$}  {:─<w4$}",
-        "", "", "", "", ""
-    )?;
-    for (row, status) in rows.iter().zip(statuses.iter()) {
+    let headers: Vec<&str> = if show_ends {
+        vec!["@", "name", "amount", "due", "category", "ends"]
+    } else {
+        vec!["@", "name", "amount", "due", "category"]
+    };
+    let n = headers.len();
+    let widths: Vec<usize> = (0..n)
+        .map(|i| {
+            rows.iter()
+                .fold(char_width(headers[i]), |w, row| w.max(char_width(&row[i])))
+        })
+        .collect();
+
+    let render_cell = |cell: &str, plain: &str, i: usize| -> String {
+        // amount column (index 2) is right-aligned; rest left-aligned
+        if i == 2 {
+            pad_start(cell, char_width(plain), widths[i])
+        } else {
+            pad_end(cell, char_width(plain), widths[i])
+        }
+    };
+
+    let sep_cells: Vec<String> = widths.iter().map(|w| "─".repeat(*w)).collect();
+    let sep_line = sep_cells.join("  ");
+
+    let header_cells: Vec<String> = (0..n)
+        .map(|i| render_cell(headers[i], headers[i], i))
+        .collect();
+    writeln!(out, "{}", header_cells.join("  "))?;
+    writeln!(out, "{sep_line}")?;
+
+    for (idx, (row, status)) in rows.iter().zip(statuses.iter()).enumerate() {
+        if Some(idx) == ended_start && idx != 0 {
+            writeln!(out, "{sep_line}")?;
+        }
         let c = colorize_row(row, status);
-        writeln!(
-            out,
-            "{}  {}  {}  {}  {}",
-            pad_end(&c[0], char_width(&row[0]), w0),
-            pad_end(&c[1], char_width(&row[1]), w1),
-            pad_start(&c[2], char_width(&row[2]), w2), // amount: right-aligned
-            pad_end(&c[3], char_width(&row[3]), w3),
-            pad_end(&c[4], char_width(&row[4]), w4),
-        )?;
+        let cells: Vec<String> = (0..n).map(|i| render_cell(&c[i], &row[i], i)).collect();
+        writeln!(out, "{}", cells.join("  "))?;
     }
     Ok(())
 }
@@ -171,12 +208,18 @@ pub(crate) fn execute_with(
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
 
-    let mut indexed: Vec<(usize, &Expense)> = expenses.iter().enumerate().collect();
-    indexed.sort_by_key(|(_, expense)| expense.days_until_next(today).unwrap_or(i64::MAX));
+    let show_ends = expenses.iter().any(|e| e.end_date.is_some());
 
-    let rows: Vec<[String; 5]> = indexed
+    let mut indexed: Vec<(usize, &Expense)> = expenses.iter().enumerate().collect();
+    indexed.sort_by_key(|(_, expense)| {
+        let due = expense.days_until_next(today).unwrap_or(i64::MAX);
+        // Ended rows sink to bottom; within each group, sort by next due date.
+        (expense.is_ended(today), due)
+    });
+
+    let rows: Vec<Vec<String>> = indexed
         .iter()
-        .map(|(i, expense)| build_row(*i, expense, today))
+        .map(|(i, expense)| build_row(*i, expense, today, show_ends))
         .collect();
 
     let statuses: Vec<DueStatus> = indexed
@@ -184,14 +227,17 @@ pub(crate) fn execute_with(
         .map(|(_, expense)| expense.due_status(today))
         .collect();
 
-    print_table(out, &rows, &statuses)?;
+    let ended_start = indexed.iter().position(|(_, e)| e.is_ended(today));
 
-    let totals = RecurringTotals::compute(
-        indexed.iter().map(|(_, e)| *e),
-        exchange_rates.as_ref(),
-        target,
-    );
-    print_totals(out, &totals, target_cur, expenses.len())?;
+    print_table(out, &rows, &statuses, show_ends, ended_start)?;
+
+    let active: Vec<&Expense> = indexed
+        .iter()
+        .map(|(_, e)| *e)
+        .filter(|e| !e.is_ended(today))
+        .collect();
+    let totals = RecurringTotals::compute(active.iter().copied(), exchange_rates.as_ref(), target);
+    print_totals(out, &totals, target_cur, active.len())?;
 
     Ok(())
 }
@@ -231,6 +277,25 @@ mod tests {
             interval: Some(Interval::Monthly),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn format_ends_in_future_uses_in_prefix() {
+        assert_eq!(format_ends_in(0), "today");
+        assert_eq!(format_ends_in(1), "in 1 day");
+        assert_eq!(format_ends_in(5), "in 5 days");
+        assert_eq!(format_ends_in(14), "in 2 weeks");
+        assert_eq!(format_ends_in(60), "in 2 months");
+        assert_eq!(format_ends_in(800), "in 2 years");
+    }
+
+    #[test]
+    fn format_ends_in_past_uses_ago_suffix() {
+        assert_eq!(format_ends_in(-1), "1 day ago");
+        assert_eq!(format_ends_in(-5), "5 days ago");
+        assert_eq!(format_ends_in(-14), "2 weeks ago");
+        assert_eq!(format_ends_in(-60), "2 months ago");
+        assert_eq!(format_ends_in(-800), "2 years ago");
     }
 
     #[test]
@@ -287,6 +352,34 @@ mod tests {
             name: "Unknown".to_string(),
             ..Default::default()
         }]);
+
+        // None has end_date → no "ends" column rendered
+        out += "\n=== no ends column when none set ===\n";
+        out += &run(&[monthly_usd("Netflix", 15.99, d(2026, 5, 1))]);
+
+        // Some have end_date → "ends" column appears, blank cells for those without
+        out += "\n=== ends column with future end ===\n";
+        out += &run(&[
+            Expense {
+                end_date: Some(d(2026, 6, 14)), // ~2 months
+                ..monthly_usd("Trial", 9.99, d(2026, 5, 1))
+            },
+            monthly_usd("Netflix", 15.99, d(2026, 5, 1)),
+        ]);
+
+        // Past end_date → row sinks to bottom, shows "N ago"
+        out += "\n=== ended rows sink to bottom ===\n";
+        out += &run(&[
+            Expense {
+                end_date: Some(d(2026, 4, 5)), // 10 days ago
+                ..monthly_usd("OldGym", 30.00, d(2025, 1, 1))
+            },
+            monthly_usd("Netflix", 15.99, d(2026, 4, 20)),
+            Expense {
+                end_date: Some(d(2026, 7, 15)), // ~3 months future
+                ..monthly_usd("AnnualPlan", 50.00, d(2026, 5, 1))
+            },
+        ]);
 
         insta::assert_snapshot!(out);
     }
