@@ -155,7 +155,7 @@ Options:
   -c, --currency <CURRENCY>  ISO 4217 currency code (e.g. usd, eur)
   -d, --date <DATE>          Start date (YYYY-MM-DD)
   -i, --interval <INTERVAL>  Billing interval [possible values: weekly, monthly, quarterly, yearly]
-      --ca <CATEGORY>        Category label (e.g. streaming, utilities)
+      --category <CATEGORY>  Category label (e.g. streaming, utilities)
   -h, --help                 Print help
 
 Examples:

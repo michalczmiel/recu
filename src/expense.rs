@@ -420,7 +420,7 @@ pub struct ExpenseInput {
     #[arg(short, long)]
     pub interval: Option<Interval>,
     /// Category label (e.g. streaming, utilities)
-    #[arg(long = "ca")]
+    #[arg(long = "category")]
     pub category: Option<String>,
     /// End date — when the subscription stops (YYYY-MM-DD)
     #[arg(long = "end")]
