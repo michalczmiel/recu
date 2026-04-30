@@ -1,16 +1,16 @@
+use chrono::NaiveDate;
 use clap::Args;
 use inquire::Select;
 
-use crate::expense::{Expense, ExpenseInput};
+use crate::expense::{Expense, Interval, normalize_currency, parse_amount};
 use crate::prompt::{
     inquire_err, prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval,
-    prompt_name_skippable, render_config,
+    render_config,
 };
 use crate::store::Store;
 
 #[derive(Clone, PartialEq)]
 enum Field {
-    Name,
     Amount,
     Currency,
     Date,
@@ -31,6 +31,28 @@ impl std::fmt::Display for MenuItem {
     }
 }
 
+#[derive(Args, Debug, Default)]
+pub struct EditFields {
+    /// Amount (e.g. 9.99 or 9,99)
+    #[arg(short, long, value_parser = parse_amount)]
+    pub amount: Option<f64>,
+    /// ISO 4217 currency code (e.g. usd, eur)
+    #[arg(short, long, value_parser = normalize_currency)]
+    pub currency: Option<String>,
+    /// Start date (YYYY-MM-DD)
+    #[arg(short, long)]
+    pub date: Option<NaiveDate>,
+    /// Billing interval
+    #[arg(short, long)]
+    pub interval: Option<Interval>,
+    /// Category label (e.g. streaming, utilities)
+    #[arg(long = "category")]
+    pub category: Option<String>,
+    /// End date — when the subscription stops (YYYY-MM-DD)
+    #[arg(long = "end")]
+    pub end_date: Option<NaiveDate>,
+}
+
 #[derive(Args, Debug)]
 #[command(after_help = "Examples:
   recu edit @1 -a 12.99
@@ -40,7 +62,7 @@ pub struct EditArgs {
     /// Expense to edit: @id or name (case-insensitive)
     pub target: String,
     #[command(flatten)]
-    pub fields: ExpenseInput,
+    pub fields: EditFields,
 }
 
 fn menu_items(e: &Expense) -> Vec<MenuItem> {
@@ -50,7 +72,6 @@ fn menu_items(e: &Expense) -> Vec<MenuItem> {
         display: format!("{label:<14} {val}"),
     };
     vec![
-        item(Field::Name, "Name", &e.name),
         item(
             Field::Amount,
             "Amount",
@@ -103,11 +124,6 @@ fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<Expense> {
             None => break,
             Some(item) => match item.field {
                 Field::Done => break,
-                Field::Name => {
-                    if let Some(new) = prompt_name_skippable(&working.name)? {
-                        working.name = new;
-                    }
-                }
                 Field::Amount => {
                     if let Some(v) = prompt_amount(working.amount)? {
                         working.amount = Some(v);
@@ -146,9 +162,8 @@ fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<Expense> {
     Ok(working)
 }
 
-fn has_any_field(f: &ExpenseInput) -> bool {
-    f.name.is_some()
-        || f.amount.is_some()
+fn has_any_field(f: &EditFields) -> bool {
+    f.amount.is_some()
         || f.currency.is_some()
         || f.date.is_some()
         || f.interval.is_some()
@@ -159,9 +174,6 @@ fn has_any_field(f: &ExpenseInput) -> bool {
 pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
     if has_any_field(&args.fields) {
         let f = &args.fields;
-        if let Some(name) = f.name.as_deref() {
-            store.rename(&args.target, name)?;
-        }
         let patch = Expense {
             amount: f.amount,
             currency: f.currency.clone(),
@@ -176,9 +188,6 @@ pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
         inquire::set_global_render_config(render_config());
         let current = store.get(&args.target)?;
         let patch = prompt_fields(&current, store)?;
-        if patch.name != current.name {
-            store.rename(&args.target, &patch.name)?;
-        }
         store.update(&args.target, &patch)?;
     }
     println!("Updated '{}'", args.target);
@@ -344,30 +353,6 @@ mod tests {
         let e = load(&store, "Spotify");
         assert_eq!(e.amount, Some(9.99));
         assert_eq!(e.currency.as_deref(), Some("eur"));
-    }
-
-    #[test]
-    fn edit_name_updates_stored_name() {
-        let store = make_store("edit-name-updates");
-        seed_expenses(&store);
-        store
-            .rename("Netflix", "Netflix Plus")
-            .expect("rename should succeed");
-        let names: Vec<String> = store
-            .list()
-            .expect("list should succeed")
-            .into_iter()
-            .map(|e| e.name)
-            .collect();
-        assert!(names.contains(&"Netflix Plus".to_string()));
-        assert!(!names.contains(&"Netflix".to_string()));
-    }
-
-    #[test]
-    fn edit_name_conflict_returns_error() {
-        let store = make_store("edit-name-conflict");
-        seed_expenses(&store);
-        assert!(store.rename("Netflix", "Spotify").is_err());
     }
 
     #[test]

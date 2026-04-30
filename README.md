@@ -30,16 +30,18 @@ Commands:
   ls        List recurring expenses. Amounts converted to display currency when configured
   add       Add a recurring expense
   edit      Edit a recurring expense
+  rename    Rename a recurring expense
   rm        Remove one or more recurring expenses
   treemap   Visualize expenses as a treemap
   config    Manage configuration
   category  Manage expense categories
   timeline  Show expenses as a timeline. Supports past and future date ranges
-  undo      Undo the last add, edit, or rm
+  undo      Undo the last add, edit, rename, or rm
   help      Print this message or the help of the given subcommand(s)
 
 Options:
   -f, --file <FILE>  Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
+  -a, --all          Include ended expenses (only used when no subcommand is given; equivalent to `recu ls --all`)
   -h, --help         Print help
   -V, --version      Print version
 ```

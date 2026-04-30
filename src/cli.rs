@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use crate::commands::{add, category, config, edit, ls, rm, timeline, treemap, undo};
+use crate::commands::{add, category, config, edit, ls, rename, rm, timeline, treemap, undo};
 use crate::store::Store;
 
 #[derive(Parser, Debug)]
@@ -34,6 +34,8 @@ enum Commands {
     Add(add::AddArgs),
     /// Edit a recurring expense
     Edit(edit::EditArgs),
+    /// Rename a recurring expense
+    Rename(rename::RenameArgs),
     /// Remove one or more recurring expenses
     Rm(rm::RmArgs),
     /// Visualize expenses as a treemap
@@ -58,7 +60,7 @@ enum Commands {
     },
     /// Show expenses as a timeline. Supports past and future date ranges.
     Timeline(timeline::TimelineArgs),
-    /// Undo the last add, edit, or rm
+    /// Undo the last add, edit, rename, or rm
     Undo,
 }
 
@@ -72,6 +74,7 @@ pub fn run() -> std::io::Result<()> {
         Commands::Ls(args) => ls::execute(&args, &store)?,
         Commands::Add(args) => add::execute(&args, &store)?,
         Commands::Edit(args) => edit::execute(&args, &store)?,
+        Commands::Rename(args) => rename::execute(&args, &store)?,
         Commands::Rm(args) => rm::execute(&args, &store)?,
         Commands::Treemap(args) => treemap::execute(&args, &store)?,
         Commands::Config { command } => config::run(&command)?,

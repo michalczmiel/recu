@@ -64,22 +64,6 @@ pub fn prompt_name(initial: &str) -> std::io::Result<String> {
         .map_err(|e| inquire_err(&e))
 }
 
-/// Prompt for a name that may be skipped. Returns `Some(new)` only when changed (used by `edit`).
-pub fn prompt_name_skippable(current: &str) -> std::io::Result<Option<String>> {
-    let answer = Text::new("Name:")
-        .with_initial_value(current)
-        .with_validator(|s: &str| {
-            if s.trim().is_empty() {
-                Ok(Validation::Invalid("Name cannot be empty".into()))
-            } else {
-                Ok(Validation::Valid)
-            }
-        })
-        .prompt_skippable()
-        .map_err(|e| inquire_err(&e))?;
-    Ok(answer.filter(|n| !n.is_empty() && n != current))
-}
-
 pub fn prompt_amount(default: Option<f64>) -> std::io::Result<Option<f64>> {
     let amount_parser = |input: &str| -> Result<f64, ()> { parse_amount(input).map_err(|_| ()) };
     let mut prompt = CustomType::<f64>::new("Amount:")
