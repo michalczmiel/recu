@@ -1,4 +1,4 @@
-.PHONY: check format lint test all npm-build-darwin-arm64 npm-publish-darwin-arm64 npm-publish-main
+.PHONY: check format lint test all npm-build-darwin-arm64 npm-publish-darwin-arm64 npm-build-darwin-x64 npm-publish-darwin-x64 npm-publish-main
 
 CARGO ?= rtk cargo
 
@@ -22,10 +22,17 @@ all: format lint test
 
 npm-build-darwin-arm64:
 	MACOSX_DEPLOYMENT_TARGET=11.0 $(CARGO) build --release --target aarch64-apple-darwin
-	node scripts/build-npm.mjs darwin-arm64
+	node scripts/build-npm.mjs -t darwin-arm64
 
 npm-publish-darwin-arm64: npm-build-darwin-arm64
 	cd npm/recu-darwin-arm64 && npm publish --access=public
+
+npm-build-darwin-x64:
+	MACOSX_DEPLOYMENT_TARGET=11.0 $(CARGO) build --release --target x86_64-apple-darwin
+	node scripts/build-npm.mjs -t darwin-x64
+
+npm-publish-darwin-x64: npm-build-darwin-x64
+	cd npm/recu-darwin-x64 && npm publish --access=public
 
 npm-publish-main:
 	node scripts/build-npm.mjs --sync-main

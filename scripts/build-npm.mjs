@@ -19,6 +19,11 @@ const TARGETS = {
     os: "darwin",
     cpu: "arm64",
   },
+  "darwin-x64": {
+    rustTarget: "x86_64-apple-darwin",
+    os: "darwin",
+    cpu: "x64",
+  },
 };
 
 const VERSION = cargoVersion();

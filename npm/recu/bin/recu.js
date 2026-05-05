@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const { spawnSync } = require("node:child_process");
 
-const SUPPORTED = new Set(["darwin-arm64"]);
+const SUPPORTED = new Set(["darwin-arm64", "darwin-x64"]);
 const target = `${process.platform}-${process.arch}`;
 const platformPkg = `@michalczmiel/recu-${target}`;
 
