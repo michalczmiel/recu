@@ -50,7 +50,12 @@ Options:
 
 ### Version your data
 
-Keep `recu.csv` in a git repo for free history and diffs. A dedicated folder like `~/.finances` works well.
+Keep `recu.csv` in a git repo for free history and diffs. A dedicated folder like `~/.finances` works well. Add a `.gitignore` to exclude the working files recu creates alongside the CSV:
+
+```gitignore
+*.undo
+*.seq
+```
 
 ### Set a default file
 
