@@ -366,7 +366,7 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let target_cur: Option<&'static iso::Currency> = target.and_then(iso::Currency::find);
 
-    let mut items: Vec<(String, f64, String, bool)> = expenses
+    let mut items: Vec<(String, f64, String, bool, Option<String>)> = expenses
         .into_iter()
         .filter(|expense| args.all || !expense.is_ended(today))
         .filter_map(|expense| {
@@ -391,6 +391,7 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
                 interval.to_monthly(converted),
                 symbol,
                 symbol_first,
+                expense.category,
             ))
         })
         .collect();
@@ -404,7 +405,7 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
 
     let (cols, rows) = query_terminal_size();
 
-    let sizes: Vec<f64> = items.iter().map(|(_, v, _, _)| *v).collect();
+    let sizes: Vec<f64> = items.iter().map(|(_, v, _, _, _)| *v).collect();
 
     #[allow(clippy::cast_precision_loss)]
     let logical_w = cols as f64;
@@ -413,23 +414,39 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
 
     let rects = squarify(&sizes, logical_w, logical_h);
 
+    // Assign consistent colors per category so the same category always
+    // gets the same color regardless of sort order or item count.
+    let mut category_colors: HashMap<String, (u8, u8, u8)> = HashMap::new();
+    let mut next_color_idx = 0usize;
+    for (_, _, _, _, cat) in &items {
+        let key = cat.clone().unwrap_or_default();
+        category_colors.entry(key).or_insert_with(|| {
+            let color = PALETTE[next_color_idx % PALETTE.len()];
+            next_color_idx += 1;
+            color
+        });
+    }
+
     let tiles: Vec<Tile> = items
         .into_iter()
         .zip(rects)
-        .enumerate()
-        .map(|(i, ((name, monthly, symbol, symbol_first), r))| Tile {
-            name,
-            monthly,
-            yearly: monthly * 12.0,
-            symbol,
-            symbol_first,
-            rect: Rect {
-                left: r.left,
-                top: r.top / CHAR_ASPECT,
-                width: r.width,
-                height: r.height / CHAR_ASPECT,
-            },
-            color: PALETTE[i % PALETTE.len()],
+        .map(|((name, monthly, symbol, symbol_first, category), r)| {
+            let key = category.unwrap_or_default();
+            let color = category_colors[&key];
+            Tile {
+                name,
+                monthly,
+                yearly: monthly * 12.0,
+                symbol,
+                symbol_first,
+                rect: Rect {
+                    left: r.left,
+                    top: r.top / CHAR_ASPECT,
+                    width: r.width,
+                    height: r.height / CHAR_ASPECT,
+                },
+                color,
+            }
         })
         .collect();
 
