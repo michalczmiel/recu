@@ -206,6 +206,8 @@ mod tests {
             .join("recu-test-edit")
             .join(format!("{}.csv", test_name.replace("::", "-")));
         let _ = fs::remove_file(&file);
+        let _ = fs::remove_file(file.with_extension("csv.seq"));
+        let _ = fs::remove_file(file.with_extension("csv.undo"));
         Store::at(file)
     }
 

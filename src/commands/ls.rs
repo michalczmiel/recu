@@ -33,7 +33,7 @@ fn colorize_row(row: &[String], status: &DueStatus) -> Vec<String> {
         .collect()
 }
 
-fn build_row(index: usize, expense: &Expense, today: NaiveDate, show_ends: bool) -> Vec<String> {
+fn build_row(expense: &Expense, today: NaiveDate, show_ends: bool) -> Vec<String> {
     let amount = expense.amount.map_or_else(
         || "-".into(),
         |a| format_expense_amount(expense.currency.as_deref(), a),
@@ -48,7 +48,7 @@ fn build_row(index: usize, expense: &Expense, today: NaiveDate, show_ends: bool)
     };
 
     let mut row = vec![
-        format!("@{}", index + 1),
+        format!("@{}", expense.id),
         expense.name.clone(),
         amount,
         days_str,
@@ -156,14 +156,13 @@ pub(crate) fn execute_with(
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
 
-    let mut indexed: Vec<(usize, &Expense)> = expenses
+    let mut visible: Vec<&Expense> = expenses
         .iter()
-        .enumerate()
-        .filter(|(_, e)| all || !e.is_ended(today))
+        .filter(|e| all || !e.is_ended(today))
         .collect();
-    let hidden_ended = expenses.len() - indexed.len();
+    let hidden_ended = expenses.len() - visible.len();
 
-    if indexed.is_empty() {
+    if visible.is_empty() {
         writeln!(
             out,
             "All {hidden_ended} expenses are ended. Run 'recu ls --all' to view them."
@@ -171,31 +170,28 @@ pub(crate) fn execute_with(
         return Ok(());
     }
 
-    let show_ends = indexed.iter().any(|(_, e)| e.end_date.is_some());
+    let show_ends = visible.iter().any(|e| e.end_date.is_some());
 
-    indexed.sort_by_key(|(_, expense)| {
+    visible.sort_by_key(|expense| {
         let due = expense.days_until_next(today).unwrap_or(i64::MAX);
         // Ended rows sink to bottom; within each group, sort by next due date.
         (expense.is_ended(today), due)
     });
 
-    let rows: Vec<Vec<String>> = indexed
+    let rows: Vec<Vec<String>> = visible
         .iter()
-        .map(|(i, expense)| build_row(*i, expense, today, show_ends))
+        .map(|expense| build_row(expense, today, show_ends))
         .collect();
 
-    let statuses: Vec<DueStatus> = indexed
-        .iter()
-        .map(|(_, expense)| expense.due_status(today))
-        .collect();
+    let statuses: Vec<DueStatus> = visible.iter().map(|e| e.due_status(today)).collect();
 
-    let ended_start = indexed.iter().position(|(_, e)| e.is_ended(today));
+    let ended_start = visible.iter().position(|e| e.is_ended(today));
 
     print_table(out, &rows, &statuses, show_ends, ended_start)?;
 
-    let active: Vec<&Expense> = indexed
+    let active: Vec<&Expense> = visible
         .iter()
-        .map(|(_, e)| *e)
+        .copied()
         .filter(|e| !e.is_ended(today))
         .collect();
     let totals = RecurringTotals::compute(active.iter().copied(), exchange_rates.as_ref(), target);
@@ -238,7 +234,15 @@ mod tests {
 
     fn run_with(expenses: &[Expense], all: bool) -> String {
         let mut buf = Vec::new();
-        execute_with(&mut buf, today(), &Config::default(), expenses, all).expect("execute_with");
+        let with_ids: Vec<Expense> = expenses
+            .iter()
+            .enumerate()
+            .map(|(i, e)| Expense {
+                id: (i as u64) + 1,
+                ..e.clone()
+            })
+            .collect();
+        execute_with(&mut buf, today(), &Config::default(), &with_ids, all).expect("execute_with");
         String::from_utf8(buf).expect("utf8")
     }
 

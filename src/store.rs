@@ -17,6 +17,10 @@ impl Store {
         self.path.with_extension("csv.undo")
     }
 
+    fn seq_path(&self) -> PathBuf {
+        self.path.with_extension("csv.seq")
+    }
+
     fn snapshot(&self) -> io::Result<()> {
         if self.path.exists() {
             fs::copy(&self.path, self.undo_path())?;
@@ -24,7 +28,22 @@ impl Store {
         Ok(())
     }
 
-    fn read_all(&self) -> io::Result<Vec<Expense>> {
+    fn read_seq(&self) -> Option<u64> {
+        fs::read_to_string(self.seq_path())
+            .ok()?
+            .trim()
+            .parse()
+            .ok()
+    }
+
+    /// Next id to assign. Monotonic and never reused — even after delete or undo —
+    /// because we only ever advance the persisted seq, never roll it back.
+    fn next_id(&self, entries: &[Expense]) -> u64 {
+        let max_existing = entries.iter().map(|e| e.id).max().unwrap_or(0);
+        self.read_seq().unwrap_or(0).max(max_existing + 1)
+    }
+
+    pub fn list(&self) -> io::Result<Vec<Expense>> {
         if !self.path.exists() {
             return Ok(vec![]);
         }
@@ -50,12 +69,18 @@ impl Store {
             writer.flush()?;
         }
         fs::rename(tmp, &self.path)?;
+
+        let max_id = entries.iter().map(|e| e.id).max().unwrap_or(0);
+        let needed_seq = max_id + 1;
+        if needed_seq > self.read_seq().unwrap_or(0) {
+            fs::write(self.seq_path(), needed_seq.to_string())?;
+        }
         Ok(())
     }
 
     pub fn save(&self, expense: &Expense) -> io::Result<()> {
         self.snapshot()?;
-        let mut entries = self.read_all()?;
+        let mut entries = self.list()?;
         if entries
             .iter()
             .any(|e| e.name.eq_ignore_ascii_case(&expense.name))
@@ -65,25 +90,20 @@ impl Store {
                 format!("expense '{}' already exists", expense.name),
             ));
         }
-        entries.push(expense.clone());
+        let mut new_entry = expense.clone();
+        new_entry.id = self.next_id(&entries);
+        entries.push(new_entry);
         self.write_all(&entries)
     }
 
-    pub fn list(&self) -> io::Result<Vec<Expense>> {
-        self.read_all()
-    }
-
     pub fn get(&self, target: &str) -> io::Result<Expense> {
-        let entries = self.read_all()?;
+        let mut entries = self.list()?;
         let index = resolve_index_in(&entries, target)?;
-        Ok(entries
-            .into_iter()
-            .nth(index)
-            .expect("index validated above"))
+        Ok(entries.swap_remove(index))
     }
 
     pub fn update(&self, target: &str, changes: &Expense) -> io::Result<()> {
-        let mut entries = self.read_all()?;
+        let mut entries = self.list()?;
         let index = resolve_index_in(&entries, target)?;
 
         if changes.amount.is_none()
@@ -122,7 +142,7 @@ impl Store {
     }
 
     pub fn rename(&self, target: &str, new_name: &str) -> io::Result<()> {
-        let mut entries = self.read_all()?;
+        let mut entries = self.list()?;
         let index = resolve_index_in(&entries, target)?;
 
         if entries
@@ -143,7 +163,7 @@ impl Store {
 
     pub fn remove(&self, targets: &[&str]) -> io::Result<Vec<String>> {
         self.snapshot()?;
-        let mut entries = self.read_all()?;
+        let mut entries = self.list()?;
 
         let mut resolved: Vec<(usize, usize)> = Vec::with_capacity(targets.len());
         for (pos, target) in targets.iter().enumerate() {
@@ -172,7 +192,7 @@ impl Store {
     pub fn categories(&self) -> io::Result<Vec<String>> {
         let mut seen = std::collections::HashSet::<String>::new();
         let mut categories = Vec::<String>::new();
-        for expense in self.read_all()? {
+        for expense in self.list()? {
             let Some(category) = expense.category else {
                 continue;
             };
@@ -185,7 +205,7 @@ impl Store {
     }
 
     pub fn reassign_category(&self, sources: &[&str], dst: &str) -> io::Result<Vec<usize>> {
-        let mut entries = self.read_all()?;
+        let mut entries = self.list()?;
         let mut counts = vec![0usize; sources.len()];
         let mut changed = false;
 
@@ -212,7 +232,7 @@ impl Store {
     }
 
     pub fn clear_categories(&self, categories: &[&str]) -> io::Result<Vec<usize>> {
-        let mut entries = self.read_all()?;
+        let mut entries = self.list()?;
         let mut counts = vec![0usize; categories.len()];
 
         for entry in &mut entries {
@@ -242,8 +262,8 @@ impl Store {
         if !undo.exists() {
             return Err(io::Error::new(io::ErrorKind::NotFound, "nothing to undo"));
         }
-        let before = Store::at(&undo).read_all()?;
-        let after = self.read_all()?;
+        let before = Store::at(&undo).list()?;
+        let after = self.list()?;
         let msg = diff_description(&before, &after);
         fs::rename(&undo, &self.path)?;
         Ok(msg)
@@ -256,19 +276,18 @@ fn io_invalid_data<E: std::error::Error + Send + Sync + 'static>(err: E) -> io::
 
 fn resolve_index_in(entries: &[Expense], target: &str) -> io::Result<usize> {
     if let Some(id_str) = target.strip_prefix('@') {
-        let id: usize = id_str.parse().map_err(|_| {
+        let id: u64 = id_str.parse().map_err(|_| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("invalid id '{target}'"),
             )
         })?;
-        if id == 0 || id > entries.len() {
-            return Err(io::Error::new(
+        return entries.iter().position(|e| e.id == id).ok_or_else(|| {
+            io::Error::new(
                 io::ErrorKind::NotFound,
                 format!("no expense at @{id}. Run 'recu ls' to see available expenses"),
-            ));
-        }
-        return Ok(id - 1);
+            )
+        });
     }
 
     entries
@@ -330,6 +349,7 @@ mod tests {
         let file = std::env::temp_dir().join(format!("recu-test-{name}.csv"));
         let _ = fs::remove_file(&file);
         let _ = fs::remove_file(file.with_extension("csv.undo"));
+        let _ = fs::remove_file(file.with_extension("csv.seq"));
         Store::at(file)
     }
 

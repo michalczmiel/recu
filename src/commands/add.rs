@@ -30,6 +30,7 @@ fn prompt_fields(fields: &ExpenseInput, store: &Store) -> std::io::Result<Expens
     let categories = store.categories()?;
     let category = prompt_category(&categories, fields.category.as_deref())?;
     Ok(Expense {
+        id: 0,
         name,
         amount,
         currency,
@@ -44,6 +45,7 @@ pub fn execute(add: &AddArgs, store: &Store) -> std::io::Result<()> {
     let f = &add.fields;
     let expense = if let Some(name) = &f.name {
         Expense {
+            id: 0,
             name: name.clone(),
             amount: f.amount,
             currency: f.currency.clone(),

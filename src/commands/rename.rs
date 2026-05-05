@@ -30,6 +30,8 @@ mod tests {
             .join("recu-test-rename")
             .join(format!("{test_name}.csv"));
         let _ = fs::remove_file(&file);
+        let _ = fs::remove_file(file.with_extension("csv.seq"));
+        let _ = fs::remove_file(file.with_extension("csv.undo"));
         Store::at(file)
     }
 

@@ -77,6 +77,7 @@ pub enum DueStatus {
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Expense {
+    pub id: u64,
     pub name: String,
     pub amount: Option<f64>,
     pub currency: Option<String>,
