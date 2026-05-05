@@ -1,6 +1,6 @@
 {
   "name": "@michalczmiel/recu",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "CLI tool for tracking recurring expenses",
   "license": "MIT",
   "homepage": "https://github.com/michalczmiel/recu",
@@ -23,8 +23,8 @@
     "bin"
   ],
   "optionalDependencies": {
-    "@michalczmiel/recu-darwin-arm64": "0.2.1",
-    "@michalczmiel/recu-darwin-x64": "0.2.1"
+    "@michalczmiel/recu-darwin-arm64": "0.2.2",
+    "@michalczmiel/recu-darwin-x64": "0.2.2"
   },
   "engines": {
     "node": ">=18"

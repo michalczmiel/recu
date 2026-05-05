@@ -35,5 +35,5 @@ npm-publish-darwin-x64: npm-build-darwin-x64
 	cd npm/recu-darwin-x64 && npm publish --access=public
 
 npm-publish-main:
-	node scripts/build-npm.mjs --sync-main
+	node scripts/build-npm.mjs
 	cd npm/recu && npm publish --access=public
