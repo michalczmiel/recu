@@ -1,49 +1,45 @@
 # recu
 
-CLI tool for tracking recurring expenses. Parses expenses data and outputs it in one of three formats (list, timeline or treemap). Data is stored in a single CSV file
+Track recurring expenses from a single CSV file. Outputs as a list, timeline, or treemap.
 
 > This project is still in development, the interfaces and features may change.
 
-## Install
+```
+$ recu ls
+@    name                  amount  due          category
+───  ────────────────────  ──────  ───────────  ──────────────
+@9   0Password              $4.99  today        Security
+@4   Pear TV+              $12.99  in 2 days    Streaming
+@3   ViewTube Premium      $15.99  in 3 days    Streaming
+@16  Gym                   $45.00  in 3 days    Health
+@8   Potion                $10.00  in 5 days    Productivity
+@11  GitHug Pro             $4.00  in 1 week    Dev
+@12  ChatGBT Plus          $20.00  in 1 week    Dev
+@15  Amazoo Prime          $14.99  in 2 weeks   Shopping
+@13  iSmog+                 $2.99  in 2 weeks   Cloud
+@2   Spookify               $9.99  in 2 weeks   Streaming
+@14  Goggle One             $2.99  in 3 weeks   Cloud
+@6   Adobo Creative Cloud  $54.99  in 3 weeks   Productivity
+@1   Streamberry           $19.99  in 3 weeks   Streaming
+@18  Web Hosting            $6.99  in 3 weeks   Infrastructure
+@5   Ghibli+               $11.99  in 3 weeks   Streaming
+@17  Domain                $15.00  in 6 months  Infrastructure
+@7   Macrosoft 365         $99.99  in 7 months  Productivity
 
-Via npm (currently only macOS):
+17 expenses  896.15 zł/month  10753.83 zł/year
++ 1 ended (recu ls --all)
+```
+
+## Installation
+
+Install globally with your preferred method
 
 ```
 npm install -g @michalczmiel/recu
 ```
 
-Via cargo (any platform):
-
 ```
 cargo install recu
-```
-
-## Usage
-
-```
-$ recu --help
-Track recurring expenses
-
-Usage: recu [OPTIONS] [COMMAND]
-
-Commands:
-  ls        List recurring expenses. Amounts converted to display currency when configured
-  add       Add a recurring expense
-  edit      Edit a recurring expense
-  rename    Rename a recurring expense
-  rm        Remove one or more recurring expenses
-  treemap   Visualize expenses as a treemap
-  config    Manage configuration
-  category  Manage expense categories
-  timeline  Show expenses as a timeline. Supports past and future date ranges
-  undo      Undo the last add, edit, rename, or rm
-  help      Print this message or the help of the given subcommand(s)
-
-Options:
-  -f, --file <FILE>  Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
-  -a, --all          Include ended expenses (only used when no subcommand is given; equivalent to `recu ls --all`)
-  -h, --help         Print help
-  -V, --version      Print version
 ```
 
 ## Tips
@@ -90,32 +86,32 @@ When a subscription stops, set `--end` instead of `rm` to keep it in history. `r
 
 Point any coding agent (Pi, OpenCode, Claude Code, Codex etc.) at your shell and ask it to "import my subscriptions into recu, suggest categories, and find overlapping subscriptions". It can discover the interface via `recu help` and each subcommand's `--help`.
 
-## Example
+## Examples
 
 ```
-$ recu ls
-@    name                  amount  due          category
-───  ────────────────────  ──────  ───────────  ──────────────
-@9   0Password              $4.99  today        Security
-@4   Pear TV+              $12.99  in 2 days    Streaming
-@3   ViewTube Premium      $15.99  in 3 days    Streaming
-@16  Gym                   $45.00  in 3 days    Health
-@8   Potion                $10.00  in 5 days    Productivity
-@11  GitHug Pro             $4.00  in 1 week    Dev
-@12  ChatGBT Plus          $20.00  in 1 week    Dev
-@15  Amazoo Prime          $14.99  in 2 weeks   Shopping
-@13  iSmog+                 $2.99  in 2 weeks   Cloud
-@2   Spookify               $9.99  in 2 weeks   Streaming
-@14  Goggle One             $2.99  in 3 weeks   Cloud
-@6   Adobo Creative Cloud  $54.99  in 3 weeks   Productivity
-@1   Streamberry           $19.99  in 3 weeks   Streaming
-@18  Web Hosting            $6.99  in 3 weeks   Infrastructure
-@5   Ghibli+               $11.99  in 3 weeks   Streaming
-@17  Domain                $15.00  in 6 months  Infrastructure
-@7   Macrosoft 365         $99.99  in 7 months  Productivity
+$ recu --help
+Track recurring expenses
 
-17 expenses  896.15 zł/month  10753.83 zł/year
-+ 1 ended (recu ls --all)
+Usage: recu [OPTIONS] [COMMAND]
+
+Commands:
+  ls        List recurring expenses. Amounts converted to display currency when configured
+  add       Add a recurring expense
+  edit      Edit a recurring expense
+  rename    Rename a recurring expense
+  rm        Remove one or more recurring expenses
+  treemap   Visualize expenses as a treemap
+  config    Manage configuration
+  category  Manage expense categories
+  timeline  Show expenses as a timeline. Supports past and future date ranges
+  undo      Undo the last add, edit, rename, or rm
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+  -f, --file <FILE>  Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
+  -a, --all          Include ended expenses (only used when no subcommand is given; equivalent to `recu ls --all`)
+  -h, --help         Print help
+  -V, --version      Print version
 ```
 
 ```
