@@ -44,27 +44,32 @@ fn occurrences_in_range(
     rates: Option<&HashMap<String, f64>>,
     target: Option<&str>,
 ) -> Vec<Occurrence> {
-    let (Some(first), Some(interval), Some(amount)) = (
-        expense.start_date,
-        expense.interval.as_ref(),
-        expense.amount,
-    ) else {
+    let (Some(first), Some(amount)) = (expense.start_date, expense.amount) else {
         return vec![];
     };
 
     let display_amount = format_expense_amount(expense.currency.as_deref(), amount);
-
     let converted = convert(amount, expense.currency.as_deref(), rates, target);
+
+    let make = |date: NaiveDate| Occurrence {
+        date,
+        name: name.to_string(),
+        display_amount: display_amount.clone(),
+        converted_amount: converted,
+    };
+
+    let Some(interval) = expense.interval.as_ref() else {
+        return if first >= start && first <= end {
+            vec![make(first)]
+        } else {
+            vec![]
+        };
+    };
 
     let mut result = vec![];
     let mut d = interval.next_payment(first, start);
     while d <= end {
-        result.push(Occurrence {
-            date: d,
-            name: name.to_string(),
-            display_amount: display_amount.clone(),
-            converted_amount: converted,
-        });
+        result.push(make(d));
         d = interval.next_payment(first, d + chrono::Days::new(1));
     }
     result
@@ -149,7 +154,7 @@ pub(crate) fn execute_with(
     all: bool,
 ) -> std::io::Result<()> {
     if expenses.is_empty() {
-        writeln!(out, "No recurring expenses found.")?;
+        writeln!(out, "No recurring expenses found. Run `recu add` to add one.")?;
         return Ok(());
     }
 
@@ -171,7 +176,7 @@ pub(crate) fn execute_with(
         .collect();
 
     if all_occ.is_empty() {
-        writeln!(out, "No expenses in timeline.")?;
+        writeln!(out, "No expenses in timeline. Run `recu add` to add one.")?;
         return Ok(());
     }
 
@@ -320,6 +325,22 @@ mod tests {
             30,
             0,
         );
+
+        // One-off (no interval) with start_date in window → appears once
+        let one_off = Expense {
+            name: "Conference".to_string(),
+            amount: Some(250.0),
+            currency: Some("usd".to_string()),
+            start_date: Some(d(2026, 4, 22)),
+            interval: None,
+            ..Default::default()
+        };
+        out += "\n=== one-off with start_date but no interval ===\n";
+        out += &run(&[one_off.clone()], 30, 0);
+
+        // One-off outside window → no entries
+        out += "\n=== one-off outside window ===\n";
+        out += &run(&[one_off], 3, 0);
 
         // --all → ended expense's payments appear
         out += "\n=== --all reveals ended occurrences ===\n";

@@ -1,5 +1,6 @@
 ---
 source: src/commands/timeline.rs
+assertion_line: 338
 expression: out
 ---
 === empty store ===
@@ -66,16 +67,6 @@ date      name     amount
 Apr 2026
       20  Netflix  $15.99
 Total  $15.99
-
-=== one-off with start_date but no interval ===
-date      name         amount
-────────  ──────────  ───────
-Apr 2026
-      22  Conference  $250.00
-Total  $250.00
-
-=== one-off outside window ===
-No expenses in timeline. Run `recu add` to add one.
 
 === --all reveals ended occurrences ===
 date      name     amount
