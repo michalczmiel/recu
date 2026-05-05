@@ -155,6 +155,17 @@ mod tests {
         assert_eq!(format_amount(cur, 42.5), "42.50 zł");
     }
 
+    #[test]
+    fn format_amount_normalizes_negative_zero() {
+        // Rust's empty f64 sum yields -0.0, which `{:.2}` renders as "-0.00".
+        let usd = iso::Currency::find("USD").expect("USD is a valid currency code");
+        let pln = iso::Currency::find("PLN").expect("PLN is a valid currency code");
+        assert_eq!(format_amount(usd, -0.0), "$0.00");
+        assert_eq!(format_amount(pln, -0.0), "0.00 zł");
+        assert_eq!(format_expense_amount(None, -0.0), "0.00");
+        assert_eq!(format_expense_amount(Some("usd"), -0.0), "$0.00");
+    }
+
     fn assert_parses(input: &str, expected: f64) {
         let got = parse_amount(input).expect("parse_amount should succeed");
         assert!(
@@ -260,6 +271,9 @@ mod tests {
 }
 
 pub fn format_amount(cur: &iso::Currency, amount: f64) -> String {
+    // `{:.2}` renders -0.0 as "-0.00"; normalize so empty sums and tiny
+    // negative rounding artifacts don't print a stray minus.
+    let amount = amount + 0.0;
     if cur.symbol_first {
         format!("{}{:.2}", cur.symbol, amount)
     } else {
@@ -271,7 +285,7 @@ pub fn format_amount(cur: &iso::Currency, amount: f64) -> String {
 pub fn format_expense_amount(currency: Option<&str>, amount: f64) -> String {
     match currency.and_then(find_currency) {
         Some(c) => format_amount(c, amount),
-        None => format!("{amount:.2}"),
+        None => format!("{:.2}", amount + 0.0),
     }
 }
 
