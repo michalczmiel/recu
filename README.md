@@ -4,7 +4,7 @@ Track recurring expenses from a single CSV file. Outputs as a list, timeline, or
 
 > This project is still in development, the interfaces and features may change.
 
-```
+```sh
 $ recu ls
 @    name                  amount  due          category
 ───  ────────────────────  ──────  ───────────  ──────────────
@@ -34,11 +34,11 @@ $ recu ls
 
 Install globally with your preferred method
 
-```
+```sh
 npm install -g @michalczmiel/recu
 ```
 
-```
+```sh
 cargo install recu
 ```
 
@@ -57,7 +57,7 @@ Keep `recu.csv` in a git repo for free history and diffs. A dedicated folder lik
 
 Point `RECU_FILE` at your main file in `~/.bashrc` or `~/.zshrc`:
 
-```
+```sh
 export RECU_FILE=~/.finances/recu.csv
 ```
 
@@ -65,7 +65,7 @@ export RECU_FILE=~/.finances/recu.csv
 
 `recu` is just one CSV per dataset — keep separate files for personal, business, shared household etc. Add bash aliases pointing each to its own file:
 
-```
+```sh
 alias recu-biz='recu -f ~/.finances/biz.csv'
 alias recu-home='recu -f ~/.finances/home.csv'
 ```
@@ -74,7 +74,7 @@ alias recu-home='recu -f ~/.finances/home.csv'
 
 Set a default currency and `recu` auto-converts multi-currency entries to it on display:
 
-```
+```sh
 recu config set currency pln
 ```
 
@@ -88,7 +88,7 @@ Point any coding agent (Pi, OpenCode, Claude Code, Codex etc.) at your shell and
 
 ## Examples
 
-```
+```sh
 $ recu --help
 Track recurring expenses
 
@@ -114,7 +114,7 @@ Options:
   -V, --version      Print version
 ```
 
-```
+```sh
 $ recu timeline
 date      name                  amount
 ────────  ────────────────────  ──────
@@ -139,7 +139,7 @@ May 2026
 Total  879.52 zł
 ```
 
-```
+```sh
 $ recu treemap
 ┌──────────────────────────────┐┌───────────┐┌────────────────┐┌───────────────┐
 │Adobo Creative Cloud          ││ChatGBT Pl…││ViewTube Premium││Amazoo Prime   │
@@ -163,7 +163,7 @@ $ recu treemap
 └──────────────────────────────┘└───────────┘└─────────┘ └─────────┘└───┘
 ```
 
-```
+```sh
 $ recu help add
 Add a recurring expense
 
@@ -186,7 +186,7 @@ Examples:
   recu add          # interactive mode
 ```
 
-```
+```sh
 $ recu help category
 Manage expense categories
 
