@@ -16,17 +16,17 @@ test:
 all: format lint test
 
 # --- npm packaging ---------------------------------------------------------
-# Versions in npm/recu/package.json and npm/recu-*/package.json must match
-# the Cargo.toml version. Bump them together.
+# Version is read from Cargo.toml by scripts/build-npm.mjs. Platform package
+# directories under npm/recu-*/ are generated and gitignored — bump only
+# Cargo.toml.
 
 npm-build-darwin-arm64:
 	MACOSX_DEPLOYMENT_TARGET=11.0 $(CARGO) build --release --target aarch64-apple-darwin
-	mkdir -p npm/recu-darwin-arm64/bin
-	cp target/aarch64-apple-darwin/release/recu npm/recu-darwin-arm64/bin/recu
-	chmod +x npm/recu-darwin-arm64/bin/recu
+	node scripts/build-npm.mjs darwin-arm64
 
 npm-publish-darwin-arm64: npm-build-darwin-arm64
 	cd npm/recu-darwin-arm64 && npm publish --access=public
 
 npm-publish-main:
+	node scripts/build-npm.mjs --sync-main
 	cd npm/recu && npm publish --access=public
