@@ -154,7 +154,10 @@ pub(crate) fn execute_with(
     all: bool,
 ) -> std::io::Result<()> {
     if expenses.is_empty() {
-        writeln!(out, "No recurring expenses found. Run `recu add` to add one.")?;
+        writeln!(
+            out,
+            "No recurring expenses found. Run `recu add` to add one."
+        )?;
         return Ok(());
     }
 
@@ -336,7 +339,7 @@ mod tests {
             ..Default::default()
         };
         out += "\n=== one-off with start_date but no interval ===\n";
-        out += &run(&[one_off.clone()], 30, 0);
+        out += &run(std::slice::from_ref(&one_off), 30, 0);
 
         // One-off outside window → no entries
         out += "\n=== one-off outside window ===\n";
