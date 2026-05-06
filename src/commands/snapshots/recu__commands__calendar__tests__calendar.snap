@@ -1,0 +1,48 @@
+---
+source: src/commands/calendar.rs
+expression: out
+---
+=== current month (no color, utf8) ===
+                  November 2026
+
+    Mon    Tue    Wed    Thu    Fri    Sat    Sun
+                                                1
+      2      3      4      5      6      7      8
+                                 50              
+      9     10     11     12     13     14     15
+                            9.5k(2)              
+     16     17     18     19     20     21     22
+                                230              
+     23     24     25     26     27     28     29
+                            2.4k(2) 178(2)       
+     30
+
+8 charges   12402.00 zł   paid 9582.00 zł, remaining 2820.00 zł
+
+=== next month ===
+                  December 2026
+
+    Mon    Tue    Wed    Thu    Fri    Sat    Sun
+             1      2      3      4      5      6
+                                               50
+      7      8      9     10     11     12     13
+                                          9.5k(2)
+     14     15     16     17     18     19     20
+                                              230
+     21     22     23     24     25     26     27
+                                          2.4k(2)
+     28     29     30     31
+ 178(2)                     
+
+8 charges   12402.00 zł
+
+=== empty month ===
+                  November 2026
+
+    Mon    Tue    Wed    Thu    Fri    Sat    Sun
+                                                1
+      2      3      4      5      6      7      8
+      9     10     11     12     13     14     15
+     16     17     18     19     20     21     22
+     23     24     25     26     27     28     29
+     30

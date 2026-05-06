@@ -1,6 +1,6 @@
 # recu
 
-Track recurring expenses from a single CSV file. Outputs as a list, timeline, or treemap.
+Track recurring expenses from a single CSV file. Outputs as a list, calendar, or treemap.
 
 > This project is still in development, the interfaces and features may change.
 
@@ -103,7 +103,7 @@ Commands:
   treemap   Visualize expenses as a treemap
   config    Manage configuration
   category  Manage expense categories
-  timeline  Show expenses as a timeline. Supports past and future date ranges
+  calendar  Show recurring expenses on a month grid
   undo      Undo the last add, edit, rename, or rm
   help      Print this message or the help of the given subcommand(s)
 
@@ -115,28 +115,23 @@ Options:
 ```
 
 ```sh
-$ recu timeline
-date      name                  amount
-────────  ────────────────────  ──────
-Apr 2026
-      28  0Password              $4.99
-      30  Pear TV+              $12.99
-May 2026
-       1  ViewTube Premium      $15.99
-       1  Gym                   $45.00
-       3  Potion                $10.00
-       7  GitHug Pro             $4.00
-      10  ChatGBT Plus          $20.00
-      15  Amazoo Prime          $14.99
-      17  iSmog+                 $2.99
-      18  Spookify               $9.99
-      19  Goggle One             $2.99
-      20  Adobo Creative Cloud  $54.99
-      22  Streamberry           $19.99
-      24  Web Hosting            $6.99
-      25  Ghibli+               $11.99
-      28  0Password              $4.99
-Total  879.52 zł
+$ recu calendar
+                    May 2026
+
+    Mon    Tue    Wed    Thu    Fri    Sat    Sun
+                                  1      2      3
+                              61(2)            10
+      4      5      6      7      8      9     10
+                           4                   20
+     11     12     13     14     15     16     17
+                                 15             3
+     18     19     20     21     22     23     24
+     10      3     55            20             7
+     25     26     27     28     29     30     31
+     12                    5            13       
+
+15 charges   $237.89   paid $70.99, remaining $166.90
++ 1 ended (recu calendar --all)
 ```
 
 ```sh

@@ -1,10 +1,10 @@
 pub mod add;
+pub mod calendar;
 pub mod category;
 pub mod config;
 pub mod edit;
 pub mod ls;
 pub mod rename;
 pub mod rm;
-pub mod timeline;
 pub mod treemap;
 pub mod undo;
