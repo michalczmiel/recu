@@ -355,6 +355,18 @@ impl RecurringTotals {
     }
 }
 
+/// `true` if `expense`'s category matches any of `filters` (case-insensitive).
+/// Empty `filters` matches everything.
+pub fn matches_categories(expense: &Expense, filters: &[String]) -> bool {
+    if filters.is_empty() {
+        return true;
+    }
+    expense
+        .category
+        .as_deref()
+        .is_some_and(|c| filters.iter().any(|f| f.eq_ignore_ascii_case(c)))
+}
+
 /// Returns the single shared currency if every expense has the same one, otherwise `None`.
 pub fn uniform_currency(expenses: &[Expense]) -> Option<&'static iso::Currency> {
     let mut cur: Option<&str> = None;

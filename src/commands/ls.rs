@@ -14,6 +14,9 @@ pub struct LsArgs {
     /// Include ended expenses
     #[arg(short, long)]
     pub all: bool,
+    /// Filter by category (case-insensitive); comma-separated for multiple
+    #[arg(short, long, value_delimiter = ',')]
+    pub category: Vec<String>,
 }
 
 use crate::expense::{
@@ -141,6 +144,7 @@ pub(crate) fn execute_with(
     cfg: &Config,
     expenses: &[Expense],
     all: bool,
+    categories: &[String],
 ) -> std::io::Result<()> {
     if expenses.is_empty() {
         writeln!(
@@ -159,14 +163,22 @@ pub(crate) fn execute_with(
     let mut visible: Vec<&Expense> = expenses
         .iter()
         .filter(|e| all || !e.is_ended(today))
+        .filter(|e| expense::matches_categories(e, categories))
         .collect();
-    let hidden_ended = expenses.len() - visible.len();
+    let hidden_ended = expenses
+        .iter()
+        .filter(|e| !all && e.is_ended(today) && expense::matches_categories(e, categories))
+        .count();
 
     if visible.is_empty() {
-        writeln!(
-            out,
-            "All {hidden_ended} expenses are ended. Run 'recu ls --all' to view them."
-        )?;
+        if categories.is_empty() {
+            writeln!(
+                out,
+                "All {hidden_ended} expenses are ended. Run 'recu ls --all' to view them."
+            )?;
+        } else {
+            writeln!(out, "No expenses match category filter.")?;
+        }
         return Ok(());
     }
 
@@ -212,7 +224,15 @@ pub fn execute(args: &LsArgs, store: &Store) -> std::io::Result<()> {
     let expenses = store.list()?;
     let cfg = config::load()?;
     let today = chrono::Local::now().date_naive();
-    execute_with(&mut std::io::stdout(), today, &cfg, &expenses, args.all)
+    let categories = crate::commands::category::resolve_filter(&args.category, store)?;
+    execute_with(
+        &mut std::io::stdout(),
+        today,
+        &cfg,
+        &expenses,
+        args.all,
+        &categories,
+    )
 }
 
 #[cfg(test)]
@@ -242,7 +262,8 @@ mod tests {
                 ..e.clone()
             })
             .collect();
-        execute_with(&mut buf, today(), &Config::default(), &with_ids, all).expect("execute_with");
+        execute_with(&mut buf, today(), &Config::default(), &with_ids, all, &[])
+            .expect("execute_with");
         String::from_utf8(buf).expect("utf8")
     }
 

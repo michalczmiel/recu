@@ -38,6 +38,19 @@ pub struct CategoryRenameArgs {
     pub dst: String,
 }
 
+/// Resolves comma-separated `@id` or name inputs against the store's categories.
+/// Empty input returns an empty list. Used by `ls`/`calendar`/`treemap` filters.
+pub(crate) fn resolve_filter(inputs: &[String], store: &Store) -> io::Result<Vec<String>> {
+    if inputs.is_empty() {
+        return Ok(Vec::new());
+    }
+    let categories = store.categories()?;
+    inputs
+        .iter()
+        .map(|t| resolve_target(t, &categories))
+        .collect()
+}
+
 fn resolve_target(target: &str, categories: &[String]) -> io::Result<String> {
     if let Some(id_str) = target.strip_prefix('@') {
         let id: usize = id_str.parse().map_err(|_| {

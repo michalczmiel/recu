@@ -28,6 +28,9 @@ pub struct CalendarArgs {
     /// Include ended expenses
     #[arg(short, long)]
     pub all: bool,
+    /// Filter by category (case-insensitive); comma-separated for multiple
+    #[arg(short, long, value_delimiter = ',')]
+    pub category: Vec<String>,
 }
 
 fn parse_month(s: &str) -> Result<NaiveDate, String> {
@@ -297,6 +300,7 @@ pub(crate) fn execute_with(
     expenses: &[Expense],
     month: NaiveDate,
     all: bool,
+    categories: &[String],
 ) -> std::io::Result<()> {
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
@@ -304,13 +308,25 @@ pub(crate) fn execute_with(
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
 
-    let by_day =
-        occurrences_for_month(expenses, month, today, exchange_rates.as_ref(), target, all);
+    let filtered: Vec<Expense> = expenses
+        .iter()
+        .filter(|e| expense::matches_categories(e, categories))
+        .cloned()
+        .collect();
+
+    let by_day = occurrences_for_month(
+        &filtered,
+        month,
+        today,
+        exchange_rates.as_ref(),
+        target,
+        all,
+    );
 
     let hidden_ended = if all {
         0
     } else {
-        expenses.iter().filter(|e| e.is_ended(today)).count()
+        filtered.iter().filter(|e| e.is_ended(today)).count()
     };
 
     render_grid(out, month, today, &by_day)?;
@@ -333,6 +349,7 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
         first_of_month(today)
     };
 
+    let categories = crate::commands::category::resolve_filter(&args.category, store)?;
     execute_with(
         &mut std::io::stdout(),
         today,
@@ -340,6 +357,7 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
         &expenses,
         month,
         args.all,
+        &categories,
     )
 }
 
@@ -372,7 +390,7 @@ mod tests {
         let cfg = Config {
             currency: Some("pln".to_string()),
         };
-        execute_with(&mut buf, today(), &cfg, expenses, month, false).expect("execute_with");
+        execute_with(&mut buf, today(), &cfg, expenses, month, false, &[]).expect("execute_with");
         String::from_utf8(buf).expect("utf8")
     }
 

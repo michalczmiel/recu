@@ -6,27 +6,27 @@ Track recurring expenses from a single CSV file. Outputs as a list, calendar, or
 
 ```sh
 $ recu ls
-@    name                  amount  due          category
+@    name                  amount  due          category      
 ───  ────────────────────  ──────  ───────────  ──────────────
-@9   0Password              $4.99  today        Security
-@4   Pear TV+              $12.99  in 2 days    Streaming
-@3   ViewTube Premium      $15.99  in 3 days    Streaming
-@16  Gym                   $45.00  in 3 days    Health
-@8   Potion                $10.00  in 5 days    Productivity
-@11  GitHug Pro             $4.00  in 1 week    Dev
-@12  ChatGBT Plus          $20.00  in 1 week    Dev
-@15  Amazoo Prime          $14.99  in 2 weeks   Shopping
-@13  iSmog+                 $2.99  in 2 weeks   Cloud
-@2   Spookify               $9.99  in 2 weeks   Streaming
-@14  Goggle One             $2.99  in 3 weeks   Cloud
-@6   Adobo Creative Cloud  $54.99  in 3 weeks   Productivity
-@1   Streamberry           $19.99  in 3 weeks   Streaming
-@18  Web Hosting            $6.99  in 3 weeks   Infrastructure
-@5   Ghibli+               $11.99  in 3 weeks   Streaming
+@11  GitHug Pro             $4.00  today        Dev           
+@12  ChatGBT Plus          $20.00  in 3 days    Dev           
+@15  Amazoo Prime          $14.99  in 1 week    Shopping      
+@13  iSmog+                 $2.99  in 1 week    Cloud         
+@2   Spookify               $9.99  in 1 week    Streaming     
+@14  Goggle One             $2.99  in 1 week    Cloud         
+@6   Adobo Creative Cloud  $54.99  in 1 week    Productivity  
+@1   Streamberry           $19.99  in 2 weeks   Streaming     
+@18  Web Hosting            $6.99  in 2 weeks   Infrastructure
+@5   Ghibli+               $11.99  in 2 weeks   Streaming     
+@9   0Password              $4.99  in 3 weeks   Security      
+@4   Pear TV+              $12.99  in 3 weeks   Streaming     
+@3   ViewTube Premium      $15.99  in 3 weeks   Streaming     
+@16  Gym                   $45.00  in 3 weeks   Health        
+@8   Potion                $10.00  in 3 weeks   Productivity  
 @17  Domain                $15.00  in 6 months  Infrastructure
-@7   Macrosoft 365         $99.99  in 7 months  Productivity
+@7   Macrosoft 365         $99.99  in 6 months  Productivity  
 
-17 expenses  896.15 zł/month  10753.83 zł/year
+17 expenses  $247.47/month  $2969.67/year
 + 1 ended (recu ls --all)
 ```
 
@@ -138,24 +138,24 @@ $ recu calendar
 $ recu treemap
 ┌──────────────────────────────┐┌───────────┐┌────────────────┐┌───────────────┐
 │Adobo Creative Cloud          ││ChatGBT Pl…││ViewTube Premium││Amazoo Prime   │
-│199 zł/mo                     ││72 zł/mo   ││58 zł/mo        ││54 zł/mo       │
-│2390 zł/yr                    ││869 zł/yr  ││695 zł/yr       ││651 zł/yr      │
+│$55/mo                        ││$20/mo     ││$16/mo          ││$15/mo         │
+│$660/yr                       ││$240/yr    ││$192/yr         ││$180/yr        │
 │                              ││           ││                ││               │
 │                              ││           │└────────────────┘└───────────────┘
 │                              ││           │┌─────────┐ ┌──────────┌──────────┐
 │                              ││           ││Pear TV+ │ │Potion    │Spookify  │
-│                              ││           ││47 zł/mo │ │36 zł/mo  │36 zł/mo  │
-│                              │└───────────┘│564 zł/yr│ │435 zł/yr │434 zł/yr │
+│                              ││           ││$13/mo   │ │$10/mo    │$10/mo    │
+│                              │└───────────┘│$156/yr  │ │$120/yr   │$120/yr   │
 └──────────────────────────────┘┌───────────┐│         │ │          │          │
 ┌──────────────────────────────┐│Streamberry││         │ ┌─────────┐┌─────┐┌───┐
-│Gym                           ││72 zł/mo   │└─────────┘ │Macrosof…││0Pas…││Gi…│
-│163 zł/mo                     ││869 zł/yr  │┌─────────┐ │30 zł/mo ││18 z…││   │
-│1955 zł/yr                    ││           ││Ghibli+  │ │362 zł/yr││217 …││   │
-│                              ││           ││43 zł/mo │ └─────────┘└─────┘└───┘
-│                              ││           ││521 zł/yr│ ┌─────────┐┌───┐┌─────┐
+│Gym                           ││$20/mo     │└─────────┘ │Macrosof…││0Pas…││Gi…│
+│$45/mo                        ││$240/yr    │┌─────────┐ │$8/mo    ││$5/mo││   │
+│$540/yr                       ││           ││Ghibli+  │ │$100/yr  ││$60/…││   │
+│                              ││           ││$12/mo   │ └─────────┘└─────┘└───┘
+│                              ││           ││$144/yr  │ ┌─────────┐┌───┐┌─────┐
 │                              ││           ││         │ │Web Host…││iS…││Gogg…│
-│                              ││           ││         │ │25 zł/mo ││   │└─────┘
-└──────────────────────────────┘└───────────┘└─────────┘ └─────────┘└───┘
+│                              ││           ││         │ │$7/mo    ││   │└─────┘
+└──────────────────────────────┘└───────────┘└─────────┘ └─────────┘└───┘       
 ```
 
 ```sh

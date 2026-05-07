@@ -15,6 +15,9 @@ pub struct TreemapArgs {
     /// Include ended expenses
     #[arg(short, long)]
     pub all: bool,
+    /// Filter by category (case-insensitive); comma-separated for multiple
+    #[arg(short, long, value_delimiter = ',')]
+    pub category: Vec<String>,
 }
 
 // Terminal characters are roughly twice as tall as wide.
@@ -360,6 +363,7 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
         return Ok(());
     }
 
+    let categories = crate::commands::category::resolve_filter(&args.category, store)?;
     let today = chrono::Local::now().date_naive();
     let cfg = config::load()?;
     let target: Option<&str> = cfg.currency.as_deref();
@@ -369,6 +373,7 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     let mut items: Vec<(String, f64, String, bool, Option<String>)> = expenses
         .into_iter()
         .filter(|expense| args.all || !expense.is_ended(today))
+        .filter(|expense| crate::expense::matches_categories(expense, &categories))
         .filter_map(|expense| {
             let amount = expense.amount?;
             let interval = expense.interval.as_ref()?;
