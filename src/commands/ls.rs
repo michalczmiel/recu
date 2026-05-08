@@ -41,12 +41,12 @@ fn build_row(expense: &Expense, today: NaiveDate, show_ends: bool) -> Vec<String
         || "-".into(),
         |a| format_expense_amount(expense.currency.as_deref(), a),
     );
-    let days_str = if expense.is_ended(today) {
+    let due_str = if expense.is_ended(today) {
         String::new()
     } else {
         expense
-            .days_until_next(today)
-            .map(ui::format_in_days)
+            .next_payment(today)
+            .map(|d| ui::format_relative_date(d, today))
             .unwrap_or_default()
     };
 
@@ -54,13 +54,13 @@ fn build_row(expense: &Expense, today: NaiveDate, show_ends: bool) -> Vec<String
         format!("@{}", expense.id),
         expense.name.clone(),
         amount,
-        days_str,
+        due_str,
         expense.category.clone().unwrap_or_default(),
     ];
     if show_ends {
         let ends_str = expense
-            .days_until_end(today)
-            .map(ui::format_ago_or_in)
+            .end_date
+            .map(|d| ui::format_relative_date(d, today))
             .unwrap_or_default();
         row.push(ends_str);
     }

@@ -4,6 +4,7 @@
 //! should reach for these helpers instead of naming colors directly.
 
 use crate::expense::DueStatus;
+use chrono::{Datelike, NaiveDate};
 use colored::{ColoredString, Colorize};
 
 // --- text layout ---
@@ -37,37 +38,22 @@ pub fn truncate(s: &str, max: usize) -> String {
     }
 }
 
-// --- day humanization ---
+// --- date humanization ---
 
-fn humanize(abs_days: i64) -> (i64, &'static str) {
-    match abs_days {
-        0..=6 => (abs_days, "day"),
-        7..=29 => (abs_days / 7, "week"),
-        30..=364 => (abs_days / 30, "month"),
-        _ => (abs_days / 365, "year"),
+/// Format a target date relative to `today` as a calendar-aware label:
+/// `yesterday` / `today` / `tomorrow`, the weekday name (`Mon`..`Sun`) within
+/// the next 2–6 days, otherwise an absolute date (`May 28`, with `, YYYY`
+/// appended when the year differs from `today`).
+pub fn format_relative_date(target: NaiveDate, today: NaiveDate) -> String {
+    let days = (target - today).num_days();
+    match days {
+        -1 => "yesterday".to_string(),
+        0 => "today".to_string(),
+        1 => "tomorrow".to_string(),
+        2..=6 => target.format("%a").to_string(),
+        _ if target.year() == today.year() => target.format("%b %-d").to_string(),
+        _ => target.format("%b %-d, %Y").to_string(),
     }
-}
-
-fn plural(n: i64) -> &'static str {
-    if n == 1 { "" } else { "s" }
-}
-
-/// Format a non-negative day offset as "today" / "in N unit(s)".
-pub fn format_in_days(days: i64) -> String {
-    if days == 0 {
-        return "today".to_string();
-    }
-    let (n, unit) = humanize(days);
-    format!("in {n} {unit}{}", plural(n))
-}
-
-/// Format a signed day offset: future → "in N …", past → "N … ago".
-pub fn format_ago_or_in(days: i64) -> String {
-    if days >= 0 {
-        return format_in_days(days);
-    }
-    let (n, unit) = humanize(-days);
-    format!("{n} {unit}{} ago", plural(n))
 }
 
 // --- semantic styling ---
@@ -118,28 +104,63 @@ mod tests {
         assert_eq!(truncate("hello", 1), "h");
     }
 
-    #[test]
-    fn format_in_days_examples() {
-        assert_eq!(format_in_days(0), "today");
-        assert_eq!(format_in_days(1), "in 1 day");
-        assert_eq!(format_in_days(5), "in 5 days");
-        assert_eq!(format_in_days(14), "in 2 weeks");
-        assert_eq!(format_in_days(60), "in 2 months");
-        assert_eq!(format_in_days(800), "in 2 years");
+    use chrono::Days;
+
+    // Friday, picked so that +2..=+6 spans Sun..Thu.
+    fn today() -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 5, 8).expect("valid date")
+    }
+
+    fn plus(days: u64) -> NaiveDate {
+        today().checked_add_days(Days::new(days)).expect("in range")
+    }
+
+    fn minus(days: u64) -> NaiveDate {
+        today().checked_sub_days(Days::new(days)).expect("in range")
     }
 
     #[test]
-    fn format_ago_or_in_past_uses_ago_suffix() {
-        assert_eq!(format_ago_or_in(-1), "1 day ago");
-        assert_eq!(format_ago_or_in(-5), "5 days ago");
-        assert_eq!(format_ago_or_in(-14), "2 weeks ago");
-        assert_eq!(format_ago_or_in(-60), "2 months ago");
-        assert_eq!(format_ago_or_in(-800), "2 years ago");
+    fn relative_date_named_anchors() {
+        assert_eq!(format_relative_date(today(), today()), "today");
+        assert_eq!(format_relative_date(plus(1), today()), "tomorrow");
+        assert_eq!(format_relative_date(minus(1), today()), "yesterday");
     }
 
     #[test]
-    fn format_ago_or_in_future_matches_in_days() {
-        assert_eq!(format_ago_or_in(0), "today");
-        assert_eq!(format_ago_or_in(5), "in 5 days");
+    fn relative_date_weekday_window_future_only() {
+        assert_eq!(format_relative_date(plus(2), today()), "Sun");
+        assert_eq!(format_relative_date(plus(6), today()), "Thu");
+        // Past beyond yesterday falls through to absolute date.
+        assert_eq!(format_relative_date(minus(2), today()), "May 6");
+    }
+
+    #[test]
+    fn relative_date_absolute_same_year_omits_year() {
+        assert_eq!(format_relative_date(plus(7), today()), "May 15");
+        assert_eq!(
+            format_relative_date(
+                NaiveDate::from_ymd_opt(2026, 12, 1).expect("valid date"),
+                today()
+            ),
+            "Dec 1"
+        );
+    }
+
+    #[test]
+    fn relative_date_absolute_different_year_includes_year() {
+        assert_eq!(
+            format_relative_date(
+                NaiveDate::from_ymd_opt(2027, 1, 15).expect("valid date"),
+                today()
+            ),
+            "Jan 15, 2027"
+        );
+        assert_eq!(
+            format_relative_date(
+                NaiveDate::from_ymd_opt(2025, 11, 30).expect("valid date"),
+                today()
+            ),
+            "Nov 30, 2025"
+        );
     }
 }
