@@ -6,25 +6,25 @@ Track recurring expenses from a single CSV file. Outputs as a list, calendar, or
 
 ```sh
 $ recu ls
-@    name                  amount  due          category      
-───  ────────────────────  ──────  ───────────  ──────────────
-@11  GitHug Pro             $4.00  today        Dev           
-@12  ChatGBT Plus          $20.00  in 3 days    Dev           
-@15  Amazoo Prime          $14.99  in 1 week    Shopping      
-@13  iSmog+                 $2.99  in 1 week    Cloud         
-@2   Spookify               $9.99  in 1 week    Streaming     
-@14  Goggle One             $2.99  in 1 week    Cloud         
-@6   Adobo Creative Cloud  $54.99  in 1 week    Productivity  
-@1   Streamberry           $19.99  in 2 weeks   Streaming     
-@18  Web Hosting            $6.99  in 2 weeks   Infrastructure
-@5   Ghibli+               $11.99  in 2 weeks   Streaming     
-@9   0Password              $4.99  in 3 weeks   Security      
-@4   Pear TV+              $12.99  in 3 weeks   Streaming     
-@3   ViewTube Premium      $15.99  in 3 weeks   Streaming     
-@16  Gym                   $45.00  in 3 weeks   Health        
-@8   Potion                $10.00  in 3 weeks   Productivity  
-@17  Domain                $15.00  in 6 months  Infrastructure
-@7   Macrosoft 365         $99.99  in 6 months  Productivity  
+@    name                     amount  due     category      
+───  ────────────────────  ─────────  ──────  ──────────────
+@12  ChatGBT Plus          $20.00/mo  Sun     Dev           
+@15  Amazoo Prime          $14.99/mo  May 15  Shopping      
+@13  iSmog+                 $2.99/mo  May 17  Cloud         
+@2   Spookify               $9.99/mo  May 18  Streaming     
+@14  Goggle One             $2.99/mo  May 19  Cloud         
+@6   Adobo Creative Cloud  $54.99/mo  May 20  Productivity  
+@1   Streamberry           $19.99/mo  May 22  Streaming     
+@18  Web Hosting            $6.99/mo  May 24  Infrastructure
+@5   Ghibli+               $11.99/mo  May 25  Streaming     
+@9   0Password              $4.99/mo  May 28  Security      
+@4   Pear TV+              $12.99/mo  May 30  Streaming     
+@3   ViewTube Premium      $15.99/mo  Jun 1   Streaming     
+@16  Gym                   $45.00/mo  Jun 1   Health        
+@8   Potion                $10.00/mo  Jun 3   Productivity  
+@11  GitHug Pro             $4.00/mo  Jun 7   Dev           
+@17  Domain                $15.00/yr  Nov 8   Infrastructure
+@7   Macrosoft 365         $99.99/yr  Dec 1   Productivity  
 
 17 expenses  $247.47/month  $2969.67/year
 + 1 ended (recu ls --all)
@@ -130,7 +130,7 @@ $ recu calendar
      25     26     27     28     29     30     31
      12                    5            13       
 
-15 charges   $237.89   paid $70.99, remaining $166.90
+15 charges   $237.89   paid $74.99, remaining $162.90
 + 1 ended (recu calendar --all)
 ```
 
