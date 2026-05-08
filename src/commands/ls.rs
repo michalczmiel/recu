@@ -31,16 +31,29 @@ fn colorize_row(row: &[String], status: &DueStatus) -> Vec<String> {
         .map(|(i, cell)| match i {
             0 => ui::dim(cell).to_string(),
             1 => ui::due(status, &cell.bold().to_string()).to_string(),
+            2 => match cell.rfind('/') {
+                Some(idx) => {
+                    let (head, tail) = cell.split_at(idx);
+                    format!("{}{}", ui::due(status, head), ui::dim(tail))
+                }
+                None => ui::due(status, cell).to_string(),
+            },
             _ => ui::due(status, cell).to_string(),
         })
         .collect()
 }
 
 fn build_row(expense: &Expense, today: NaiveDate, show_ends: bool) -> Vec<String> {
-    let amount = expense.amount.map_or_else(
-        || "-".into(),
-        |a| format_expense_amount(expense.currency.as_deref(), a),
-    );
+    let amount = match expense.amount {
+        None => "-".into(),
+        Some(a) => {
+            let value = format_expense_amount(expense.currency.as_deref(), a);
+            match &expense.interval {
+                Some(iv) => format!("{value}/{}", iv.short()),
+                None => value,
+            }
+        }
+    };
     let due_str = if expense.is_ended(today) {
         String::new()
     } else {

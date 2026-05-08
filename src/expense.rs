@@ -26,6 +26,15 @@ impl std::fmt::Display for Interval {
 }
 
 impl Interval {
+    pub fn short(&self) -> &'static str {
+        match self {
+            Interval::Weekly => "wk",
+            Interval::Monthly => "mo",
+            Interval::Quarterly => "qtr",
+            Interval::Yearly => "yr",
+        }
+    }
+
     pub fn to_monthly(&self, amount: f64) -> f64 {
         match self {
             Interval::Weekly => amount * 52.0 / 12.0,
