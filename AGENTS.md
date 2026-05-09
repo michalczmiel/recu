@@ -6,7 +6,7 @@ CLI tool for tracking recurring expenses. Built with Rust (edition 2024).
 
 - `src/main.rs` - entry point
 - `src/cli.rs` - CLI definition and `run()`
-- `src/commands/` - subcommand implementations (list, add, rm, edit, treemap, config, category, timeline, undo)
+- `src/commands/` - subcommand implementations (list, add, remove, edit, treemap, config, category, timeline, undo)
 - `src/prompt.rs` - interactive prompts (inquire wrappers)
 - `src/ui.rs` - terminal UI primitives (text layout, day humanization, semantic styling wrapping `colored`)
 - `src/expense.rs` - expense data model (`Expense`, `Interval`, `ExpenseInput`)

@@ -9,17 +9,18 @@ pub enum CategoryCommand {
     /// List categories currently used by expenses
     List,
     /// Remove categories from all matching expenses
-    Rm(CategoryRmArgs),
+    #[command(visible_alias = "rm")]
+    Remove(CategoryRemoveArgs),
     /// Rename one or more categories into a destination (merges if dst already exists)
     Rename(CategoryRenameArgs),
 }
 
 #[derive(Args, Debug)]
 #[command(after_help = "Examples:
-  recu category rm streaming
-  recu category rm @1
-  recu category rm @2,housing  (comma-separated; run 'recu category list' first for @ids)")]
-pub struct CategoryRmArgs {
+  recu category remove streaming
+  recu category remove @1
+  recu category remove @2,housing  (comma-separated; run 'recu category list' first for @ids)")]
+pub struct CategoryRemoveArgs {
     /// Categories to remove: @id or name (case-insensitive), comma-separated.
     #[arg(value_delimiter = ',')]
     pub targets: Vec<String>,
@@ -124,7 +125,7 @@ pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
                 }
             }
         }
-        CategoryCommand::Rm(args) => {
+        CategoryCommand::Remove(args) => {
             if args.targets.is_empty() {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,

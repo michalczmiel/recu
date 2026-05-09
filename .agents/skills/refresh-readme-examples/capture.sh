@@ -7,7 +7,7 @@ E=examples/recu.csv
 BIN=./target/release/recu
 
 echo "=== --help ===" && RECU_FILE=$E $BIN --help
-echo "=== ls ===" && RECU_FILE=$E $BIN ls
+echo "=== list ===" && RECU_FILE=$E $BIN list
 echo "=== calendar ===" && RECU_FILE=$E $BIN calendar
 echo "=== treemap ===" && RECU_FILE=$E $BIN treemap
 echo "=== help add ===" && RECU_FILE=$E $BIN help add

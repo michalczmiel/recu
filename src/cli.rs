@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use crate::commands::{add, calendar, category, config, edit, list, rename, rm, treemap, undo};
+use crate::commands::{add, calendar, category, config, edit, list, remove, rename, treemap, undo};
 use crate::store::Store;
 
 #[derive(Parser, Debug)]
@@ -33,6 +33,7 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// List recurring expenses. Amounts converted to display currency when configured.
+    #[command(visible_alias = "ls")]
     List(list::ListArgs),
     /// Add a recurring expense
     Add(add::AddArgs),
@@ -41,7 +42,8 @@ enum Commands {
     /// Rename a recurring expense
     Rename(rename::RenameArgs),
     /// Remove one or more recurring expenses
-    Rm(rm::RmArgs),
+    #[command(visible_alias = "rm")]
+    Remove(remove::RemoveArgs),
     /// Visualize expenses as a treemap
     Treemap(treemap::TreemapArgs),
     /// Manage configuration
@@ -55,7 +57,7 @@ enum Commands {
     /// Manage expense categories
     #[command(after_help = "Examples:
   recu category list
-  recu category rm streaming
+  recu category remove streaming
   recu category rename streaming Streaming
   recu category rename streaming,subs Streaming")]
     Category {
@@ -64,7 +66,7 @@ enum Commands {
     },
     /// Show recurring expenses on a month grid
     Calendar(calendar::CalendarArgs),
-    /// Undo the last add, edit, rename, or rm
+    /// Undo the last add, edit, rename, or remove
     Undo,
 }
 
@@ -80,7 +82,7 @@ pub fn run() -> std::io::Result<()> {
         Commands::Add(args) => add::execute(&args, &store)?,
         Commands::Edit(args) => edit::execute(&args, &store)?,
         Commands::Rename(args) => rename::execute(&args, &store)?,
-        Commands::Rm(args) => rm::execute(&args, &store)?,
+        Commands::Remove(args) => remove::execute(&args, &store)?,
         Commands::Treemap(args) => treemap::execute(&args, &store)?,
         Commands::Config { command } => config::run(&command)?,
         Commands::Category { command } => category::run(&command, &store)?,

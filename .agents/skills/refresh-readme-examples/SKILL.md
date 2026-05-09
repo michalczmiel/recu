@@ -14,4 +14,4 @@ Run `capture.sh`, then update `README.md` with verbatim output.
 2. Read `README.md`.
 3. Update sections (replace verbatim, preserve all surrounding content):
    - **Usage**: `--help` output in a fenced block prefixed `$ recu --help`
-   - **Example**: one fenced block per command — `help add`, `help edit`, `help rm`, `ls`, `calendar`, `treemap` — each prefixed `$ recu <cmd>`
+   - **Example**: one fenced block per command — `help add`, `help edit`, `help remove`, `list`, `calendar`, `treemap` — each prefixed `$ recu <cmd>`

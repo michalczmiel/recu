@@ -80,7 +80,7 @@ recu config set currency pln
 
 ### End-date instead of removing
 
-When a subscription stops, set `--end` instead of `rm` to keep it in history. `recu list --all` shows ended ones.
+When a subscription stops, set `--end` instead of `remove` to keep it in history. `recu list --all` shows ended ones.
 
 ### JSON output for scripting
 
@@ -105,16 +105,16 @@ Track recurring expenses
 Usage: recu [OPTIONS] [COMMAND]
 
 Commands:
-  list      List recurring expenses. Amounts converted to display currency when configured
+  list      List recurring expenses. Amounts converted to display currency when configured [aliases: ls]
   add       Add a recurring expense
   edit      Edit a recurring expense
   rename    Rename a recurring expense
-  rm        Remove one or more recurring expenses
+  remove    Remove one or more recurring expenses [aliases: rm]
   treemap   Visualize expenses as a treemap
   config    Manage configuration
   category  Manage expense categories
   calendar  Show recurring expenses on a month grid
-  undo      Undo the last add, edit, rename, or rm
+  undo      Undo the last add, edit, rename, or remove
   help      Print this message or the help of the given subcommand(s)
 
 Options:
@@ -200,7 +200,7 @@ Usage: recu category [OPTIONS] <COMMAND>
 
 Commands:
   list    List categories currently used by expenses
-  rm      Remove categories from all matching expenses
+  remove  Remove categories from all matching expenses [aliases: rm]
   rename  Rename one or more categories into a destination (merges if dst already exists)
   help    Print this message or the help of the given subcommand(s)
 
@@ -210,7 +210,7 @@ Options:
 
 Examples:
   recu category list
-  recu category rm streaming
+  recu category remove streaming
   recu category rename streaming Streaming
   recu category rename streaming,subs Streaming
 ```

@@ -5,12 +5,12 @@ use crate::store::Store;
 
 #[derive(Args, Debug)]
 #[command(after_help = "Examples:
-  recu rm Netflix
-  recu rm netflix              (case-insensitive)
-  recu rm @2                   (run 'recu list' first to see indices)
-  recu rm @3,@1                (indices resolved before any removal; use 'recu list' first)
-  recu rm Netflix,Spotify      (comma-separated; prefer @id when mixing with index targets)")]
-pub struct RmArgs {
+  recu remove Netflix
+  recu remove netflix              (case-insensitive)
+  recu remove @2                   (run 'recu list' first to see indices)
+  recu remove @3,@1                (indices resolved before any removal; use 'recu list' first)
+  recu remove Netflix,Spotify      (comma-separated; prefer @id when mixing with index targets)")]
+pub struct RemoveArgs {
     /// Expense(s) to remove: @id or name (case-insensitive), comma-separated.
     /// When using @id, run 'recu list' first to see current indices.
     /// For multiple targets, prefer @id to avoid ambiguity.
@@ -21,7 +21,7 @@ pub struct RmArgs {
     pub format: OutputFormat,
 }
 
-pub fn execute(args: &RmArgs, store: &Store) -> std::io::Result<()> {
+pub fn execute(args: &RemoveArgs, store: &Store) -> std::io::Result<()> {
     let targets: Vec<&str> = args.targets.iter().map(String::as_str).collect();
     let names = store.remove(&targets)?;
     match args.format {
@@ -46,7 +46,7 @@ mod tests {
 
     fn make_store(test_name: &str) -> Store {
         let file = std::env::temp_dir()
-            .join("recu-test-rm")
+            .join("recu-test-remove")
             .join(format!("{test_name}.csv"));
         let _ = fs::remove_file(&file);
         let _ = fs::remove_file(file.with_extension("csv.seq"));
