@@ -5,6 +5,7 @@ use chrono::NaiveDate;
 use clap::Args;
 use colored::Colorize;
 
+use crate::commands::JsonExpense;
 pub use crate::commands::OutputFormat;
 
 use crate::config::{self, Config};
@@ -25,43 +26,8 @@ pub struct ListArgs {
 }
 
 use crate::expense::{
-    self, DueStatus, Expense, Interval, RecurringTotals, find_currency, format_amount,
-    format_expense_amount,
+    self, DueStatus, Expense, RecurringTotals, find_currency, format_amount, format_expense_amount,
 };
-use serde::Serialize;
-
-#[derive(Serialize)]
-struct JsonExpense<'a> {
-    id: u64,
-    name: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    amount: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    currency: Option<&'a str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    start_date: Option<NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    interval: Option<&'a Interval>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    category: Option<&'a str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    end_date: Option<NaiveDate>,
-}
-
-impl<'a> From<&'a Expense> for JsonExpense<'a> {
-    fn from(e: &'a Expense) -> Self {
-        Self {
-            id: e.id,
-            name: &e.name,
-            amount: e.amount,
-            currency: e.currency.as_deref(),
-            start_date: e.start_date,
-            interval: e.interval.as_ref(),
-            category: e.category.as_deref(),
-            end_date: e.end_date,
-        }
-    }
-}
 use crate::rates;
 use crate::store::Store;
 

@@ -2,6 +2,7 @@ use chrono::NaiveDate;
 use clap::Args;
 use inquire::Select;
 
+use crate::commands::{JsonExpense, OutputFormat};
 use crate::expense::{Expense, Interval, normalize_currency, parse_amount};
 use crate::prompt::{
     inquire_err, prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval,
@@ -63,6 +64,9 @@ pub struct EditArgs {
     pub target: String,
     #[command(flatten)]
     pub fields: EditFields,
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    pub format: OutputFormat,
 }
 
 fn menu_items(e: &Expense) -> Vec<MenuItem> {
@@ -190,7 +194,14 @@ pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
         let patch = prompt_fields(&current, store)?;
         store.update(&args.target, &patch)?;
     }
-    println!("Updated '{}'", args.target);
+    match args.format {
+        OutputFormat::Json => {
+            let updated = store.get(&args.target)?;
+            serde_json::to_writer_pretty(std::io::stdout(), &JsonExpense::from(&updated))?;
+            println!();
+        }
+        OutputFormat::Text => println!("Updated '{}'", args.target),
+    }
     Ok(())
 }
 

@@ -1,5 +1,6 @@
 use clap::Args;
 
+use crate::commands::OutputFormat;
 use crate::store::Store;
 
 #[derive(Args, Debug)]
@@ -15,13 +16,24 @@ pub struct RmArgs {
     /// For multiple targets, prefer @id to avoid ambiguity.
     #[arg(value_delimiter = ',')]
     pub targets: Vec<String>,
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    pub format: OutputFormat,
 }
 
 pub fn execute(args: &RmArgs, store: &Store) -> std::io::Result<()> {
     let targets: Vec<&str> = args.targets.iter().map(String::as_str).collect();
     let names = store.remove(&targets)?;
-    for name in names {
-        println!("Removed '{name}'");
+    match args.format {
+        OutputFormat::Json => {
+            serde_json::to_writer_pretty(std::io::stdout(), &names)?;
+            println!();
+        }
+        OutputFormat::Text => {
+            for name in names {
+                println!("Removed '{name}'");
+            }
+        }
     }
     Ok(())
 }

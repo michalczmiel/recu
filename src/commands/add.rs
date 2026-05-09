@@ -1,5 +1,6 @@
 use clap::Args;
 
+use crate::commands::{JsonExpense, OutputFormat};
 use crate::expense::{Expense, ExpenseInput};
 use crate::prompt::{
     prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval, prompt_name,
@@ -19,6 +20,9 @@ use crate::store::Store;
 pub struct AddArgs {
     #[command(flatten)]
     pub fields: ExpenseInput,
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    pub format: OutputFormat,
 }
 
 fn prompt_fields(fields: &ExpenseInput, store: &Store) -> std::io::Result<Expense> {
@@ -60,6 +64,14 @@ pub fn execute(add: &AddArgs, store: &Store) -> std::io::Result<()> {
     };
 
     store.save(&expense)?;
-    println!("Added {}", expense.summary());
+
+    match add.format {
+        OutputFormat::Json => {
+            let saved = store.get(&expense.name)?;
+            serde_json::to_writer_pretty(std::io::stdout(), &JsonExpense::from(&saved))?;
+            println!();
+        }
+        OutputFormat::Text => println!("Added {}", expense.summary()),
+    }
     Ok(())
 }
