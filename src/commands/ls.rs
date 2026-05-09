@@ -2,12 +2,19 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use chrono::NaiveDate;
-use clap::Args;
+use clap::{Args, ValueEnum};
 use colored::Colorize;
 
 use crate::config::{self, Config};
 use crate::ui;
 use rusty_money::iso;
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
+pub enum OutputFormat {
+    #[default]
+    Text,
+    Json,
+}
 
 #[derive(Args, Debug, Default)]
 pub struct LsArgs {
@@ -17,11 +24,49 @@ pub struct LsArgs {
     /// Filter by category (case-insensitive); comma-separated for multiple
     #[arg(short, long, value_delimiter = ',')]
     pub category: Vec<String>,
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    pub format: OutputFormat,
 }
 
 use crate::expense::{
-    self, DueStatus, Expense, RecurringTotals, find_currency, format_amount, format_expense_amount,
+    self, DueStatus, Expense, Interval, RecurringTotals, find_currency, format_amount,
+    format_expense_amount,
 };
+use serde::Serialize;
+
+#[derive(Serialize)]
+struct JsonExpense<'a> {
+    id: u64,
+    name: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    amount: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    currency: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_date: Option<NaiveDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    interval: Option<&'a Interval>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    category: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    end_date: Option<NaiveDate>,
+}
+
+impl<'a> From<&'a Expense> for JsonExpense<'a> {
+    fn from(e: &'a Expense) -> Self {
+        Self {
+            id: e.id,
+            name: &e.name,
+            amount: e.amount,
+            currency: e.currency.as_deref(),
+            start_date: e.start_date,
+            interval: e.interval.as_ref(),
+            category: e.category.as_deref(),
+            end_date: e.end_date,
+        }
+    }
+}
 use crate::rates;
 use crate::store::Store;
 
@@ -151,6 +196,28 @@ fn print_table(
     Ok(())
 }
 
+fn select_visible<'a>(
+    expenses: &'a [Expense],
+    today: NaiveDate,
+    all: bool,
+    categories: &[String],
+) -> (Vec<&'a Expense>, usize) {
+    let mut visible: Vec<&Expense> = expenses
+        .iter()
+        .filter(|e| all || !e.is_ended(today))
+        .filter(|e| expense::matches_categories(e, categories))
+        .collect();
+    visible.sort_by_key(|expense| {
+        let due = expense.days_until_next(today).unwrap_or(i64::MAX);
+        (expense.is_ended(today), due)
+    });
+    let hidden_ended = expenses
+        .iter()
+        .filter(|e| !all && e.is_ended(today) && expense::matches_categories(e, categories))
+        .count();
+    (visible, hidden_ended)
+}
+
 pub(crate) fn execute_with(
     out: &mut impl Write,
     today: NaiveDate,
@@ -173,15 +240,7 @@ pub(crate) fn execute_with(
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
 
-    let mut visible: Vec<&Expense> = expenses
-        .iter()
-        .filter(|e| all || !e.is_ended(today))
-        .filter(|e| expense::matches_categories(e, categories))
-        .collect();
-    let hidden_ended = expenses
-        .iter()
-        .filter(|e| !all && e.is_ended(today) && expense::matches_categories(e, categories))
-        .count();
+    let (visible, hidden_ended) = select_visible(expenses, today, all, categories);
 
     if visible.is_empty() {
         if categories.is_empty() {
@@ -196,12 +255,6 @@ pub(crate) fn execute_with(
     }
 
     let show_ends = visible.iter().any(|e| e.end_date.is_some());
-
-    visible.sort_by_key(|expense| {
-        let due = expense.days_until_next(today).unwrap_or(i64::MAX);
-        // Ended rows sink to bottom; within each group, sort by next due date.
-        (expense.is_ended(today), due)
-    });
 
     let rows: Vec<Vec<String>> = visible
         .iter()
@@ -233,19 +286,29 @@ pub(crate) fn execute_with(
     Ok(())
 }
 
+fn execute_json(
+    out: &mut impl Write,
+    today: NaiveDate,
+    expenses: &[Expense],
+    all: bool,
+    categories: &[String],
+) -> std::io::Result<()> {
+    let (visible, _) = select_visible(expenses, today, all, categories);
+    let view: Vec<JsonExpense<'_>> = visible.iter().copied().map(JsonExpense::from).collect();
+    serde_json::to_writer_pretty(&mut *out, &view)?;
+    writeln!(out)
+}
+
 pub fn execute(args: &LsArgs, store: &Store) -> std::io::Result<()> {
     let expenses = store.list()?;
     let cfg = config::load()?;
     let today = chrono::Local::now().date_naive();
     let categories = crate::commands::category::resolve_filter(&args.category, store)?;
-    execute_with(
-        &mut std::io::stdout(),
-        today,
-        &cfg,
-        &expenses,
-        args.all,
-        &categories,
-    )
+    let mut out = std::io::stdout();
+    match args.format {
+        OutputFormat::Json => execute_json(&mut out, today, &expenses, args.all, &categories),
+        OutputFormat::Text => execute_with(&mut out, today, &cfg, &expenses, args.all, &categories),
+    }
 }
 
 #[cfg(test)]

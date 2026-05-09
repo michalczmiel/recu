@@ -82,6 +82,16 @@ recu config set currency pln
 
 When a subscription stops, set `--end` instead of `rm` to keep it in history. `recu ls --all` shows ended ones.
 
+### JSON output for scripting
+
+Pipe `recu ls` into `jq` (or any tool) with `--format json`:
+
+```sh
+recu ls --format json | jq '[.[] | select(.category == "Streaming")] | length'
+```
+
+Null fields are omitted, so the shape stays compact.
+
 ### Let an LLM agent do the grunt work
 
 Point any coding agent (Pi, OpenCode, Claude Code, Codex etc.) at your shell and ask it to "import my subscriptions into recu, suggest categories, and find overlapping subscriptions". It can discover the interface via `recu help` and each subcommand's `--help`.
@@ -108,10 +118,11 @@ Commands:
   help      Print this message or the help of the given subcommand(s)
 
 Options:
-  -f, --file <FILE>  Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
-  -a, --all          Include ended expenses (only used when no subcommand is given; equivalent to `recu ls --all`)
-  -h, --help         Print help
-  -V, --version      Print version
+  -f, --file <FILE>      Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
+  -a, --all              Include ended expenses (only used when no subcommand is given; equivalent to `recu ls --all`)
+      --format <FORMAT>  Output format (only used when no subcommand is given; equivalent to `recu ls --format <FORMAT>`) [possible values: text, json]
+  -h, --help             Print help
+  -V, --version          Print version
 ```
 
 ```sh

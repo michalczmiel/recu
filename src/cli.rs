@@ -22,6 +22,10 @@ struct Cli {
     #[arg(short, long)]
     all: bool,
 
+    /// Output format (only used when no subcommand is given; equivalent to `recu ls --format <FORMAT>`)
+    #[arg(long, value_enum)]
+    format: Option<ls::OutputFormat>,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -69,7 +73,8 @@ pub fn run() -> std::io::Result<()> {
     let store = Store::at(cli.file);
     match cli.command.unwrap_or(Commands::Ls(ls::LsArgs {
         all: cli.all,
-        category: Vec::new(),
+        format: cli.format.unwrap_or_default(),
+        ..Default::default()
     })) {
         Commands::Ls(args) => ls::execute(&args, &store)?,
         Commands::Add(args) => add::execute(&args, &store)?,
