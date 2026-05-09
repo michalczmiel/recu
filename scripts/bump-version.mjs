@@ -27,11 +27,12 @@ async function updateNpmVersion(newVersion) {
   const mainFile = await readFile(path, "utf8");
   const mainPackageData = JSON.parse(mainFile);
 
-  const currentVersion = mainPackageData.version;
+  mainPackageData.version = newVersion;
+  for (const dep of Object.keys(mainPackageData.optionalDependencies)) {
+    mainPackageData.optionalDependencies[dep] = newVersion;
+  }
 
-  const updatedPackage = mainFile.replaceAll(currentVersion, newVersion);
-
-  await writeFile(path, updatedPackage);
+  await writeFile(path, JSON.stringify(mainPackageData, null, 2));
 }
 
 const { values } = parseArgs({
@@ -44,6 +45,13 @@ const { values } = parseArgs({
 
 if (!values.version) {
   console.error("Please provide a version");
+  process.exit(1);
+}
+
+if (!/^\d+\.\d+\.\d+$/.test(values.version)) {
+  console.error(
+    `Invalid version format: "${values.version}". Expected semver e.g. 1.2.3`,
+  );
   process.exit(1);
 }
 
