@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
 
 use crate::config::{self, Config};
-use crate::expense::{self, Expense, convert, find_currency, format_amount};
+use crate::expense::{self, Expense, convert, find_currency, format_amount, round_money};
 use crate::rates;
 use crate::store::Store;
 use crate::ui;
@@ -10,6 +10,9 @@ use chrono::{Datelike, Months, NaiveDate, Weekday};
 use clap::Args;
 use colored::Colorize;
 use rusty_money::iso;
+use serde::Serialize;
+
+use crate::commands::OutputFormat;
 
 const CELL_WIDTH: usize = 7;
 
@@ -31,6 +34,9 @@ pub struct CalendarArgs {
     /// Filter by category (case-insensitive); comma-separated for multiple
     #[arg(short, long, value_delimiter = ',')]
     pub category: Vec<String>,
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    pub format: OutputFormat,
 }
 
 fn parse_month(s: &str) -> Result<NaiveDate, String> {
@@ -42,6 +48,13 @@ fn parse_month(s: &str) -> Result<NaiveDate, String> {
 struct DayCell {
     total: f64,
     count: u32,
+}
+
+#[derive(Clone)]
+struct Charge {
+    id: u64,
+    name: String,
+    amount: f64,
 }
 
 fn first_of_month(d: NaiveDate) -> NaiveDate {
@@ -59,17 +72,17 @@ fn month_label(d: NaiveDate) -> String {
     d.format("%B %Y").to_string()
 }
 
-fn occurrences_for_month(
+fn charges_for_month(
     expenses: &[Expense],
     month: NaiveDate,
     today: NaiveDate,
     rates: Option<&HashMap<String, f64>>,
     target: Option<&str>,
     include_ended: bool,
-) -> BTreeMap<NaiveDate, DayCell> {
+) -> BTreeMap<NaiveDate, Vec<Charge>> {
     let start = first_of_month(month);
     let end = last_of_month(month);
-    let mut by_day: BTreeMap<NaiveDate, DayCell> = BTreeMap::new();
+    let mut by_day: BTreeMap<NaiveDate, Vec<Charge>> = BTreeMap::new();
 
     for exp in expenses {
         if !include_ended && exp.is_ended(today) {
@@ -79,23 +92,39 @@ fn occurrences_for_month(
             continue;
         };
         let converted = convert(amount, exp.currency.as_deref(), rates, target);
+        let charge = || Charge {
+            id: exp.id,
+            name: exp.name.clone(),
+            amount: converted,
+        };
 
         if let Some(interval) = exp.interval.as_ref() {
             let mut d = interval.next_payment(first, start);
             while d <= end {
-                let cell = by_day.entry(d).or_default();
-                cell.total += converted;
-                cell.count += 1;
+                by_day.entry(d).or_default().push(charge());
                 d = interval.next_payment(first, d + chrono::Days::new(1));
             }
         } else if first >= start && first <= end {
-            let cell = by_day.entry(first).or_default();
-            cell.total += converted;
-            cell.count += 1;
+            by_day.entry(first).or_default().push(charge());
         }
     }
 
     by_day
+}
+
+fn cells_from_charges(by_day: &BTreeMap<NaiveDate, Vec<Charge>>) -> BTreeMap<NaiveDate, DayCell> {
+    by_day
+        .iter()
+        .map(|(d, cs)| {
+            (
+                *d,
+                DayCell {
+                    total: cs.iter().map(|c| c.amount).sum(),
+                    count: u32::try_from(cs.len()).unwrap_or(u32::MAX),
+                },
+            )
+        })
+        .collect()
 }
 
 fn format_int_with_spaces(n: f64) -> String {
@@ -293,6 +322,112 @@ fn print_footer(
     Ok(())
 }
 
+#[derive(Serialize)]
+struct JsonCharge<'a> {
+    id: u64,
+    name: &'a str,
+    amount: f64,
+}
+
+#[derive(Serialize)]
+struct JsonDay<'a> {
+    date: NaiveDate,
+    total: f64,
+    charges: Vec<JsonCharge<'a>>,
+}
+
+#[derive(Serialize)]
+struct JsonCalendar<'a> {
+    month: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    currency: Option<&'a str>,
+    total: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    paid: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remaining: Option<f64>,
+    days: Vec<JsonDay<'a>>,
+}
+
+fn execute_json(
+    out: &mut impl Write,
+    today: NaiveDate,
+    cfg: &Config,
+    expenses: &[Expense],
+    month: NaiveDate,
+    all: bool,
+    categories: &[String],
+) -> std::io::Result<()> {
+    let target: Option<&str> = cfg.currency.as_deref();
+    let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
+    let target_cur: Option<&'static iso::Currency> = target
+        .and_then(find_currency)
+        .or_else(|| expense::uniform_currency(expenses));
+
+    let filtered: Vec<Expense> = expenses
+        .iter()
+        .filter(|e| expense::matches_categories(e, categories))
+        .cloned()
+        .collect();
+
+    let by_day = charges_for_month(
+        &filtered,
+        month,
+        today,
+        exchange_rates.as_ref(),
+        target,
+        all,
+    );
+
+    let total: f64 = by_day
+        .values()
+        .flat_map(|cs| cs.iter().map(|c| c.amount))
+        .sum();
+
+    let is_current = today.year() == month.year() && today.month() == month.month();
+    let (paid, remaining) = if is_current {
+        let (p, r) = by_day.iter().fold((0.0, 0.0), |(p, r), (d, cs)| {
+            let day_total: f64 = cs.iter().map(|c| c.amount).sum();
+            if *d < today {
+                (p + day_total, r)
+            } else {
+                (p, r + day_total)
+            }
+        });
+        (Some(round_money(p)), Some(round_money(r)))
+    } else {
+        (None, None)
+    };
+
+    let days: Vec<JsonDay<'_>> = by_day
+        .iter()
+        .map(|(d, cs)| JsonDay {
+            date: *d,
+            total: round_money(cs.iter().map(|c| c.amount).sum()),
+            charges: cs
+                .iter()
+                .map(|c| JsonCharge {
+                    id: c.id,
+                    name: &c.name,
+                    amount: round_money(c.amount),
+                })
+                .collect(),
+        })
+        .collect();
+
+    let envelope = JsonCalendar {
+        month: month.format("%Y-%m").to_string(),
+        currency: target_cur.map(|c| c.iso_alpha_code),
+        total: round_money(total),
+        paid,
+        remaining,
+        days,
+    };
+
+    serde_json::to_writer_pretty(&mut *out, &envelope)?;
+    writeln!(out)
+}
+
 pub(crate) fn execute_with(
     out: &mut impl Write,
     today: NaiveDate,
@@ -314,7 +449,7 @@ pub(crate) fn execute_with(
         .cloned()
         .collect();
 
-    let by_day = occurrences_for_month(
+    let by_day_charges = charges_for_month(
         &filtered,
         month,
         today,
@@ -322,6 +457,7 @@ pub(crate) fn execute_with(
         target,
         all,
     );
+    let by_day = cells_from_charges(&by_day_charges);
 
     let hidden_ended = if all {
         0
@@ -350,15 +486,27 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
     };
 
     let categories = crate::commands::category::resolve_filter(&args.category, store)?;
-    execute_with(
-        &mut std::io::stdout(),
-        today,
-        &cfg,
-        &expenses,
-        month,
-        args.all,
-        &categories,
-    )
+    let mut out = std::io::stdout();
+    match args.format {
+        OutputFormat::Json => execute_json(
+            &mut out,
+            today,
+            &cfg,
+            &expenses,
+            month,
+            args.all,
+            &categories,
+        ),
+        OutputFormat::Text => execute_with(
+            &mut out,
+            today,
+            &cfg,
+            &expenses,
+            month,
+            args.all,
+            &categories,
+        ),
+    }
 }
 
 #[cfg(test)]

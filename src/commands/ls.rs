@@ -2,19 +2,14 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use chrono::NaiveDate;
-use clap::{Args, ValueEnum};
+use clap::Args;
 use colored::Colorize;
+
+pub use crate::commands::OutputFormat;
 
 use crate::config::{self, Config};
 use crate::ui;
 use rusty_money::iso;
-
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
-pub enum OutputFormat {
-    #[default]
-    Text,
-    Json,
-}
 
 #[derive(Args, Debug, Default)]
 pub struct LsArgs {

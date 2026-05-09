@@ -279,6 +279,11 @@ mod tests {
     }
 }
 
+/// Round to 2 decimals — strips f64 accumulation drift from JSON output.
+pub fn round_money(n: f64) -> f64 {
+    (n * 100.0).round() / 100.0
+}
+
 pub fn format_amount(cur: &iso::Currency, amount: f64) -> String {
     // `{:.2}` renders -0.0 as "-0.00"; normalize so empty sums and tiny
     // negative rounding artifacts don't print a stray minus.
