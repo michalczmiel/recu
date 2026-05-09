@@ -395,12 +395,37 @@ pub fn uniform_currency(expenses: &[Expense]) -> Option<&'static iso::Currency> 
     cur.and_then(find_currency)
 }
 
+/// Curated list of currencies supported by exchange-rate fetching and prompts.
+/// Exposed here so flag-parse errors can enumerate valid choices.
+pub const VALID_CURRENCIES: &[&str] = &[
+    "ars", "aud", "bdt", "brl", "cad", "chf", "clp", "cny", "cop", "czk", "dkk", "egp", "eur",
+    "gbp", "hkd", "huf", "idr", "ils", "inr", "jpy", "kes", "krw", "mxn", "myr", "ngn", "nok",
+    "nzd", "pen", "php", "pkr", "pln", "ron", "rub", "sek", "sgd", "thb", "try", "uah", "usd",
+    "vnd", "zar",
+];
+
 pub fn normalize_currency(s: &str) -> Result<String, String> {
     let lower = s.trim().to_lowercase();
     if find_currency(&lower).is_none() {
-        return Err(format!("'{s}' is not a valid ISO 4217 currency code"));
+        return Err(format!(
+            "invalid currency \"{s}\"; valid: {}\nexample: recu add --name Netflix --amount 9.99 --currency usd --interval monthly",
+            VALID_CURRENCIES.join(", ")
+        ));
     }
     Ok(lower)
+}
+
+pub fn parse_interval(s: &str) -> Result<Interval, String> {
+    let lower = s.trim().to_lowercase();
+    match lower.as_str() {
+        "weekly" => Ok(Interval::Weekly),
+        "monthly" => Ok(Interval::Monthly),
+        "quarterly" => Ok(Interval::Quarterly),
+        "yearly" => Ok(Interval::Yearly),
+        _ => Err(format!(
+            "invalid interval \"{s}\"; valid: weekly, monthly, quarterly, yearly\nexample: recu add --name Netflix --interval monthly --amount 9.99 --currency usd"
+        )),
+    }
 }
 
 pub fn parse_amount(s: &str) -> Result<f64, String> {
@@ -458,7 +483,7 @@ pub struct ExpenseInput {
     #[arg(short, long)]
     pub date: Option<NaiveDate>,
     /// Billing interval
-    #[arg(short, long)]
+    #[arg(short, long, value_parser = parse_interval)]
     pub interval: Option<Interval>,
     /// Category label (e.g. streaming, utilities)
     #[arg(long = "category")]

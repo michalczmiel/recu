@@ -78,11 +78,22 @@ fn resolve_target(target: &str, categories: &[String]) -> io::Result<String> {
         .ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::NotFound,
-                format!(
-                    "category '{target}' not found. Run 'recu category list' to see available categories"
-                ),
+                unknown_category_message(target, categories),
             )
         })
+}
+
+fn unknown_category_message(target: &str, categories: &[String]) -> String {
+    let known = if categories.is_empty() {
+        "(none)".to_string()
+    } else {
+        categories.join(", ")
+    };
+    let example = categories.first().map_or_else(
+        || "recu category list".to_string(),
+        |c| format!("recu list --category {c}"),
+    );
+    format!("unknown category \"{target}\"; known: {known}\nexample: {example}")
 }
 
 fn validate_dst(dst: &str) -> io::Result<&str> {
@@ -232,6 +243,16 @@ mod tests {
         let cats = sample();
         let err = resolve_target("nope", &cats).expect_err("unknown name should fail");
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn enumeration_errors() {
+        let mut out = String::new();
+        out += "=== unknown category, known set populated ===\n";
+        out += &unknown_category_message("nope", &sample());
+        out += "\n\n=== unknown category, no known categories ===\n";
+        out += &unknown_category_message("nope", &[]);
+        insta::assert_snapshot!(out);
     }
 
     #[test]

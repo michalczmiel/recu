@@ -1,4 +1,4 @@
-use crate::expense::{Interval, find_currency, parse_amount};
+use crate::expense::{Interval, VALID_CURRENCIES, find_currency, parse_amount};
 use chrono::NaiveDate;
 use inquire::{
     Autocomplete, CustomType, DateSelect, Select, Text,
@@ -20,20 +20,13 @@ pub fn render_config() -> RenderConfig<'static> {
         .with_answered_prompt_prefix(Styled::new("✓").with_fg(Color::LightGreen))
 }
 
-const CURRENCIES: &[&str] = &[
-    "ars", "aud", "bdt", "brl", "cad", "chf", "clp", "cny", "cop", "czk", "dkk", "egp", "eur",
-    "gbp", "hkd", "huf", "idr", "ils", "inr", "jpy", "kes", "krw", "mxn", "myr", "ngn", "nok",
-    "nzd", "pen", "php", "pkr", "pln", "ron", "rub", "sek", "sgd", "thb", "try", "uah", "usd",
-    "vnd", "zar",
-];
-
 #[derive(Clone)]
 struct CurrencyCompleter;
 
 impl Autocomplete for CurrencyCompleter {
     fn get_suggestions(&mut self, input: &str) -> Result<Vec<String>, inquire::CustomUserError> {
         let input_lower = input.to_lowercase();
-        Ok(CURRENCIES
+        Ok(VALID_CURRENCIES
             .iter()
             .filter(|c| c.starts_with(input_lower.as_str()))
             .map(|c| (*c).to_string())

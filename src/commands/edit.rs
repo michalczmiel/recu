@@ -3,7 +3,7 @@ use clap::Args;
 use inquire::Select;
 
 use crate::commands::{JsonExpense, OutputFormat};
-use crate::expense::{Expense, Interval, normalize_currency, parse_amount};
+use crate::expense::{Expense, Interval, normalize_currency, parse_amount, parse_interval};
 use crate::prompt::{
     inquire_err, prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval,
     render_config,
@@ -44,7 +44,7 @@ pub struct EditFields {
     #[arg(short, long)]
     pub date: Option<NaiveDate>,
     /// Billing interval
-    #[arg(short, long)]
+    #[arg(short, long, value_parser = parse_interval)]
     pub interval: Option<Interval>,
     /// Category label (e.g. streaming, utilities)
     #[arg(long = "category")]

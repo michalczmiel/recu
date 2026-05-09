@@ -1,0 +1,11 @@
+---
+source: src/commands/category.rs
+expression: out
+---
+=== unknown category, known set populated ===
+unknown category "nope"; known: food, housing, streaming
+example: recu list --category food
+
+=== unknown category, no known categories ===
+unknown category "nope"; known: (none)
+example: recu category list
