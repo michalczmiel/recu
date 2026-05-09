@@ -4,5 +4,6 @@
 !examples/*.csv
 
 *.undo
+*.seq
 
 npm/recu-*/
