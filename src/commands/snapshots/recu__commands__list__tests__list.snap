@@ -1,5 +1,5 @@
 ---
-source: src/commands/ls.rs
+source: src/commands/list.rs
 expression: out
 ---
 === empty ===
@@ -75,7 +75,7 @@ No expenses yet. Run 'recu add' to track your first subscription.
 @3  AnnualPlan  $50.00/mo  May 1            Jul 15
 
 2 expenses  $65.99/month  $791.88/year
-+ 1 ended (recu ls --all)
++ 1 ended (recu list --all)
 
 === --all reveals ended rows ===
 @   name           amount  due    category  ends  
@@ -88,4 +88,4 @@ No expenses yet. Run 'recu add' to track your first subscription.
 2 expenses  $65.99/month  $791.88/year
 
 === all ended + default hides everything ===
-All 1 expenses are ended. Run 'recu ls --all' to view them.
+All 1 expenses are ended. Run 'recu list --all' to view them.

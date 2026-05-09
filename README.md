@@ -5,7 +5,7 @@ Track recurring expenses from a single CSV file. Outputs as a list, calendar, or
 > This project is still in development, the interfaces and features may change.
 
 ```sh
-$ recu ls
+$ recu list
 @    name                     amount  due     category      
 ───  ────────────────────  ─────────  ──────  ──────────────
 @12  ChatGBT Plus          $20.00/mo  Sun     Dev           
@@ -27,7 +27,7 @@ $ recu ls
 @7   Macrosoft 365         $99.99/yr  Dec 1   Productivity  
 
 17 expenses  $247.47/month  $2969.67/year
-+ 1 ended (recu ls --all)
++ 1 ended (recu list --all)
 ```
 
 ## Installation
@@ -80,14 +80,14 @@ recu config set currency pln
 
 ### End-date instead of removing
 
-When a subscription stops, set `--end` instead of `rm` to keep it in history. `recu ls --all` shows ended ones.
+When a subscription stops, set `--end` instead of `rm` to keep it in history. `recu list --all` shows ended ones.
 
 ### JSON output for scripting
 
-Pipe `recu ls` into `jq` (or any tool) with `--format json`:
+Pipe `recu list` into `jq` (or any tool) with `--format json`:
 
 ```sh
-recu ls --format json | jq '[.[] | select(.category == "Streaming")] | length'
+recu list --format json | jq '[.[] | select(.category == "Streaming")] | length'
 ```
 
 Null fields are omitted, so the shape stays compact.
@@ -105,7 +105,7 @@ Track recurring expenses
 Usage: recu [OPTIONS] [COMMAND]
 
 Commands:
-  ls        List recurring expenses. Amounts converted to display currency when configured
+  list      List recurring expenses. Amounts converted to display currency when configured
   add       Add a recurring expense
   edit      Edit a recurring expense
   rename    Rename a recurring expense
@@ -119,8 +119,8 @@ Commands:
 
 Options:
   -f, --file <FILE>      Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
-  -a, --all              Include ended expenses (only used when no subcommand is given; equivalent to `recu ls --all`)
-      --format <FORMAT>  Output format (only used when no subcommand is given; equivalent to `recu ls --format <FORMAT>`) [possible values: text, json]
+  -a, --all              Include ended expenses (only used when no subcommand is given; equivalent to `recu list --all`)
+      --format <FORMAT>  Output format (only used when no subcommand is given; equivalent to `recu list --format <FORMAT>`) [possible values: text, json]
   -h, --help             Print help
   -V, --version          Print version
 ```

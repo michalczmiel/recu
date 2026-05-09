@@ -12,7 +12,7 @@ use crate::ui;
 use rusty_money::iso;
 
 #[derive(Args, Debug, Default)]
-pub struct LsArgs {
+pub struct ListArgs {
     /// Include ended expenses
     #[arg(short, long)]
     pub all: bool,
@@ -241,7 +241,7 @@ pub(crate) fn execute_with(
         if categories.is_empty() {
             writeln!(
                 out,
-                "All {hidden_ended} expenses are ended. Run 'recu ls --all' to view them."
+                "All {hidden_ended} expenses are ended. Run 'recu list --all' to view them."
             )?;
         } else {
             writeln!(out, "No expenses match category filter.")?;
@@ -274,7 +274,7 @@ pub(crate) fn execute_with(
         writeln!(
             out,
             "{}",
-            ui::dim(&format!("+ {hidden_ended} ended (recu ls --all)"))
+            ui::dim(&format!("+ {hidden_ended} ended (recu list --all)"))
         )?;
     }
 
@@ -294,7 +294,7 @@ fn execute_json(
     writeln!(out)
 }
 
-pub fn execute(args: &LsArgs, store: &Store) -> std::io::Result<()> {
+pub fn execute(args: &ListArgs, store: &Store) -> std::io::Result<()> {
     let expenses = store.list()?;
     let cfg = config::load()?;
     let today = chrono::Local::now().date_naive();
@@ -350,7 +350,7 @@ mod tests {
     }
 
     #[test]
-    fn ls() {
+    fn list() {
         let mut s = insta::Settings::clone_current();
         s.add_filter(r"\x1b\[[0-9;]*m", "");
         let _guard = s.bind_to_scope();

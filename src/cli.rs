@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use crate::commands::{add, calendar, category, config, edit, ls, rename, rm, treemap, undo};
+use crate::commands::{add, calendar, category, config, edit, list, rename, rm, treemap, undo};
 use crate::store::Store;
 
 #[derive(Parser, Debug)]
@@ -18,13 +18,13 @@ struct Cli {
     )]
     file: PathBuf,
 
-    /// Include ended expenses (only used when no subcommand is given; equivalent to `recu ls --all`)
+    /// Include ended expenses (only used when no subcommand is given; equivalent to `recu list --all`)
     #[arg(short, long)]
     all: bool,
 
-    /// Output format (only used when no subcommand is given; equivalent to `recu ls --format <FORMAT>`)
+    /// Output format (only used when no subcommand is given; equivalent to `recu list --format <FORMAT>`)
     #[arg(long, value_enum)]
-    format: Option<ls::OutputFormat>,
+    format: Option<list::OutputFormat>,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -33,7 +33,7 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// List recurring expenses. Amounts converted to display currency when configured.
-    Ls(ls::LsArgs),
+    List(list::ListArgs),
     /// Add a recurring expense
     Add(add::AddArgs),
     /// Edit a recurring expense
@@ -71,12 +71,12 @@ enum Commands {
 pub fn run() -> std::io::Result<()> {
     let cli = Cli::parse();
     let store = Store::at(cli.file);
-    match cli.command.unwrap_or(Commands::Ls(ls::LsArgs {
+    match cli.command.unwrap_or(Commands::List(list::ListArgs {
         all: cli.all,
         format: cli.format.unwrap_or_default(),
         ..Default::default()
     })) {
-        Commands::Ls(args) => ls::execute(&args, &store)?,
+        Commands::List(args) => list::execute(&args, &store)?,
         Commands::Add(args) => add::execute(&args, &store)?,
         Commands::Edit(args) => edit::execute(&args, &store)?,
         Commands::Rename(args) => rename::execute(&args, &store)?,

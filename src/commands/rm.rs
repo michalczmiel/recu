@@ -6,12 +6,12 @@ use crate::store::Store;
 #[command(after_help = "Examples:
   recu rm Netflix
   recu rm netflix              (case-insensitive)
-  recu rm @2                   (run 'recu ls' first to see indices)
-  recu rm @3,@1                (indices resolved before any removal; use 'recu ls' first)
+  recu rm @2                   (run 'recu list' first to see indices)
+  recu rm @3,@1                (indices resolved before any removal; use 'recu list' first)
   recu rm Netflix,Spotify      (comma-separated; prefer @id when mixing with index targets)")]
 pub struct RmArgs {
     /// Expense(s) to remove: @id or name (case-insensitive), comma-separated.
-    /// When using @id, run 'recu ls' first to see current indices.
+    /// When using @id, run 'recu list' first to see current indices.
     /// For multiple targets, prefer @id to avoid ambiguity.
     #[arg(value_delimiter = ',')]
     pub targets: Vec<String>,

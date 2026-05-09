@@ -285,7 +285,7 @@ fn resolve_index_in(entries: &[Expense], target: &str) -> io::Result<usize> {
         return entries.iter().position(|e| e.id == id).ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("no expense at @{id}. Run 'recu ls' to see available expenses"),
+                format!("no expense at @{id}. Run 'recu list' to see available expenses"),
             )
         });
     }
@@ -296,7 +296,7 @@ fn resolve_index_in(entries: &[Expense], target: &str) -> io::Result<usize> {
         .ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("expense '{target}' not found. Run 'recu ls' to see available expenses"),
+                format!("expense '{target}' not found. Run 'recu list' to see available expenses"),
             )
         })
 }

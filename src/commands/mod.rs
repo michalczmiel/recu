@@ -5,7 +5,7 @@ pub mod calendar;
 pub mod category;
 pub mod config;
 pub mod edit;
-pub mod ls;
+pub mod list;
 pub mod rename;
 pub mod rm;
 pub mod treemap;
