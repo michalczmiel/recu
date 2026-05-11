@@ -246,6 +246,14 @@ fn write_str(
     }
 }
 
+struct Item {
+    name: String,
+    monthly: f64,
+    symbol: String,
+    symbol_first: bool,
+    category: Option<String>,
+}
+
 struct Tile {
     name: String,
     monthly: f64,
@@ -370,7 +378,10 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let target_cur: Option<&'static iso::Currency> = target.and_then(iso::Currency::find);
 
-    let mut items: Vec<(String, f64, String, bool, Option<String>)> = expenses
+    let mut category_colors: HashMap<String, (u8, u8, u8)> = HashMap::new();
+    let mut next_color_idx = 0usize;
+
+    let mut items: Vec<Item> = expenses
         .into_iter()
         .filter(|expense| args.all || !expense.is_ended(today))
         .filter(|expense| crate::expense::matches_categories(expense, &categories))
@@ -391,13 +402,21 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
             );
             let symbol = cur.map_or("", |c| c.symbol).to_string();
             let symbol_first = cur.is_none_or(|c| c.symbol_first);
-            Some((
-                expense.name,
-                interval.to_monthly(converted),
+            // Assign consistent colors per category so the same category always
+            // gets the same color regardless of sort order or item count.
+            let key = expense.category.clone().unwrap_or_default();
+            category_colors.entry(key).or_insert_with(|| {
+                let color = PALETTE[next_color_idx % PALETTE.len()];
+                next_color_idx += 1;
+                color
+            });
+            Some(Item {
+                name: expense.name,
+                monthly: interval.to_monthly(converted),
                 symbol,
                 symbol_first,
-                expense.category,
-            ))
+                category: expense.category,
+            })
         })
         .collect();
 
@@ -406,11 +425,15 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
         return Ok(());
     }
 
-    items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    items.sort_by(|a, b| {
+        b.monthly
+            .partial_cmp(&a.monthly)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let (cols, rows) = query_terminal_size();
 
-    let sizes: Vec<f64> = items.iter().map(|(_, v, _, _, _)| *v).collect();
+    let sizes: Vec<f64> = items.iter().map(|it| it.monthly).collect();
 
     #[allow(clippy::cast_precision_loss)]
     let logical_w = cols as f64;
@@ -419,31 +442,18 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
 
     let rects = squarify(&sizes, logical_w, logical_h);
 
-    // Assign consistent colors per category so the same category always
-    // gets the same color regardless of sort order or item count.
-    let mut category_colors: HashMap<String, (u8, u8, u8)> = HashMap::new();
-    let mut next_color_idx = 0usize;
-    for (_, _, _, _, cat) in &items {
-        let key = cat.clone().unwrap_or_default();
-        category_colors.entry(key).or_insert_with(|| {
-            let color = PALETTE[next_color_idx % PALETTE.len()];
-            next_color_idx += 1;
-            color
-        });
-    }
-
     let tiles: Vec<Tile> = items
         .into_iter()
         .zip(rects)
-        .map(|((name, monthly, symbol, symbol_first, category), r)| {
-            let key = category.unwrap_or_default();
+        .map(|(it, r)| {
+            let key = it.category.unwrap_or_default();
             let color = category_colors[&key];
             Tile {
-                name,
-                monthly,
-                yearly: monthly * 12.0,
-                symbol,
-                symbol_first,
+                name: it.name,
+                monthly: it.monthly,
+                yearly: it.monthly * 12.0,
+                symbol: it.symbol,
+                symbol_first: it.symbol_first,
                 rect: Rect {
                     left: r.left,
                     top: r.top / CHAR_ASPECT,

@@ -276,6 +276,19 @@ fn render_grid(
     Ok(())
 }
 
+fn split_paid_remaining<'a>(
+    by_day: impl IntoIterator<Item = (&'a NaiveDate, f64)>,
+    today: NaiveDate,
+) -> (f64, f64) {
+    by_day.into_iter().fold((0.0, 0.0), |(p, r), (d, total)| {
+        if *d < today {
+            (p + total, r)
+        } else {
+            (p, r + total)
+        }
+    })
+}
+
 fn print_footer(
     out: &mut impl Write,
     by_day: &BTreeMap<NaiveDate, DayCell>,
@@ -293,13 +306,8 @@ fn print_footer(
         let charges_label = if count == 1 { "charge" } else { "charges" };
         let is_current_month = today.year() == month.year() && today.month() == month.month();
         let line = if is_current_month {
-            let (paid, remaining): (f64, f64) = by_day.iter().fold((0.0, 0.0), |(p, r), (d, c)| {
-                if *d < today {
-                    (p + c.total, r)
-                } else {
-                    (p, r + c.total)
-                }
-            });
+            let (paid, remaining) =
+                split_paid_remaining(by_day.iter().map(|(d, c)| (d, c.total)), today);
             format!(
                 "\n{count} {charges_label}   {}   paid {}, remaining {}",
                 format_amount(cur, total),
@@ -386,14 +394,12 @@ fn execute_json(
 
     let is_current = today.year() == month.year() && today.month() == month.month();
     let (paid, remaining) = if is_current {
-        let (p, r) = by_day.iter().fold((0.0, 0.0), |(p, r), (d, cs)| {
-            let day_total: f64 = cs.iter().map(|c| c.amount).sum();
-            if *d < today {
-                (p + day_total, r)
-            } else {
-                (p, r + day_total)
-            }
-        });
+        let (p, r) = split_paid_remaining(
+            by_day
+                .iter()
+                .map(|(d, cs)| (d, cs.iter().map(|c| c.amount).sum())),
+            today,
+        );
         (Some(round_money(p)), Some(round_money(r)))
     } else {
         (None, None)

@@ -1,9 +1,8 @@
-use chrono::NaiveDate;
 use clap::Args;
 use inquire::Select;
 
 use crate::commands::{JsonExpense, OutputFormat};
-use crate::expense::{Expense, Interval, normalize_currency, parse_amount, parse_interval};
+use crate::expense::{Expense, ExpenseFields};
 use crate::prompt::{
     inquire_err, prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval,
     render_config,
@@ -32,28 +31,6 @@ impl std::fmt::Display for MenuItem {
     }
 }
 
-#[derive(Args, Debug, Default)]
-pub struct EditFields {
-    /// Amount (e.g. 9.99 or 9,99)
-    #[arg(short, long, value_parser = parse_amount)]
-    pub amount: Option<f64>,
-    /// ISO 4217 currency code (e.g. usd, eur)
-    #[arg(short, long, value_parser = normalize_currency)]
-    pub currency: Option<String>,
-    /// Start date (YYYY-MM-DD)
-    #[arg(short, long)]
-    pub date: Option<NaiveDate>,
-    /// Billing interval
-    #[arg(short, long, value_parser = parse_interval)]
-    pub interval: Option<Interval>,
-    /// Category label (e.g. streaming, utilities)
-    #[arg(long = "category")]
-    pub category: Option<String>,
-    /// End date — when the subscription stops (YYYY-MM-DD)
-    #[arg(long = "end")]
-    pub end_date: Option<NaiveDate>,
-}
-
 #[derive(Args, Debug)]
 #[command(after_help = "Examples:
   recu edit @1 -a 12.99
@@ -63,52 +40,28 @@ pub struct EditArgs {
     /// Expense to edit: @id or name (case-insensitive)
     pub target: String,
     #[command(flatten)]
-    pub fields: EditFields,
+    pub fields: ExpenseFields,
     /// Output format
     #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
     pub format: OutputFormat,
 }
 
+fn display<T: ToString>(v: Option<T>) -> String {
+    v.map_or_else(|| "—".to_string(), |x| x.to_string())
+}
+
 fn menu_items(e: &Expense) -> Vec<MenuItem> {
-    let d = "—";
-    let item = |field, label: &str, val: &str| MenuItem {
+    let item = |field, label: &str, val: String| MenuItem {
         field,
         display: format!("{label:<14} {val}"),
     };
     vec![
-        item(
-            Field::Amount,
-            "Amount",
-            &e.amount.map_or_else(|| d.to_string(), |a| a.to_string()),
-        ),
-        item(
-            Field::Currency,
-            "Currency",
-            e.currency.as_deref().unwrap_or(d),
-        ),
-        item(
-            Field::Date,
-            "Start date",
-            &e.start_date
-                .map_or_else(|| d.to_string(), |d| d.to_string()),
-        ),
-        item(
-            Field::Interval,
-            "Interval",
-            &e.interval
-                .as_ref()
-                .map_or_else(|| d.to_string(), std::string::ToString::to_string),
-        ),
-        item(
-            Field::Category,
-            "Category",
-            e.category.as_deref().unwrap_or(d),
-        ),
-        item(
-            Field::EndDate,
-            "End date",
-            &e.end_date.map_or_else(|| d.to_string(), |d| d.to_string()),
-        ),
+        item(Field::Amount, "Amount", display(e.amount)),
+        item(Field::Currency, "Currency", display(e.currency.as_deref())),
+        item(Field::Date, "Start date", display(e.start_date)),
+        item(Field::Interval, "Interval", display(e.interval.as_ref())),
+        item(Field::Category, "Category", display(e.category.as_deref())),
+        item(Field::EndDate, "End date", display(e.end_date)),
         MenuItem {
             field: Field::Done,
             display: "Done".to_string(),
@@ -166,34 +119,15 @@ fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<Expense> {
     Ok(working)
 }
 
-fn has_any_field(f: &EditFields) -> bool {
-    f.amount.is_some()
-        || f.currency.is_some()
-        || f.date.is_some()
-        || f.interval.is_some()
-        || f.category.is_some()
-        || f.end_date.is_some()
-}
-
 pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
-    if has_any_field(&args.fields) {
-        let f = &args.fields;
-        let patch = Expense {
-            amount: f.amount,
-            currency: f.currency.clone(),
-            start_date: f.date,
-            interval: f.interval.clone(),
-            category: f.category.clone(),
-            end_date: f.end_date,
-            ..Default::default()
-        };
-        store.update(&args.target, &patch)?;
-    } else {
+    let patch = if args.fields == ExpenseFields::default() {
         inquire::set_global_render_config(render_config());
         let current = store.get(&args.target)?;
-        let patch = prompt_fields(&current, store)?;
-        store.update(&args.target, &patch)?;
-    }
+        prompt_fields(&current, store)?
+    } else {
+        Expense::from(&args.fields)
+    };
+    store.update(&args.target, &patch)?;
     match args.format {
         OutputFormat::Json => {
             let updated = store.get(&args.target)?;

@@ -25,8 +25,9 @@ pub struct AddArgs {
     pub format: OutputFormat,
 }
 
-fn prompt_fields(fields: &ExpenseInput, store: &Store) -> std::io::Result<Expense> {
-    let name = prompt_name(fields.name.as_deref().unwrap_or(""))?;
+fn prompt_fields(input: &ExpenseInput, store: &Store) -> std::io::Result<Expense> {
+    let fields = &input.fields;
+    let name = prompt_name(input.name.as_deref().unwrap_or(""))?;
     let amount = prompt_amount(fields.amount)?;
     let currency = prompt_currency(fields.currency.as_deref().unwrap_or(""))?;
     let start_date = prompt_date("Start date:", fields.date)?;
@@ -34,14 +35,13 @@ fn prompt_fields(fields: &ExpenseInput, store: &Store) -> std::io::Result<Expens
     let categories = store.categories()?;
     let category = prompt_category(&categories, fields.category.as_deref())?;
     Ok(Expense {
-        id: 0,
         name,
         amount,
         currency,
         start_date,
         interval,
         category,
-        end_date: None,
+        ..Default::default()
     })
 }
 
@@ -49,14 +49,8 @@ pub fn execute(add: &AddArgs, store: &Store) -> std::io::Result<()> {
     let f = &add.fields;
     let expense = if let Some(name) = &f.name {
         Expense {
-            id: 0,
             name: name.clone(),
-            amount: f.amount,
-            currency: f.currency.clone(),
-            start_date: f.date,
-            interval: f.interval.clone(),
-            category: f.category.clone(),
-            end_date: f.end_date,
+            ..Expense::from(&f.fields)
         }
     } else {
         inquire::set_global_render_config(render_config());

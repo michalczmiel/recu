@@ -137,13 +137,20 @@ fn print_table(
         }
     };
 
+    let render_row = |colored: &[&str], plain: &[&str]| -> String {
+        colored
+            .iter()
+            .zip(plain)
+            .enumerate()
+            .map(|(i, (c, p))| render_cell(c, p, i))
+            .collect::<Vec<_>>()
+            .join("  ")
+    };
+
     let sep_cells: Vec<String> = widths.iter().map(|w| "─".repeat(*w)).collect();
     let sep_line = sep_cells.join("  ");
 
-    let header_cells: Vec<String> = (0..n)
-        .map(|i| render_cell(headers[i], headers[i], i))
-        .collect();
-    writeln!(out, "{}", header_cells.join("  "))?;
+    writeln!(out, "{}", render_row(&headers, &headers))?;
     writeln!(out, "{sep_line}")?;
 
     for (idx, (row, status)) in rows.iter().zip(statuses.iter()).enumerate() {
@@ -151,8 +158,9 @@ fn print_table(
             writeln!(out, "{sep_line}")?;
         }
         let c = colorize_row(row, status);
-        let cells: Vec<String> = (0..n).map(|i| render_cell(&c[i], &row[i], i)).collect();
-        writeln!(out, "{}", cells.join("  "))?;
+        let colored: Vec<&str> = c.iter().map(String::as_str).collect();
+        let plain: Vec<&str> = row.iter().map(String::as_str).collect();
+        writeln!(out, "{}", render_row(&colored, &plain))?;
     }
     Ok(())
 }

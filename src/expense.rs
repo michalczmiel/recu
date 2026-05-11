@@ -118,18 +118,14 @@ impl Expense {
     }
 
     pub fn summary(&self) -> String {
-        let amount_str = self
-            .amount
-            .map(|a| format_expense_amount(self.currency.as_deref(), a))
-            .unwrap_or_default();
-        let interval_str = self
-            .interval
-            .as_ref()
-            .map_or(String::new(), ToString::to_string);
-        let parts: Vec<&str> = [amount_str.as_str(), interval_str.as_str()]
-            .into_iter()
-            .filter(|s| !s.is_empty())
-            .collect();
+        let parts: Vec<String> = [
+            self.amount
+                .map(|a| format_expense_amount(self.currency.as_deref(), a)),
+            self.interval.as_ref().map(ToString::to_string),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
         if parts.is_empty() {
             self.name.clone()
         } else {
@@ -468,11 +464,8 @@ fn normalize_amount(s: &str) -> String {
     }
 }
 
-#[derive(Args, Debug, Default)]
-pub struct ExpenseInput {
-    /// Expense name
-    #[arg(short, long)]
-    pub name: Option<String>,
+#[derive(Args, Debug, Default, PartialEq)]
+pub struct ExpenseFields {
     /// Amount (e.g. 9.99 or 9,99)
     #[arg(short, long, value_parser = parse_amount)]
     pub amount: Option<f64>,
@@ -491,4 +484,27 @@ pub struct ExpenseInput {
     /// End date — when the subscription stops (YYYY-MM-DD)
     #[arg(long = "end")]
     pub end_date: Option<NaiveDate>,
+}
+
+impl From<&ExpenseFields> for Expense {
+    fn from(f: &ExpenseFields) -> Self {
+        Expense {
+            amount: f.amount,
+            currency: f.currency.clone(),
+            start_date: f.date,
+            interval: f.interval.clone(),
+            category: f.category.clone(),
+            end_date: f.end_date,
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Args, Debug, Default)]
+pub struct ExpenseInput {
+    /// Expense name
+    #[arg(short, long)]
+    pub name: Option<String>,
+    #[command(flatten)]
+    pub fields: ExpenseFields,
 }
