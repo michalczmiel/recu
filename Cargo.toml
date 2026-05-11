@@ -42,3 +42,4 @@ dirs = "6"
 
 [dev-dependencies]
 insta = { version = "1", features = ["filters"] }
+tempfile = "3"

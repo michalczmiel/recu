@@ -42,17 +42,7 @@ pub fn execute(args: &RemoveArgs, store: &Store) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use crate::expense::Expense;
-    use std::fs;
-
-    fn make_store(test_name: &str) -> Store {
-        let file = std::env::temp_dir()
-            .join("recu-test-remove")
-            .join(format!("{test_name}.csv"));
-        let _ = fs::remove_file(&file);
-        let _ = fs::remove_file(file.with_extension("csv.seq"));
-        let _ = fs::remove_file(file.with_extension("csv.undo"));
-        Store::at(file)
-    }
+    use crate::test_support;
 
     fn seed_expenses(store: &Store) {
         for (name, amount, currency) in [
@@ -84,7 +74,7 @@ mod tests {
 
     #[test]
     fn remove_by_full_name() {
-        let store = make_store("remove-by-full-name");
+        let store = test_support::store();
         seed_expenses(&store);
         assert!(store.remove(&["Netflix"]).is_ok());
         let remaining = names_in(&store);
@@ -95,7 +85,7 @@ mod tests {
     #[test]
     fn remove_by_id_first_and_last() {
         for (id, index) in [("@1", 0), ("@3", 2)] {
-            let store = make_store(&format!("remove-by-id-{index}"));
+            let store = test_support::store();
             seed_expenses(&store);
             let target_name = store.list().expect("list should succeed")[index]
                 .name
@@ -109,14 +99,14 @@ mod tests {
 
     #[test]
     fn remove_nonexistent_returns_error() {
-        let store = make_store("remove-nonexistent");
+        let store = test_support::store();
         seed_expenses(&store);
         assert!(store.remove(&["Hulu"]).is_err());
     }
 
     #[test]
     fn remove_id_out_of_range_returns_error() {
-        let store = make_store("remove-id-out-of-range");
+        let store = test_support::store();
         seed_expenses(&store);
         assert!(store.remove(&["@0"]).is_err());
         assert!(store.remove(&["@99"]).is_err());
@@ -124,7 +114,7 @@ mod tests {
 
     #[test]
     fn remove_by_name_case_insensitive() {
-        let store = make_store("remove-by-name-case");
+        let store = test_support::store();
         seed_expenses(&store);
         assert!(store.remove(&["netflix"]).is_ok());
         let remaining = names_in(&store);
@@ -133,7 +123,7 @@ mod tests {
 
     #[test]
     fn remove_many_by_name() {
-        let store = make_store("remove-many-by-name");
+        let store = test_support::store();
         seed_expenses(&store);
         let names = store
             .remove(&["Netflix", "Spotify"])
@@ -145,7 +135,7 @@ mod tests {
 
     #[test]
     fn remove_many_by_id_out_of_order() {
-        let store = make_store("remove-many-by-id-out-of-order");
+        let store = test_support::store();
         seed_expenses(&store);
         let names = store
             .remove(&["@3", "@1"])

@@ -336,26 +336,18 @@ fn diff_description(before: &[Expense], after: &[Expense]) -> String {
 mod tests {
     use super::*;
 
-    fn named(name: &str, amount: f64) -> Expense {
-        Expense {
-            name: name.to_string(),
-            amount: Some(amount),
-            currency: Some("usd".into()),
-            ..Default::default()
-        }
-    }
+    use crate::test_support;
 
-    fn make_store(name: &str) -> Store {
-        let file = std::env::temp_dir().join(format!("recu-test-{name}.csv"));
-        let _ = fs::remove_file(&file);
-        let _ = fs::remove_file(file.with_extension("csv.undo"));
-        let _ = fs::remove_file(file.with_extension("csv.seq"));
-        Store::at(file)
+    fn named(name: &str, amount: f64) -> Expense {
+        test_support::expense(name)
+            .amount(amount)
+            .currency("usd")
+            .build()
     }
 
     #[test]
     fn save_rejects_duplicate_case_insensitive() -> io::Result<()> {
-        let store = make_store("storage-dup");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         let err = store
             .save(&named("netflix", 9.99))
@@ -367,14 +359,14 @@ mod tests {
 
     #[test]
     fn list_from_missing_file_returns_empty() -> io::Result<()> {
-        let store = make_store("storage-missing");
+        let store = test_support::store();
         assert!(store.list()?.is_empty());
         Ok(())
     }
 
     #[test]
     fn restore_after_remove() -> io::Result<()> {
-        let store = make_store("undo-remove");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         store.remove(&["Netflix"])?;
         assert!(store.list()?.is_empty());
@@ -386,7 +378,7 @@ mod tests {
 
     #[test]
     fn restore_after_update() -> io::Result<()> {
-        let store = make_store("undo-update");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         store.update("Netflix", &named("Netflix", 14.99))?;
         assert_eq!(store.list()?[0].amount, Some(14.99));
@@ -398,7 +390,7 @@ mod tests {
 
     #[test]
     fn restore_after_add() -> io::Result<()> {
-        let store = make_store("undo-add");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         store.save(&named("Spotify", 5.99))?;
         assert_eq!(store.list()?.len(), 2);
@@ -410,7 +402,7 @@ mod tests {
 
     #[test]
     fn restore_with_no_snapshot_returns_error() -> io::Result<()> {
-        let store = make_store("undo-nosnap");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         let err = store
             .restore()
@@ -421,7 +413,7 @@ mod tests {
 
     #[test]
     fn restore_is_single_use() -> io::Result<()> {
-        let store = make_store("undo-singleuse");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         store.remove(&["Netflix"])?;
         store.restore()?;
@@ -432,7 +424,7 @@ mod tests {
 
     #[test]
     fn empty_patch_preserves_prior_undo() -> io::Result<()> {
-        let store = make_store("update-empty-preserves-undo");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         store.update("Netflix", &named("Netflix", 14.99))?;
         // Empty patch should be a no-op that does not consume the undo snapshot.
@@ -444,7 +436,7 @@ mod tests {
 
     #[test]
     fn categories_lists_unique_case_insensitive() -> io::Result<()> {
-        let store = make_store("categories");
+        let store = test_support::store();
         store.save(&Expense {
             category: Some("Streaming".into()),
             ..named("Netflix", 9.99)
@@ -463,7 +455,7 @@ mod tests {
 
     #[test]
     fn remove_by_id() -> io::Result<()> {
-        let store = make_store("remove-by-id");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         store.save(&named("Spotify", 5.99))?;
         let names = store.remove(&["@1"])?;
@@ -476,7 +468,7 @@ mod tests {
 
     #[test]
     fn update_by_id() -> io::Result<()> {
-        let store = make_store("update-by-id");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         store.save(&named("Spotify", 5.99))?;
         store.update("@2", &named("Spotify", 7.99))?;
@@ -486,7 +478,7 @@ mod tests {
 
     #[test]
     fn resolve_index_invalid_ids() -> io::Result<()> {
-        let store = make_store("id-invalid");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
 
         let cases = [
@@ -504,7 +496,7 @@ mod tests {
 
     #[test]
     fn rename_rejects_existing_name() -> io::Result<()> {
-        let store = make_store("rename-conflict");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         store.save(&named("Spotify", 5.99))?;
         let err = store
@@ -516,7 +508,7 @@ mod tests {
 
     #[test]
     fn remove_many_by_name() -> io::Result<()> {
-        let store = make_store("remove-many-name");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         store.save(&named("Spotify", 5.99))?;
         store.save(&named("Rent", 999.0))?;
@@ -530,7 +522,7 @@ mod tests {
 
     #[test]
     fn remove_many_by_id_reverse_order() -> io::Result<()> {
-        let store = make_store("remove-many-id");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         store.save(&named("Spotify", 5.99))?;
         store.save(&named("Rent", 999.0))?;
@@ -544,7 +536,7 @@ mod tests {
 
     #[test]
     fn remove_many_duplicate_target_returns_error() -> io::Result<()> {
-        let store = make_store("remove-many-dup");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         let err = store
             .remove(&["Netflix", "Netflix"])
@@ -555,7 +547,7 @@ mod tests {
 
     #[test]
     fn remove_many_single_behaves_like_remove() -> io::Result<()> {
-        let store = make_store("remove-many-single");
+        let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
         store.save(&named("Spotify", 5.99))?;
         let names = store.remove(&["Netflix"])?;
@@ -566,7 +558,7 @@ mod tests {
 
     #[test]
     fn clear_category_no_match_returns_zero_and_no_snapshot() -> io::Result<()> {
-        let store = make_store("clear-no-match");
+        let store = test_support::store();
         store.save(&Expense {
             category: Some("streaming".into()),
             ..named("Netflix", 9.99)
@@ -581,14 +573,14 @@ mod tests {
 
     #[test]
     fn categories_empty_file_returns_empty() -> io::Result<()> {
-        let store = make_store("categories-empty");
+        let store = test_support::store();
         assert!(store.categories()?.is_empty());
         Ok(())
     }
 
     #[test]
     fn clear_category_removes_matching_expenses() -> io::Result<()> {
-        let store = make_store("clear-category");
+        let store = test_support::store();
         store.save(&Expense {
             category: Some("streaming".into()),
             ..named("Netflix", 9.99)
@@ -613,7 +605,7 @@ mod tests {
 
     #[test]
     fn reassign_renames_matching_expenses() -> io::Result<()> {
-        let store = make_store("reassign-rename");
+        let store = test_support::store();
         store.save(&Expense {
             category: Some("streaming".into()),
             ..named("Netflix", 9.99)
@@ -638,7 +630,7 @@ mod tests {
 
     #[test]
     fn reassign_merges_multiple_sources() -> io::Result<()> {
-        let store = make_store("reassign-merge");
+        let store = test_support::store();
         store.save(&Expense {
             category: Some("streaming".into()),
             ..named("Netflix", 9.99)
@@ -664,7 +656,7 @@ mod tests {
 
     #[test]
     fn reassign_no_match_skips_snapshot() -> io::Result<()> {
-        let store = make_store("reassign-nomatch");
+        let store = test_support::store();
         store.save(&Expense {
             category: Some("streaming".into()),
             ..named("Netflix", 9.99)
@@ -679,7 +671,7 @@ mod tests {
 
     #[test]
     fn reassign_same_casing_skips_snapshot() -> io::Result<()> {
-        let store = make_store("reassign-same");
+        let store = test_support::store();
         store.save(&Expense {
             category: Some("Streaming".into()),
             ..named("Netflix", 9.99)
@@ -698,7 +690,7 @@ mod tests {
 
     #[test]
     fn reassign_supports_undo() -> io::Result<()> {
-        let store = make_store("reassign-undo");
+        let store = test_support::store();
         store.save(&Expense {
             category: Some("streaming".into()),
             ..named("Netflix", 9.99)
@@ -713,7 +705,7 @@ mod tests {
 
     #[test]
     fn clear_categories_multiple() -> io::Result<()> {
-        let store = make_store("clear-categories-multi");
+        let store = test_support::store();
         store.save(&Expense {
             category: Some("streaming".into()),
             ..named("Netflix", 9.99)

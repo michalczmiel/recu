@@ -5,6 +5,8 @@ mod expense;
 mod prompt;
 mod rates;
 mod store;
+#[cfg(test)]
+mod test_support;
 mod ui;
 
 fn main() {

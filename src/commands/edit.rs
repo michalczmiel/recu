@@ -143,18 +143,8 @@ pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use crate::expense::{Expense, Interval};
+    use crate::test_support;
     use chrono::NaiveDate;
-    use std::fs;
-
-    fn make_store(test_name: &str) -> Store {
-        let file = std::env::temp_dir()
-            .join("recu-test-edit")
-            .join(format!("{}.csv", test_name.replace("::", "-")));
-        let _ = fs::remove_file(&file);
-        let _ = fs::remove_file(file.with_extension("csv.seq"));
-        let _ = fs::remove_file(file.with_extension("csv.undo"));
-        Store::at(file)
-    }
 
     fn seed_expenses(store: &Store) {
         for (name, amount, currency) in [
@@ -188,7 +178,7 @@ mod tests {
 
     #[test]
     fn edit_amount_by_name() {
-        let store = make_store("edit-amount-by-name");
+        let store = test_support::store();
         seed_expenses(&store);
         store
             .update(
@@ -204,7 +194,7 @@ mod tests {
 
     #[test]
     fn edit_amount_by_id() {
-        let store = make_store("edit-amount-by-id");
+        let store = test_support::store();
         seed_expenses(&store);
         // insertion order: Netflix=@1, Spotify=@2, NY Times=@3
         store
@@ -221,7 +211,7 @@ mod tests {
 
     #[test]
     fn edit_currency() {
-        let store = make_store("edit-currency");
+        let store = test_support::store();
         seed_expenses(&store);
         store
             .update(
@@ -237,7 +227,7 @@ mod tests {
 
     #[test]
     fn edit_interval() {
-        let store = make_store("edit-interval");
+        let store = test_support::store();
         seed_expenses(&store);
         store
             .update(
@@ -253,7 +243,7 @@ mod tests {
 
     #[test]
     fn edit_end_date() {
-        let store = make_store("edit-end-date");
+        let store = test_support::store();
         seed_expenses(&store);
         store
             .update(
@@ -269,7 +259,7 @@ mod tests {
 
     #[test]
     fn edit_date() {
-        let store = make_store("edit-date");
+        let store = test_support::store();
         seed_expenses(&store);
         store
             .update(
@@ -285,7 +275,7 @@ mod tests {
 
     #[test]
     fn edit_multiple_fields_at_once() {
-        let store = make_store("edit-multiple-fields");
+        let store = test_support::store();
         seed_expenses(&store);
         store
             .update(
@@ -304,7 +294,7 @@ mod tests {
 
     #[test]
     fn edit_nonexistent_returns_error() {
-        let store = make_store("edit-nonexistent");
+        let store = test_support::store();
         seed_expenses(&store);
         assert!(
             store
@@ -321,7 +311,7 @@ mod tests {
 
     #[test]
     fn edit_id_out_of_range_returns_error() {
-        let store = make_store("edit-id-out-of-range");
+        let store = test_support::store();
         seed_expenses(&store);
         assert!(
             store
@@ -349,7 +339,7 @@ mod tests {
 
     #[test]
     fn empty_patch_leaves_expense_unchanged() {
-        let store = make_store("edit-empty-patch");
+        let store = test_support::store();
         seed_expenses(&store);
         store
             .update("Netflix", &Expense::default())

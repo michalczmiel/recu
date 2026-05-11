@@ -23,17 +23,7 @@ pub fn execute(args: &RenameArgs, store: &Store) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use crate::expense::Expense;
-    use std::fs;
-
-    fn make_store(test_name: &str) -> Store {
-        let file = std::env::temp_dir()
-            .join("recu-test-rename")
-            .join(format!("{test_name}.csv"));
-        let _ = fs::remove_file(&file);
-        let _ = fs::remove_file(file.with_extension("csv.seq"));
-        let _ = fs::remove_file(file.with_extension("csv.undo"));
-        Store::at(file)
-    }
+    use crate::test_support;
 
     fn seed(store: &Store) {
         for name in ["Netflix", "Spotify"] {
@@ -57,7 +47,7 @@ mod tests {
 
     #[test]
     fn rename_by_name() {
-        let store = make_store("rename-by-name");
+        let store = test_support::store();
         seed(&store);
         execute(
             &RenameArgs {
@@ -74,7 +64,7 @@ mod tests {
 
     #[test]
     fn rename_by_id() {
-        let store = make_store("rename-by-id");
+        let store = test_support::store();
         seed(&store);
         execute(
             &RenameArgs {
@@ -89,7 +79,7 @@ mod tests {
 
     #[test]
     fn rename_to_existing_name_errors() {
-        let store = make_store("rename-conflict");
+        let store = test_support::store();
         seed(&store);
         assert!(
             execute(
@@ -105,7 +95,7 @@ mod tests {
 
     #[test]
     fn rename_nonexistent_errors() {
-        let store = make_store("rename-nonexistent");
+        let store = test_support::store();
         seed(&store);
         assert!(
             execute(

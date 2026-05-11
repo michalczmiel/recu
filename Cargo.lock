@@ -924,6 +924,7 @@ dependencies = [
  "rusty-money",
  "serde",
  "serde_json",
+ "tempfile",
  "terminal_size",
  "toml",
  "ureq",
