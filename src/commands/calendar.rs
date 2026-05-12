@@ -72,8 +72,8 @@ fn month_label(d: NaiveDate) -> String {
     d.format("%B %Y").to_string()
 }
 
-fn charges_for_month(
-    expenses: &[Expense],
+fn charges_for_month<'a>(
+    expenses: impl IntoIterator<Item = &'a Expense>,
     month: NaiveDate,
     today: NaiveDate,
     rates: Option<&HashMap<String, f64>>,
@@ -241,7 +241,7 @@ fn render_grid(
     }
     writeln!(out)?;
 
-    let is_current_month = today.year() == month.year() && today.month() == month.month();
+    let is_current_month = is_current_month(today, month);
 
     for week in weeks_for_month(month) {
         let mut date_line = String::new();
@@ -304,8 +304,7 @@ fn print_footer(
         && count > 0
     {
         let charges_label = if count == 1 { "charge" } else { "charges" };
-        let is_current_month = today.year() == month.year() && today.month() == month.month();
-        let line = if is_current_month {
+        let line = if is_current_month(today, month) {
             let (paid, remaining) =
                 split_paid_remaining(by_day.iter().map(|(d, c)| (d, c.total)), today);
             format!(
@@ -357,6 +356,58 @@ struct JsonCalendar<'a> {
     days: Vec<JsonDay<'a>>,
 }
 
+struct CalendarData {
+    by_day: BTreeMap<NaiveDate, Vec<Charge>>,
+    target_cur: Option<&'static iso::Currency>,
+    hidden_ended: usize,
+}
+
+fn prepare(
+    today: NaiveDate,
+    cfg: &Config,
+    expenses: &[Expense],
+    month: NaiveDate,
+    all: bool,
+    categories: &[String],
+) -> std::io::Result<CalendarData> {
+    let target: Option<&str> = cfg.currency.as_deref();
+    let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
+    let target_cur: Option<&'static iso::Currency> = target
+        .and_then(find_currency)
+        .or_else(|| expense::uniform_currency(expenses));
+
+    let matching = || {
+        expenses
+            .iter()
+            .filter(|e| expense::matches_categories(e, categories))
+    };
+
+    let by_day = charges_for_month(
+        matching(),
+        month,
+        today,
+        exchange_rates.as_ref(),
+        target,
+        all,
+    );
+
+    let hidden_ended = if all {
+        0
+    } else {
+        matching().filter(|e| e.is_ended(today)).count()
+    };
+
+    Ok(CalendarData {
+        by_day,
+        target_cur,
+        hidden_ended,
+    })
+}
+
+fn is_current_month(today: NaiveDate, month: NaiveDate) -> bool {
+    today.year() == month.year() && today.month() == month.month()
+}
+
 fn execute_json(
     out: &mut impl Write,
     today: NaiveDate,
@@ -366,34 +417,16 @@ fn execute_json(
     all: bool,
     categories: &[String],
 ) -> std::io::Result<()> {
-    let target: Option<&str> = cfg.currency.as_deref();
-    let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
-    let target_cur: Option<&'static iso::Currency> = target
-        .and_then(find_currency)
-        .or_else(|| expense::uniform_currency(expenses));
-
-    let filtered: Vec<Expense> = expenses
-        .iter()
-        .filter(|e| expense::matches_categories(e, categories))
-        .cloned()
-        .collect();
-
-    let by_day = charges_for_month(
-        &filtered,
-        month,
-        today,
-        exchange_rates.as_ref(),
-        target,
-        all,
-    );
+    let CalendarData {
+        by_day, target_cur, ..
+    } = prepare(today, cfg, expenses, month, all, categories)?;
 
     let total: f64 = by_day
         .values()
         .flat_map(|cs| cs.iter().map(|c| c.amount))
         .sum();
 
-    let is_current = today.year() == month.year() && today.month() == month.month();
-    let (paid, remaining) = if is_current {
+    let (paid, remaining) = if is_current_month(today, month) {
         let (p, r) = split_paid_remaining(
             by_day
                 .iter()
@@ -443,34 +476,13 @@ pub(crate) fn execute_with(
     all: bool,
     categories: &[String],
 ) -> std::io::Result<()> {
-    let target: Option<&str> = cfg.currency.as_deref();
-    let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
-    let target_cur: Option<&'static iso::Currency> = target
-        .and_then(find_currency)
-        .or_else(|| expense::uniform_currency(expenses));
+    let CalendarData {
+        by_day: by_day_charges,
+        target_cur,
+        hidden_ended,
+    } = prepare(today, cfg, expenses, month, all, categories)?;
 
-    let filtered: Vec<Expense> = expenses
-        .iter()
-        .filter(|e| expense::matches_categories(e, categories))
-        .cloned()
-        .collect();
-
-    let by_day_charges = charges_for_month(
-        &filtered,
-        month,
-        today,
-        exchange_rates.as_ref(),
-        target,
-        all,
-    );
     let by_day = cells_from_charges(&by_day_charges);
-
-    let hidden_ended = if all {
-        0
-    } else {
-        filtered.iter().filter(|e| e.is_ended(today)).count()
-    };
-
     render_grid(out, month, today, &by_day)?;
     print_footer(out, &by_day, target_cur, month, today, hidden_ended)?;
     Ok(())
