@@ -6,7 +6,7 @@ use clap::Args;
 use colored::Colorize;
 
 use crate::commands::JsonExpense;
-pub use crate::commands::OutputFormat;
+use crate::commands::OutputFormat;
 
 use crate::config::{self, Config};
 use crate::ui;
@@ -49,7 +49,7 @@ fn colorize_row(row: &[String], status: &DueStatus) -> Vec<String> {
         .collect()
 }
 
-fn build_row(expense: &Expense, today: NaiveDate, show_ends: bool) -> Vec<String> {
+fn build_row(expense: &Expense, today: NaiveDate, show_ends: bool, is_ended: bool) -> Vec<String> {
     let amount = match expense.amount {
         None => "-".into(),
         Some(a) => {
@@ -60,7 +60,7 @@ fn build_row(expense: &Expense, today: NaiveDate, show_ends: bool) -> Vec<String
             }
         }
     };
-    let due_str = if expense.is_ended(today) {
+    let due_str = if is_ended {
         String::new()
     } else {
         expense
@@ -165,28 +165,6 @@ fn print_table(
     Ok(())
 }
 
-fn select_visible<'a>(
-    expenses: &'a [Expense],
-    today: NaiveDate,
-    all: bool,
-    categories: &[String],
-) -> (Vec<&'a Expense>, usize) {
-    let mut visible: Vec<&Expense> = expenses
-        .iter()
-        .filter(|e| all || !e.is_ended(today))
-        .filter(|e| expense::matches_categories(e, categories))
-        .collect();
-    visible.sort_by_key(|expense| {
-        let due = expense.days_until_next(today).unwrap_or(i64::MAX);
-        (expense.is_ended(today), due)
-    });
-    let hidden_ended = expenses
-        .iter()
-        .filter(|e| !all && e.is_ended(today) && expense::matches_categories(e, categories))
-        .count();
-    (visible, hidden_ended)
-}
-
 pub(crate) fn execute_with(
     out: &mut impl Write,
     today: NaiveDate,
@@ -209,13 +187,25 @@ pub(crate) fn execute_with(
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
 
-    let (visible, hidden_ended) = select_visible(expenses, today, all, categories);
+    let by_due = |e: &&Expense| e.days_until_next(today).unwrap_or(i64::MAX);
+    let (mut active, mut ended): (Vec<&Expense>, Vec<&Expense>) = expenses
+        .iter()
+        .filter(|e| expense::matches_categories(e, categories))
+        .partition(|e| !e.is_ended(today));
+    active.sort_by_key(by_due);
+    ended.sort_by_key(by_due);
+
+    let mut visible = active.clone();
+    if all {
+        visible.extend(&ended);
+    }
 
     if visible.is_empty() {
         if categories.is_empty() {
             writeln!(
                 out,
-                "All {hidden_ended} expenses are ended. Run 'recu list --all' to view them."
+                "All {} expenses are ended. Run 'recu list --all' to view them.",
+                ended.len()
             )?;
         } else {
             writeln!(out, "No expenses match category filter.")?;
@@ -227,28 +217,24 @@ pub(crate) fn execute_with(
 
     let rows: Vec<Vec<String>> = visible
         .iter()
-        .map(|expense| build_row(expense, today, show_ends))
+        .enumerate()
+        .map(|(i, e)| build_row(e, today, show_ends, i >= active.len()))
         .collect();
 
     let statuses: Vec<DueStatus> = visible.iter().map(|e| e.due_status(today)).collect();
 
-    let ended_start = visible.iter().position(|e| e.is_ended(today));
+    let ended_start = (all && !ended.is_empty()).then_some(active.len());
 
     print_table(out, &rows, &statuses, show_ends, ended_start)?;
 
-    let active: Vec<&Expense> = visible
-        .iter()
-        .copied()
-        .filter(|e| !e.is_ended(today))
-        .collect();
     let totals = RecurringTotals::compute(active.iter().copied(), exchange_rates.as_ref(), target);
     print_totals(out, &totals, target_cur, active.len())?;
 
-    if hidden_ended > 0 {
+    if !all && !ended.is_empty() {
         writeln!(
             out,
             "{}",
-            ui::dim(&format!("+ {hidden_ended} ended (recu list --all)"))
+            ui::dim(&format!("+ {} ended (recu list --all)", ended.len()))
         )?;
     }
 
@@ -262,8 +248,11 @@ fn execute_json(
     all: bool,
     categories: &[String],
 ) -> std::io::Result<()> {
-    let (visible, _) = select_visible(expenses, today, all, categories);
-    let view: Vec<JsonExpense<'_>> = visible.iter().copied().map(JsonExpense::from).collect();
+    let visible = expenses
+        .iter()
+        .filter(|e| expense::matches_categories(e, categories))
+        .filter(|e| all || !e.is_ended(today));
+    let view: Vec<JsonExpense<'_>> = visible.map(JsonExpense::from).collect();
     serde_json::to_writer_pretty(&mut *out, &view)?;
     writeln!(out)
 }

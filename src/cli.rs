@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use crate::commands::{add, calendar, category, config, edit, list, remove, rename, treemap, undo};
+use crate::commands::{
+    OutputFormat, add, calendar, category, config, edit, list, remove, rename, treemap, undo,
+};
 use crate::store::Store;
 
 #[derive(Parser, Debug)]
@@ -24,7 +26,7 @@ struct Cli {
 
     /// Output format (only used when no subcommand is given; equivalent to `recu list --format <FORMAT>`)
     #[arg(long, value_enum)]
-    format: Option<list::OutputFormat>,
+    format: Option<OutputFormat>,
 
     #[command(subcommand)]
     command: Option<Commands>,
