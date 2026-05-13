@@ -33,7 +33,7 @@ pub struct CategoryRemoveArgs {
   recu category rename streaming,subs Streaming  (comma-separated merges into dst)")]
 pub struct CategoryRenameArgs {
     /// Source categories: @id or name (case-insensitive), comma-separated.
-    #[arg(value_delimiter = ',', num_args = 1)]
+    #[arg(value_delimiter = ',', num_args = 1, required = true)]
     pub sources: Vec<String>,
     /// Destination category name
     pub dst: String,
@@ -153,12 +153,6 @@ pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
             }
         }
         CategoryCommand::Rename(args) => {
-            if args.sources.is_empty() {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "no source category specified",
-                ));
-            }
             let dst = validate_dst(&args.dst)?;
             let categories = store.categories()?;
             let resolved = resolve_sources(&args.sources, &categories)?;
