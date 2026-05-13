@@ -91,7 +91,7 @@ jobs:
           retention-days: 7
 
   github-release:
-    needs: [build]
+    needs: [npm-smoke-test]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
