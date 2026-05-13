@@ -128,9 +128,52 @@ jobs:
             --verify-tag \
             *.tar.gz SHA256SUMS
 
+  npm-smoke-test:
+    name: npm smoke test (${{ matrix.npm-target }})
+    needs: [build]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - npm-target: darwin-arm64
+            runner: macos-latest
+          - npm-target: darwin-x64
+            runner: macos-latest
+          - npm-target: linux-x64
+            runner: ubuntu-22.04
+          - npm-target: linux-arm64
+            runner: ubuntu-22.04-arm
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Download platform package
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-${{ matrix.npm-target }}
+          path: pkg
+
+      - name: Restore executable bit
+        run: chmod +x pkg/bin/recu
+
+      - name: Pack and install locally
+        run: |
+          set -euo pipefail
+          tgz="$(npm pack ./pkg --silent)"
+          mkdir smoke
+          cd smoke
+          npm init -y >/dev/null
+          npm install "../$tgz"
+          ./node_modules/.bin/recu --version
+
   publish-npm-platform:
     name: publish npm (${{ matrix.npm-target }})
-    needs: [build]
+    needs: [npm-smoke-test]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -141,7 +184,7 @@ jobs:
       matrix:
         npm-target: [darwin-arm64, darwin-x64, linux-x64, linux-arm64]
     steps:
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
@@ -171,7 +214,7 @@ jobs:
         with:
           ref: ${{ env.TAG }}
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
