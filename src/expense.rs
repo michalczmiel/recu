@@ -503,7 +503,7 @@ impl From<&ExpenseFields> for Expense {
 #[derive(Args, Debug, Default)]
 pub struct ExpenseInput {
     /// Expense name
-    #[arg(short, long)]
+    #[arg(value_name = "NAME")]
     pub name: Option<String>,
     #[command(flatten)]
     pub fields: ExpenseFields,

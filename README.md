@@ -173,23 +173,26 @@ $ recu treemap
 $ recu help add
 Add a recurring expense
 
-Usage: recu add [OPTIONS]
+Usage: recu add [OPTIONS] [NAME]
+
+Arguments:
+  [NAME]  Expense name
 
 Options:
-  -f, --file <FILE>          Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
-  -n, --name <NAME>          Expense name
   -a, --amount <AMOUNT>      Amount (e.g. 9.99 or 9,99)
+  -f, --file <FILE>          Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
   -c, --currency <CURRENCY>  ISO 4217 currency code (e.g. usd, eur)
   -d, --date <DATE>          Start date (YYYY-MM-DD)
-  -i, --interval <INTERVAL>  Billing interval [possible values: weekly, monthly, quarterly, yearly]
+  -i, --interval <INTERVAL>  Billing interval
       --category <CATEGORY>  Category label (e.g. streaming, utilities)
       --end <END_DATE>       End date — when the subscription stops (YYYY-MM-DD)
+      --format <FORMAT>      Output format [default: text] [possible values: text, json]
   -h, --help                 Print help
 
 Examples:
-  recu add -n Netflix -a 9.99 -c usd -d 2026-05-01 -i monthly
-  recu add -n Netflix          # stored with name only, fill in later via 'recu edit'
-  recu add          # interactive mode
+  recu add Netflix -a 9.99 -c usd -d 2026-05-01 -i monthly
+  recu add Netflix             # stored with name only, fill in later via 'recu edit'
+  recu add                     # interactive mode
 ```
 
 ```sh

@@ -14,9 +14,9 @@ use crate::store::Store;
 /// 'recu edit'). Without --name, runs interactively.
 #[derive(Args, Debug)]
 #[command(after_help = "Examples:
-  recu add -n Netflix -a 9.99 -c usd -d 2026-05-01 -i monthly
-  recu add -n Netflix          # stored with name only, fill in later via 'recu edit'
-  recu add          # interactive mode")]
+  recu add Netflix -a 9.99 -c usd -d 2026-05-01 -i monthly
+  recu add Netflix             # stored with name only, fill in later via 'recu edit'
+  recu add                     # interactive mode")]
 pub struct AddArgs {
     #[command(flatten)]
     pub fields: ExpenseInput,
