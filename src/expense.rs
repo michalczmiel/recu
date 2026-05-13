@@ -411,19 +411,6 @@ pub fn normalize_currency(s: &str) -> Result<String, String> {
     Ok(lower)
 }
 
-pub fn parse_interval(s: &str) -> Result<Interval, String> {
-    let lower = s.trim().to_lowercase();
-    match lower.as_str() {
-        "weekly" => Ok(Interval::Weekly),
-        "monthly" => Ok(Interval::Monthly),
-        "quarterly" => Ok(Interval::Quarterly),
-        "yearly" => Ok(Interval::Yearly),
-        _ => Err(format!(
-            "invalid interval \"{s}\"; valid: weekly, monthly, quarterly, yearly\nexample: recu add --name Netflix --interval monthly --amount 9.99 --currency usd"
-        )),
-    }
-}
-
 pub fn parse_amount(s: &str) -> Result<f64, String> {
     let trimmed = s.trim();
     if trimmed.is_empty() {
@@ -476,7 +463,7 @@ pub struct ExpenseFields {
     #[arg(short, long)]
     pub date: Option<NaiveDate>,
     /// Billing interval
-    #[arg(short, long, value_parser = parse_interval)]
+    #[arg(short, long)]
     pub interval: Option<Interval>,
     /// Category label (e.g. streaming, utilities)
     #[arg(long = "category")]

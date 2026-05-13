@@ -183,7 +183,7 @@ Options:
   -f, --file <FILE>          Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
   -c, --currency <CURRENCY>  ISO 4217 currency code (e.g. usd, eur)
   -d, --date <DATE>          Start date (YYYY-MM-DD)
-  -i, --interval <INTERVAL>  Billing interval
+  -i, --interval <INTERVAL>  Billing interval [possible values: weekly, monthly, quarterly, yearly]
       --category <CATEGORY>  Category label (e.g. streaming, utilities)
       --end <END_DATE>       End date — when the subscription stops (YYYY-MM-DD)
       --format <FORMAT>      Output format [default: text] [possible values: text, json]
