@@ -107,6 +107,53 @@ fn print_totals(
     writeln!(out, "{}", ui::heading(&line))
 }
 
+fn print_category_breakdown(
+    out: &mut impl Write,
+    expenses: &[&Expense],
+    rates: Option<&HashMap<String, f64>>,
+    target: Option<&str>,
+    target_cur: Option<&'static iso::Currency>,
+) -> std::io::Result<()> {
+    let Some(cur) = target_cur else { return Ok(()) };
+
+    let mut by_cat: HashMap<&str, f64> = HashMap::new();
+    for e in expenses {
+        let cat = e.category.as_deref().unwrap_or("other");
+        let monthly = e.amount.zip(e.interval.as_ref()).map_or(0.0, |(a, iv)| {
+            iv.to_monthly(expense::convert(a, e.currency.as_deref(), rates, target))
+        });
+        *by_cat.entry(cat).or_default() += monthly;
+    }
+
+    if by_cat.is_empty() {
+        return Ok(());
+    }
+
+    let mut cats: Vec<(&str, f64)> = by_cat.into_iter().collect();
+    cats.sort_by(|a, b| b.1.total_cmp(&a.1));
+
+    let total_monthly: f64 = cats.iter().map(|(_, v)| *v).sum();
+
+    let cat_width = cats.iter().map(|(c, _)| c.len()).max().unwrap_or(0);
+    let amt_strs: Vec<String> = cats
+        .iter()
+        .map(|(_, m)| format!("{}/mo", format_amount(cur, *m)))
+        .collect();
+    let amt_width = amt_strs.iter().map(String::len).max().unwrap_or(0);
+
+    for ((cat, monthly), amt) in cats.iter().zip(&amt_strs) {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let pct = if total_monthly > 0.0 {
+            (monthly / total_monthly * 100.0).round() as u32
+        } else {
+            0
+        };
+        let line = format!("  {cat:<cat_width$}  {amt:>amt_width$}  {pct:>3}%");
+        writeln!(out, "{}", ui::dim(&line))?;
+    }
+    Ok(())
+}
+
 fn print_table(
     out: &mut impl Write,
     rows: &[Vec<String>],
@@ -229,6 +276,7 @@ pub(crate) fn execute_with(
 
     let totals = RecurringTotals::compute(active.iter().copied(), exchange_rates.as_ref(), target);
     print_totals(out, &totals, target_cur, active.len())?;
+    print_category_breakdown(out, &active, exchange_rates.as_ref(), target, target_cur)?;
 
     if !all && !ended.is_empty() {
         writeln!(

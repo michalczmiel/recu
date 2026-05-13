@@ -8,11 +8,10 @@ Track recurring expenses from a single CSV file. Outputs as a list, calendar, or
 $ recu list
 @    name                     amount  due     category      
 ───  ────────────────────  ─────────  ──────  ──────────────
-@12  ChatGBT Plus          $20.00/mo  Sun     Dev           
-@15  Amazoo Prime          $14.99/mo  May 15  Shopping      
-@13  iSmog+                 $2.99/mo  May 17  Cloud         
-@2   Spookify               $9.99/mo  May 18  Streaming     
-@14  Goggle One             $2.99/mo  May 19  Cloud         
+@15  Amazoo Prime          $14.99/mo  Fri     Shopping      
+@13  iSmog+                 $2.99/mo  Sun     Cloud         
+@2   Spookify               $9.99/mo  Mon     Streaming     
+@14  Goggle One             $2.99/mo  Tue     Cloud         
 @6   Adobo Creative Cloud  $54.99/mo  May 20  Productivity  
 @1   Streamberry           $19.99/mo  May 22  Streaming     
 @18  Web Hosting            $6.99/mo  May 24  Infrastructure
@@ -23,10 +22,19 @@ $ recu list
 @16  Gym                   $45.00/mo  Jun 1   Health        
 @8   Potion                $10.00/mo  Jun 3   Productivity  
 @11  GitHug Pro             $4.00/mo  Jun 7   Dev           
+@12  ChatGBT Plus          $20.00/mo  Jun 10  Dev           
 @17  Domain                $15.00/yr  Nov 8   Infrastructure
 @7   Macrosoft 365         $99.99/yr  Dec 1   Productivity  
 
 17 expenses  $247.47/month  $2969.67/year
+  Productivity    $73.32/mo   30%
+  Streaming       $70.95/mo   29%
+  Health          $45.00/mo   18%
+  Dev             $24.00/mo   10%
+  Shopping        $14.99/mo    6%
+  Infrastructure   $8.24/mo    3%
+  Cloud            $5.98/mo    2%
+  Security         $4.99/mo    2%
 + 1 ended (recu list --all)
 ```
 
@@ -141,7 +149,7 @@ $ recu calendar
      25     26     27     28     29     30     31
      12                    5            13       
 
-15 charges   $237.89   paid $74.99, remaining $162.90
+15 charges   $237.89   paid $94.99, remaining $142.90
 + 1 ended (recu calendar --all)
 ```
 

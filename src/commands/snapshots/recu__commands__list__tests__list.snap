@@ -11,6 +11,7 @@ No expenses yet. Run 'recu add' to track your first subscription.
 @1  Netflix  $15.99/mo  today          
 
 1 expense  $15.99/month  $191.88/year
+  other  $15.99/mo  100%
 
 === single due soon ===
 @   name        amount  due  category
@@ -18,6 +19,7 @@ No expenses yet. Run 'recu add' to track your first subscription.
 @1  Netflix  $15.99/mo  Mon          
 
 1 expense  $15.99/month  $191.88/year
+  other  $15.99/mo  100%
 
 === single distant ===
 @   name        amount  due    category
@@ -25,6 +27,7 @@ No expenses yet. Run 'recu add' to track your first subscription.
 @1  Netflix  $15.99/mo  Jul 1          
 
 1 expense  $15.99/month  $191.88/year
+  other  $15.99/mo  100%
 
 === sorted by due date ===
 @   name        amount  due    category
@@ -34,6 +37,7 @@ No expenses yet. Run 'recu add' to track your first subscription.
 @1  Notion   $16.00/mo  Jul 1          
 
 3 expenses  $41.98/month  $503.76/year
+  other  $41.98/mo  100%
 
 === totals with uniform currency ===
 @   name        amount  due     category
@@ -42,6 +46,7 @@ No expenses yet. Run 'recu add' to track your first subscription.
 @2  Spotify   $9.99/mo  May 15          
 
 2 expenses  $25.98/month  $311.76/year
+  other  $25.98/mo  100%
 
 === no currency, no totals ===
 @   name      amount  due    category
@@ -59,6 +64,7 @@ No expenses yet. Run 'recu add' to track your first subscription.
 @1  Netflix  $15.99/mo  May 1          
 
 1 expense  $15.99/month  $191.88/year
+  other  $15.99/mo  100%
 
 === ends column with future end ===
 @   name        amount  due    category  ends  
@@ -67,6 +73,7 @@ No expenses yet. Run 'recu add' to track your first subscription.
 @2  Netflix  $15.99/mo  May 1                  
 
 2 expenses  $25.98/month  $311.76/year
+  other  $25.98/mo  100%
 
 === ended hidden by default ===
 @   name           amount  due    category  ends  
@@ -75,6 +82,7 @@ No expenses yet. Run 'recu add' to track your first subscription.
 @3  AnnualPlan  $50.00/mo  May 1            Jul 15
 
 2 expenses  $65.99/month  $791.88/year
+  other  $65.99/mo  100%
 + 1 ended (recu list --all)
 
 === --all reveals ended rows ===
@@ -86,6 +94,7 @@ No expenses yet. Run 'recu add' to track your first subscription.
 @1  OldGym      $30.00/mo                   Apr 5 
 
 2 expenses  $65.99/month  $791.88/year
+  other  $65.99/mo  100%
 
 === all ended + default hides everything ===
 All 1 expenses are ended. Run 'recu list --all' to view them.
