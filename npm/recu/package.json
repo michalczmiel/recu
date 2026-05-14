@@ -24,7 +24,9 @@
   ],
   "optionalDependencies": {
     "@michalczmiel/recu-darwin-arm64": "0.2.2",
-    "@michalczmiel/recu-darwin-x64": "0.2.2"
+    "@michalczmiel/recu-darwin-x64": "0.2.2",
+    "@michalczmiel/recu-linux-x64": "0.2.2",
+    "@michalczmiel/recu-linux-arm64": "0.2.2"
   },
   "engines": {
     "node": ">=18"

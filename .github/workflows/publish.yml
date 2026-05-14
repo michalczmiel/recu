@@ -1,0 +1,251 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (X.Y.Z, must already be tagged as vX.Y.Z by release.yml)"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: publish-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  TAG: v${{ inputs.version }}
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            npm-target: darwin-arm64
+            runner: macos-latest
+          - target: x86_64-apple-darwin
+            npm-target: darwin-x64
+            runner: macos-latest
+          - target: x86_64-unknown-linux-gnu
+            npm-target: linux-x64
+            runner: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            npm-target: linux-arm64
+            runner: ubuntu-22.04-arm
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Stage npm platform package
+        run: node scripts/build-npm.mjs -t ${{ matrix.npm-target }}
+
+      - name: Create archive
+        id: archive
+        run: |
+          set -euo pipefail
+          name="recu-${TAG}-${{ matrix.target }}"
+          mkdir -p dist staging/$name
+          cp "target/${{ matrix.target }}/release/recu" "staging/$name/recu"
+          cp README.md LICENSE "staging/$name/"
+          tar -C staging -czf "dist/${name}.tar.gz" "$name"
+          (cd dist && shasum -a 256 "${name}.tar.gz" > "${name}.tar.gz.sha256")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload npm platform package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-${{ matrix.npm-target }}
+          path: npm/recu-${{ matrix.npm-target }}
+          if-no-files-found: error
+          retention-days: 7
+
+  github-release:
+    needs: [npm-smoke-test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Download all archive artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: archive-*
+          merge-multiple: true
+          path: dist
+
+      - name: Compute combined SHA256SUMS
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          rm -f SHA256SUMS
+          shasum -a 256 *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd dist
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            --verify-tag \
+            *.tar.gz SHA256SUMS
+
+  npm-smoke-test:
+    name: npm smoke test (${{ matrix.npm-target }})
+    needs: [build]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - npm-target: darwin-arm64
+            runner: macos-latest
+          - npm-target: darwin-x64
+            runner: macos-latest
+          - npm-target: linux-x64
+            runner: ubuntu-22.04
+          - npm-target: linux-arm64
+            runner: ubuntu-22.04-arm
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Download platform package
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-${{ matrix.npm-target }}
+          path: pkg
+
+      - name: Restore executable bit
+        run: chmod +x pkg/bin/recu
+
+      - name: Pack and install locally
+        run: |
+          set -euo pipefail
+          tgz="$(npm pack ./pkg --silent)"
+          mkdir smoke
+          cd smoke
+          npm init -y >/dev/null
+          npm install "../$tgz"
+          ./node_modules/.bin/recu --version
+
+  publish-npm-platform:
+    name: publish npm (${{ matrix.npm-target }})
+    needs: [npm-smoke-test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        npm-target: [darwin-arm64, darwin-x64, linux-x64, linux-arm64]
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download platform package
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-${{ matrix.npm-target }}
+          path: pkg
+
+      - name: Restore executable bit
+        run: chmod +x pkg/bin/recu
+
+      - name: Publish
+        working-directory: pkg
+        run: npm publish --access public --provenance
+
+  publish-npm-main:
+    needs: [publish-npm-platform]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Sync main package version + optionalDependencies
+        run: node scripts/build-npm.mjs
+
+      - name: Publish
+        working-directory: npm/recu
+        run: npm publish --access public --provenance
+
+  publish-crates:
+    needs: [publish-npm-main, github-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+
+      - name: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish --locked

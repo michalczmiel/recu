@@ -24,6 +24,16 @@ const TARGETS = {
     os: "darwin",
     cpu: "x64",
   },
+  "linux-x64": {
+    rustTarget: "x86_64-unknown-linux-gnu",
+    os: "linux",
+    cpu: "x64",
+  },
+  "linux-arm64": {
+    rustTarget: "aarch64-unknown-linux-gnu",
+    os: "linux",
+    cpu: "arm64",
+  },
 };
 
 const VERSION = cargoVersion();

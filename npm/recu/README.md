@@ -13,5 +13,6 @@ The right prebuilt binary is selected automatically via `optionalDependencies` b
 ## Supported platforms
 
 - macOS arm64 (`@michalczmiel/recu-darwin-arm64`)
-
-More platforms coming soon.
+- macOS x64 (`@michalczmiel/recu-darwin-x64`)
+- Linux x64 (`@michalczmiel/recu-linux-x64`)
+- Linux arm64 (`@michalczmiel/recu-linux-arm64`)
