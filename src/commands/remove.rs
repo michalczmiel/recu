@@ -1,6 +1,6 @@
 use clap::Args;
 
-use crate::commands::OutputFormat;
+use crate::commands::{OutputFormat, emit_json};
 use crate::store::Store;
 
 #[derive(Args, Debug)]
@@ -25,10 +25,7 @@ pub fn execute(args: &RemoveArgs, store: &Store) -> std::io::Result<()> {
     let targets: Vec<&str> = args.targets.iter().map(String::as_str).collect();
     let names = store.remove(&targets)?;
     match args.format {
-        OutputFormat::Json => {
-            serde_json::to_writer_pretty(std::io::stdout(), &names)?;
-            println!();
-        }
+        OutputFormat::Json => emit_json(&mut std::io::stdout(), &names)?,
         OutputFormat::Text => {
             for name in names {
                 println!("Removed '{name}'");
@@ -41,25 +38,8 @@ pub fn execute(args: &RemoveArgs, store: &Store) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expense::Expense;
     use crate::test_support;
-
-    fn seed_expenses(store: &Store) {
-        for (name, amount, currency) in [
-            ("Netflix", 9.99, "usd"),
-            ("Spotify", 5.99, "usd"),
-            ("NY Times", 15.99, "eur"),
-        ] {
-            store
-                .save(&Expense {
-                    name: name.to_string(),
-                    amount: Some(amount),
-                    currency: Some(currency.to_string()),
-                    ..Default::default()
-                })
-                .expect("seed save should succeed");
-        }
-    }
+    use crate::test_support::seed_basic as seed_expenses;
 
     fn names_in(store: &Store) -> Vec<String> {
         let mut items = store

@@ -22,10 +22,11 @@ impl Store {
     }
 
     fn snapshot(&self) -> io::Result<()> {
-        if self.path.exists() {
-            fs::copy(&self.path, self.undo_path())?;
+        match fs::copy(&self.path, self.undo_path()) {
+            Ok(_) => Ok(()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e),
         }
-        Ok(())
     }
 
     fn read_seq(&self) -> Option<u64> {
@@ -79,7 +80,6 @@ impl Store {
     }
 
     pub fn save(&self, expense: &Expense) -> io::Result<()> {
-        self.snapshot()?;
         let mut entries = self.list()?;
         if entries
             .iter()
@@ -90,6 +90,7 @@ impl Store {
                 format!("expense '{}' already exists", expense.name),
             ));
         }
+        self.snapshot()?;
         let mut new_entry = expense.clone();
         new_entry.id = self.next_id(&entries);
         entries.push(new_entry);
@@ -106,12 +107,22 @@ impl Store {
         let mut entries = self.list()?;
         let index = resolve_index_in(&entries, target)?;
 
-        if changes.amount.is_none()
-            && changes.currency.is_none()
-            && changes.start_date.is_none()
-            && changes.interval.is_none()
-            && changes.category.is_none()
-            && changes.end_date.is_none()
+        let Expense {
+            id: _,
+            name: _,
+            amount,
+            currency,
+            start_date,
+            interval,
+            category,
+            end_date,
+        } = changes;
+        if amount.is_none()
+            && currency.is_none()
+            && start_date.is_none()
+            && interval.is_none()
+            && category.is_none()
+            && end_date.is_none()
         {
             return Ok(());
         }

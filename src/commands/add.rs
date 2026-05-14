@@ -1,10 +1,10 @@
 use clap::Args;
 
-use crate::commands::{JsonExpense, OutputFormat};
+use crate::commands::{JsonExpense, OutputFormat, emit_json};
 use crate::expense::{Expense, ExpenseInput};
 use crate::prompt::{
-    prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval, prompt_name,
-    render_config,
+    install_render_config, prompt_amount, prompt_category, prompt_currency, prompt_date,
+    prompt_interval, prompt_name,
 };
 use crate::store::Store;
 
@@ -53,7 +53,7 @@ pub fn execute(add: &AddArgs, store: &Store) -> std::io::Result<()> {
             ..Expense::from(&f.fields)
         }
     } else {
-        inquire::set_global_render_config(render_config());
+        install_render_config();
         prompt_fields(f, store)?
     };
 
@@ -62,8 +62,7 @@ pub fn execute(add: &AddArgs, store: &Store) -> std::io::Result<()> {
     match add.format {
         OutputFormat::Json => {
             let saved = store.get(&expense.name)?;
-            serde_json::to_writer_pretty(std::io::stdout(), &JsonExpense::from(&saved))?;
-            println!();
+            emit_json(&mut std::io::stdout(), &JsonExpense::from(&saved))?;
         }
         OutputFormat::Text => println!("Added {}", expense.summary()),
     }

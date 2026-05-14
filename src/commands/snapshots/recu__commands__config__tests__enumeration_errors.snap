@@ -1,7 +1,0 @@
----
-source: src/commands/config.rs
-expression: out
----
-=== unknown config key ===
-invalid config key "foo"; valid: currency
-example: recu config set currency usd

@@ -1,11 +1,10 @@
 use clap::Args;
-use inquire::Select;
 
-use crate::commands::{JsonExpense, OutputFormat};
+use crate::commands::{JsonExpense, OutputFormat, emit_json};
 use crate::expense::{Expense, ExpenseFields};
 use crate::prompt::{
-    inquire_err, prompt_amount, prompt_category, prompt_currency, prompt_date, prompt_interval,
-    render_config,
+    install_render_config, pick, prompt_amount, prompt_category, prompt_currency, prompt_date,
+    prompt_interval,
 };
 use crate::store::Store;
 
@@ -73,9 +72,7 @@ fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<Expense> {
     let mut working = current.clone();
 
     loop {
-        let choice = Select::new("Edit:", menu_items(&working))
-            .prompt_skippable()
-            .map_err(|e| inquire_err(&e))?;
+        let choice = pick("Edit:", menu_items(&working))?;
 
         match choice {
             None => break,
@@ -121,7 +118,7 @@ fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<Expense> {
 
 pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
     let patch = if args.fields == ExpenseFields::default() {
-        inquire::set_global_render_config(render_config());
+        install_render_config();
         let current = store.get(&args.target)?;
         prompt_fields(&current, store)?
     } else {
@@ -131,8 +128,7 @@ pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
     match args.format {
         OutputFormat::Json => {
             let updated = store.get(&args.target)?;
-            serde_json::to_writer_pretty(std::io::stdout(), &JsonExpense::from(&updated))?;
-            println!();
+            emit_json(&mut std::io::stdout(), &JsonExpense::from(&updated))?;
         }
         OutputFormat::Text => println!("Updated '{}'", args.target),
     }
@@ -146,22 +142,7 @@ mod tests {
     use crate::test_support;
     use chrono::NaiveDate;
 
-    fn seed_expenses(store: &Store) {
-        for (name, amount, currency) in [
-            ("Netflix", 9.99, "usd"),
-            ("Spotify", 5.99, "usd"),
-            ("NY Times", 15.99, "eur"),
-        ] {
-            store
-                .save(&Expense {
-                    name: name.to_string(),
-                    amount: Some(amount),
-                    currency: Some(currency.to_string()),
-                    ..Default::default()
-                })
-                .expect("seed save should succeed");
-        }
-    }
+    use test_support::seed_basic as seed_expenses;
 
     fn load(store: &Store, name: &str) -> Expense {
         store

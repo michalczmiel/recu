@@ -4,11 +4,11 @@ use std::io::{self, Write as _};
 use clap::Args;
 
 use crate::config;
+use crate::expense::find_currency;
 use crate::rates;
 use crate::store::Store;
 use crate::ui;
-use colored::Colorize;
-use rusty_money::{Findable, iso};
+use rusty_money::iso;
 
 #[derive(Args, Debug, Default)]
 pub struct TreemapArgs {
@@ -332,16 +332,7 @@ fn render(tiles: &[Tile], cols: usize, rows: usize) {
     let mut out = io::BufWriter::new(stdout.lock());
     for row in &grid {
         for px in row {
-            let (br, bg, bb) = px.bg;
-            let (fr, fg, fb) = px.fg;
-            let _ = write!(
-                out,
-                "{}",
-                px.ch
-                    .to_string()
-                    .truecolor(fr, fg, fb)
-                    .on_truecolor(br, bg, bb)
-            );
+            let _ = write!(out, "{}", ui::truecolor_pixel(px.ch, px.fg, px.bg));
         }
         let _ = writeln!(out);
     }
@@ -376,10 +367,9 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     let cfg = config::load()?;
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
-    let target_cur: Option<&'static iso::Currency> = target.and_then(iso::Currency::find);
+    let target_cur: Option<&'static iso::Currency> = target.and_then(find_currency);
 
     let mut category_colors: HashMap<String, (u8, u8, u8)> = HashMap::new();
-    let mut next_color_idx = 0usize;
 
     let mut items: Vec<Item> = expenses
         .into_iter()
@@ -405,11 +395,10 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
             // Assign consistent colors per category so the same category always
             // gets the same color regardless of sort order or item count.
             let key = expense.category.clone().unwrap_or_default();
-            category_colors.entry(key).or_insert_with(|| {
-                let color = PALETTE[next_color_idx % PALETTE.len()];
-                next_color_idx += 1;
-                color
-            });
+            let next_idx = category_colors.len();
+            category_colors
+                .entry(key)
+                .or_insert(PALETTE[next_idx % PALETTE.len()]);
             Some(Item {
                 name: expense.name,
                 monthly: interval.to_monthly(converted),

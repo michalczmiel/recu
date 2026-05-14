@@ -8,11 +8,10 @@ use crate::store::Store;
 use crate::ui;
 use chrono::{Datelike, Months, NaiveDate, Weekday};
 use clap::Args;
-use colored::Colorize;
 use rusty_money::iso;
 use serde::Serialize;
 
-use crate::commands::OutputFormat;
+use crate::commands::{OutputFormat, emit_json};
 
 const CELL_WIDTH: usize = 7;
 
@@ -171,9 +170,9 @@ struct DayState {
 fn day_cell(day: u32, state: DayState) -> String {
     let base = format!("{day:>CELL_WIDTH$}");
     if state.is_today {
-        base.yellow().bold().to_string()
+        ui::today_cell(&base).to_string()
     } else if state.is_past {
-        base.dimmed().to_string()
+        ui::dim(&base).to_string()
     } else {
         base
     }
@@ -193,9 +192,9 @@ fn amount_cell(cell: Option<&DayCell>, state: DayState) -> String {
     let combined = format!("{amt}{badge}");
     let padded = format!("{combined:>CELL_WIDTH$}");
     if state.is_past {
-        padded.dimmed().bold().to_string()
+        ui::past_charge(&padded).to_string()
     } else {
-        padded.cyan().bold().to_string()
+        ui::charge(&padded).to_string()
     }
 }
 
@@ -463,8 +462,7 @@ fn execute_json(
         days,
     };
 
-    serde_json::to_writer_pretty(&mut *out, &envelope)?;
-    writeln!(out)
+    emit_json(out, &envelope)
 }
 
 pub(crate) fn execute_with(

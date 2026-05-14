@@ -3,10 +3,8 @@ use std::io::Write;
 
 use chrono::NaiveDate;
 use clap::Args;
-use colored::Colorize;
 
-use crate::commands::JsonExpense;
-use crate::commands::OutputFormat;
+use crate::commands::{JsonExpense, OutputFormat, emit_json};
 
 use crate::config::{self, Config};
 use crate::ui;
@@ -36,7 +34,7 @@ fn colorize_row(row: &[String], status: &DueStatus) -> Vec<String> {
         .enumerate()
         .map(|(i, cell)| match i {
             0 => ui::dim(cell).to_string(),
-            1 => ui::due(status, &cell.bold().to_string()).to_string(),
+            1 => ui::due(status, &ui::bold(cell).to_string()).to_string(),
             2 => match cell.rfind('/') {
                 Some(idx) => {
                     let (head, tail) = cell.split_at(idx);
@@ -301,8 +299,7 @@ fn execute_json(
         .filter(|e| expense::matches_categories(e, categories))
         .filter(|e| all || !e.is_ended(today));
     let view: Vec<JsonExpense<'_>> = visible.map(JsonExpense::from).collect();
-    serde_json::to_writer_pretty(&mut *out, &view)?;
-    writeln!(out)
+    emit_json(out, &view)
 }
 
 pub fn execute(args: &ListArgs, store: &Store) -> std::io::Result<()> {

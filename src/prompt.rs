@@ -14,10 +14,21 @@ pub fn inquire_err(e: &inquire::InquireError) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::Interrupted, e.to_string())
 }
 
-pub fn render_config() -> RenderConfig<'static> {
+fn render_config() -> RenderConfig<'static> {
     RenderConfig::default_colored()
         .with_prompt_prefix(Styled::new("›").with_fg(Color::LightCyan))
         .with_answered_prompt_prefix(Styled::new("✓").with_fg(Color::LightGreen))
+}
+
+pub fn install_render_config() {
+    inquire::set_global_render_config(render_config());
+}
+
+/// Single-pick menu over a list of items (skippable with Esc).
+pub fn pick<T: std::fmt::Display>(label: &str, items: Vec<T>) -> std::io::Result<Option<T>> {
+    Select::new(label, items)
+        .prompt_skippable()
+        .map_err(|e| inquire_err(&e))
 }
 
 #[derive(Clone)]

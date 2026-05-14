@@ -2,12 +2,10 @@
 
 use std::io;
 
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 
 use crate::config;
 use crate::expense::normalize_currency;
-
-pub const VALID_CONFIG_KEYS: &[&str] = &["currency"];
 
 #[derive(Subcommand, Debug)]
 pub enum ConfigCommand {
@@ -23,26 +21,16 @@ pub enum ConfigCommand {
   recu config set currency eur")]
 pub struct ConfigSetArgs {
     /// Configuration key to set
-    #[arg(value_parser = parse_config_key)]
+    #[arg(value_enum)]
     pub key: ConfigKey,
     /// Value to assign
     pub value: String,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum ConfigKey {
     /// Display currency for expense conversion (ISO 4217 code, e.g. USD)
     Currency,
-}
-
-pub fn parse_config_key(s: &str) -> Result<ConfigKey, String> {
-    match s.trim().to_lowercase().as_str() {
-        "currency" => Ok(ConfigKey::Currency),
-        other => Err(format!(
-            "invalid config key \"{other}\"; valid: {}\nexample: recu config set currency usd",
-            VALID_CONFIG_KEYS.join(", ")
-        )),
-    }
 }
 
 pub fn run(cmd: &ConfigCommand) -> io::Result<()> {
@@ -66,17 +54,4 @@ pub fn run(cmd: &ConfigCommand) -> io::Result<()> {
         },
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn enumeration_errors() {
-        let mut out = String::new();
-        out += "=== unknown config key ===\n";
-        out += &parse_config_key("foo").expect_err("foo is not a config key");
-        insta::assert_snapshot!(out);
-    }
 }

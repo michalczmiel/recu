@@ -90,3 +90,20 @@ pub fn snapshot_no_ansi() -> insta::internals::SettingsBindDropGuard {
     s.add_filter(r"\x1b\[[0-9;]*m", "");
     s.bind_to_scope()
 }
+
+pub fn seed_basic(store: &Store) {
+    for (name, amount, currency) in [
+        ("Netflix", 9.99, "usd"),
+        ("Spotify", 5.99, "usd"),
+        ("NY Times", 15.99, "eur"),
+    ] {
+        store
+            .save(&Expense {
+                name: name.to_string(),
+                amount: Some(amount),
+                currency: Some(currency.to_string()),
+                ..Default::default()
+            })
+            .expect("seed save should succeed");
+    }
+}

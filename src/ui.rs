@@ -65,12 +65,37 @@ pub fn dim(s: &str) -> ColoredString {
     s.dimmed()
 }
 
+pub fn bold(s: &str) -> ColoredString {
+    s.bold()
+}
+
 pub fn heading(s: &str) -> ColoredString {
     s.bold()
 }
 
 pub fn error_label(s: &str) -> ColoredString {
     s.red().bold()
+}
+
+/// Calendar cell styling: today, past day, current/future charge, past charge.
+pub fn today_cell(s: &str) -> ColoredString {
+    s.yellow().bold()
+}
+
+pub fn charge(s: &str) -> ColoredString {
+    s.cyan().bold()
+}
+
+pub fn past_charge(s: &str) -> ColoredString {
+    s.dimmed().bold()
+}
+
+/// Render a single character with truecolor foreground over truecolor background.
+pub fn truecolor_pixel(ch: char, fg: (u8, u8, u8), bg: (u8, u8, u8)) -> String {
+    ch.to_string()
+        .truecolor(fg.0, fg.1, fg.2)
+        .on_truecolor(bg.0, bg.1, bg.2)
+        .to_string()
 }
 
 /// Apply the color (not weight) associated with a due status.

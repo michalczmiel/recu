@@ -1,3 +1,5 @@
+use std::io::{self, Write};
+
 use chrono::NaiveDate;
 use clap::ValueEnum;
 use serde::Serialize;
@@ -38,6 +40,11 @@ pub(crate) struct JsonExpense<'a> {
     pub category: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_date: Option<NaiveDate>,
+}
+
+pub(crate) fn emit_json<T: Serialize>(out: &mut impl Write, value: &T) -> io::Result<()> {
+    serde_json::to_writer_pretty(&mut *out, value)?;
+    writeln!(out)
 }
 
 impl<'a> From<&'a Expense> for JsonExpense<'a> {
