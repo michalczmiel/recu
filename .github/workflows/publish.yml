@@ -44,7 +44,7 @@ jobs:
     env:
       MACOSX_DEPLOYMENT_TARGET: "11.0"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ env.TAG }}
 
@@ -75,7 +75,7 @@ jobs:
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - name: Upload archive artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: archive-${{ matrix.target }}
           path: dist/*
@@ -83,7 +83,7 @@ jobs:
           retention-days: 7
 
       - name: Upload npm platform package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: npm-${{ matrix.npm-target }}
           path: npm/recu-${{ matrix.npm-target }}
@@ -97,12 +97,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ env.TAG }}
 
       - name: Download all archive artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: archive-*
           merge-multiple: true
@@ -148,7 +148,7 @@ jobs:
           - npm-target: linux-arm64
             runner: ubuntu-22.04-arm
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ env.TAG }}
 
@@ -157,7 +157,7 @@ jobs:
           node-version: "24"
 
       - name: Download platform package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: npm-${{ matrix.npm-target }}
           path: pkg
@@ -199,7 +199,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Download platform package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: npm-${{ matrix.npm-target }}
           path: pkg
@@ -221,7 +221,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ env.TAG }}
 
@@ -247,7 +247,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ env.TAG }}
 
