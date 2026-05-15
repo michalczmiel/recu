@@ -124,10 +124,9 @@ pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
     } else {
         Expense::from(&args.fields)
     };
-    store.update(&args.target, &patch)?;
+    let updated = store.update(&args.target, &patch)?;
     match args.format {
         OutputFormat::Json => {
-            let updated = store.get(&args.target)?;
             emit_json(&mut std::io::stdout(), &JsonExpense::from(&updated))?;
         }
         OutputFormat::Text => println!("Updated '{}'", args.target),

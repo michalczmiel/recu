@@ -103,12 +103,12 @@ impl Store {
         Ok(entries.swap_remove(index))
     }
 
-    pub fn update(&self, target: &str, changes: &Expense) -> io::Result<()> {
+    pub fn update(&self, target: &str, changes: &Expense) -> io::Result<Expense> {
         let mut entries = self.list()?;
         let index = resolve_index_in(&entries, target)?;
 
         if *changes == Expense::default() {
-            return Ok(());
+            return Ok(entries.swap_remove(index));
         }
 
         self.snapshot()?;
@@ -133,7 +133,9 @@ impl Store {
             .cloned();
         expense.end_date = changes.end_date.or(expense.end_date);
 
-        self.write_all(&entries)
+        let updated = expense.clone();
+        self.write_all(&entries)?;
+        Ok(updated)
     }
 
     pub fn rename(&self, target: &str, new_name: &str) -> io::Result<()> {
