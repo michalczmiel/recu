@@ -22,19 +22,8 @@ pub fn execute(args: &RenameArgs, store: &Store) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expense::Expense;
     use crate::test_support;
-
-    fn seed(store: &Store) {
-        for name in ["Netflix", "Spotify"] {
-            store
-                .save(&Expense {
-                    name: name.to_string(),
-                    ..Default::default()
-                })
-                .expect("seed save should succeed");
-        }
-    }
+    use crate::test_support::seed_basic as seed_expenses;
 
     fn names(store: &Store) -> Vec<String> {
         store
@@ -48,7 +37,7 @@ mod tests {
     #[test]
     fn rename_by_name() {
         let store = test_support::store();
-        seed(&store);
+        seed_expenses(&store);
         execute(
             &RenameArgs {
                 target: "Netflix".into(),
@@ -65,7 +54,7 @@ mod tests {
     #[test]
     fn rename_by_id() {
         let store = test_support::store();
-        seed(&store);
+        seed_expenses(&store);
         execute(
             &RenameArgs {
                 target: "@1".into(),
@@ -80,7 +69,7 @@ mod tests {
     #[test]
     fn rename_to_existing_name_errors() {
         let store = test_support::store();
-        seed(&store);
+        seed_expenses(&store);
         assert!(
             execute(
                 &RenameArgs {
@@ -96,7 +85,7 @@ mod tests {
     #[test]
     fn rename_nonexistent_errors() {
         let store = test_support::store();
-        seed(&store);
+        seed_expenses(&store);
         assert!(
             execute(
                 &RenameArgs {
