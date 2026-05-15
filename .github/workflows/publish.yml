@@ -200,6 +200,8 @@ jobs:
 
       - name: Publish
         working-directory: pkg
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --provenance
 
   publish-npm-main:
@@ -224,6 +226,8 @@ jobs:
 
       - name: Publish
         working-directory: npm/recu
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --provenance
 
   publish-crates:
