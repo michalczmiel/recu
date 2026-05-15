@@ -16,16 +16,20 @@ pub enum Interval {
 
 impl std::fmt::Display for Interval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Interval::Weekly => write!(f, "weekly"),
-            Interval::Monthly => write!(f, "monthly"),
-            Interval::Quarterly => write!(f, "quarterly"),
-            Interval::Yearly => write!(f, "yearly"),
-        }
+        f.write_str(self.name())
     }
 }
 
 impl Interval {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Interval::Weekly => "weekly",
+            Interval::Monthly => "monthly",
+            Interval::Quarterly => "quarterly",
+            Interval::Yearly => "yearly",
+        }
+    }
+
     pub fn short(&self) -> &'static str {
         match self {
             Interval::Weekly => "wk",

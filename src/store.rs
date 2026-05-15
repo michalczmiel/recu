@@ -107,23 +107,7 @@ impl Store {
         let mut entries = self.list()?;
         let index = resolve_index_in(&entries, target)?;
 
-        let Expense {
-            id: _,
-            name: _,
-            amount,
-            currency,
-            start_date,
-            interval,
-            category,
-            end_date,
-        } = changes;
-        if amount.is_none()
-            && currency.is_none()
-            && start_date.is_none()
-            && interval.is_none()
-            && category.is_none()
-            && end_date.is_none()
-        {
+        if *changes == Expense::default() {
             return Ok(());
         }
 
