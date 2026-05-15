@@ -148,6 +148,10 @@ jobs:
           - npm-target: linux-arm64
             runner: ubuntu-22.04-arm
     steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
@@ -161,14 +165,19 @@ jobs:
       - name: Restore executable bit
         run: chmod +x pkg/bin/recu
 
+      - name: Sync main package version
+        run: node scripts/build-npm.mjs
+
       - name: Pack and install locally
         run: |
           set -euo pipefail
-          tgz="$(npm pack ./pkg --silent)"
+          platform_tgz="$(npm pack ./pkg --silent)"
+          main_tgz="$(cd npm/recu && npm pack --silent)"
+          mv "npm/recu/$main_tgz" .
           mkdir smoke
           cd smoke
           npm init -y >/dev/null
-          npm install "../$tgz"
+          npm install --include=optional "../$platform_tgz" "../$main_tgz"
           ./node_modules/.bin/recu --version
 
   publish-npm-platform:
