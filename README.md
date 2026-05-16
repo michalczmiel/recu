@@ -50,6 +50,10 @@ npm install -g @michalczmiel/recu
 cargo install recu
 ```
 
+```sh
+cargo binstall recu
+```
+
 ## Tips
 
 ### Version your data
