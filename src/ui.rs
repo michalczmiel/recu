@@ -79,6 +79,21 @@ pub fn print_amount_range_notice(out: &mut impl Write, hidden: usize) -> std::io
     Ok(())
 }
 
+/// Writes a dim footer line when `hidden` ended expenses are not shown;
+/// a no-op when nothing is hidden. `command` is the recu subcommand used
+/// to reveal them, e.g. "list" or "calendar".
+pub fn print_ended_notice(
+    out: &mut impl Write,
+    hidden: usize,
+    command: &str,
+) -> std::io::Result<()> {
+    if hidden > 0 {
+        let line = dim(&format!("+ {hidden} ended (recu {command} --all)"));
+        writeln!(out, "{line}")?;
+    }
+    Ok(())
+}
+
 pub fn bold(s: &str) -> ColoredString {
     s.bold()
 }

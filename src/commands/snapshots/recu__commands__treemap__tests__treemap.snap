@@ -75,5 +75,28 @@ No recurring expenses found.
 === no expenses match category ===
 No expenses with amount and interval set.
 
+=== ended expenses hidden ===
+┌───────────────────────────────────────────┐┌─────────────┐
+│Rent                                       ││Streaming    │
+│4766 zł/mo                                 ││1206 zł/mo   │
+│57192 zł/yr                                ││14472 zł/yr  │
+│                                           ││             │
+│                                           ││             │
+│                                           ││             │
+│                                           ││             │
+│                                           ││             │
+│                                           ││             │
+│                                           ││             │
+│                                           ││             │
+│                                           ││             │
+│                                           ││             │
+│                                           ││             │
+│                                           │└─────────────┘
+│                                           │┌────────┐ ┌──┐
+│                                           ││Phone   │ │G…│
+│                                           ││230 zł/…│ │  │
+└───────────────────────────────────────────┘└────────┘ └──┘
++ 1 ended (recu treemap --all)
+
 === no expenses match amount range ===
 No expenses match the monthly amount range.

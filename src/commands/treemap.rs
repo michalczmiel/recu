@@ -406,6 +406,16 @@ pub(crate) fn execute_with(
         target,
     );
 
+    let hidden_ended = if all {
+        0
+    } else {
+        expenses
+            .iter()
+            .filter(|e| crate::expense::matches_categories(e, categories))
+            .filter(|e| e.is_ended(today))
+            .count()
+    };
+
     let mut items: Vec<Item> = expenses
         .into_iter()
         .filter(|expense| all || !expense.is_ended(today))
@@ -495,6 +505,7 @@ pub(crate) fn execute_with(
         .collect();
 
     render(out, &tiles, cols, rows)?;
+    ui::print_ended_notice(out, hidden_ended, "treemap")?;
     ui::print_amount_range_notice(out, hidden_amount)?;
     Ok(())
 }
@@ -588,6 +599,13 @@ mod tests {
         ]
     }
 
+    fn ended_expense(name: &str, monthly: f64, category: &str) -> crate::expense::Expense {
+        crate::expense::Expense {
+            end_date: chrono::NaiveDate::from_ymd_opt(2026, 4, 1),
+            ..expense(name, monthly, category)
+        }
+    }
+
     #[test]
     fn treemap() {
         let mut s = insta::Settings::clone_current();
@@ -628,6 +646,13 @@ mod tests {
             &["missing".to_string()],
             AmountRange::default(),
         );
+
+        out += "\n=== ended expenses hidden ===\n";
+        {
+            let mut with_ended = sample();
+            with_ended.push(ended_expense("Old Service", 50.0, "fun"));
+            out += &run(with_ended, false, &[], AmountRange::default());
+        }
 
         out += "\n=== no expenses match amount range ===\n";
         out += &run(

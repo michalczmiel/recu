@@ -287,13 +287,8 @@ pub(crate) fn execute_with(
     print_totals(out, &totals, target_cur, active.len())?;
     print_category_breakdown(out, &active, exchange_rates.as_ref(), target, target_cur)?;
 
-    if !all && !ended.is_empty() {
-        writeln!(
-            out,
-            "{}",
-            ui::dim(&format!("+ {} ended (recu list --all)", ended.len()))
-        )?;
-    }
+    let hidden_ended = if all { 0 } else { ended.len() };
+    ui::print_ended_notice(out, hidden_ended, "list")?;
 
     ui::print_amount_range_notice(out, hidden_amount)?;
 

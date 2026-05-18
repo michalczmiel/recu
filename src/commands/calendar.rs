@@ -317,13 +317,7 @@ fn print_footer(
         writeln!(out, "{}", ui::heading(&line))?;
     }
 
-    if hidden_ended > 0 {
-        writeln!(
-            out,
-            "{}",
-            ui::dim(&format!("+ {hidden_ended} ended (recu calendar --all)"))
-        )?;
-    }
+    ui::print_ended_notice(out, hidden_ended, "calendar")?;
 
     ui::print_amount_range_notice(out, hidden_amount)?;
     Ok(())
