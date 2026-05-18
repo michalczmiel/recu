@@ -373,6 +373,45 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     )
 }
 
+fn make_tiles(
+    items: &[Item],
+    cols: usize,
+    rows: usize,
+    category_colors: &std::collections::HashMap<String, (u8, u8, u8)>,
+) -> Vec<Tile> {
+    #[allow(clippy::cast_precision_loss)]
+    let logical_w = cols as f64;
+    #[allow(clippy::cast_precision_loss)]
+    let logical_h = rows as f64 * CHAR_ASPECT;
+
+    let sizes: Vec<f64> = items.iter().map(|it| it.monthly).collect();
+
+    let rects = squarify(&sizes, logical_w, logical_h);
+
+    items
+        .iter()
+        .zip(rects)
+        .map(|(it, r)| {
+            let key = it.category.clone().unwrap_or_default();
+            let color = category_colors[&key];
+            Tile {
+                name: it.name.clone(),
+                monthly: it.monthly,
+                yearly: it.monthly * 12.0,
+                symbol: it.symbol.clone(),
+                symbol_first: it.symbol_first,
+                rect: Rect {
+                    left: r.left,
+                    top: r.top / CHAR_ASPECT,
+                    width: r.width,
+                    height: r.height / CHAR_ASPECT,
+                },
+                color,
+            }
+        })
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn execute_with(
     out: &mut impl Write,
@@ -472,37 +511,7 @@ pub(crate) fn execute_with(
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let sizes: Vec<f64> = items.iter().map(|it| it.monthly).collect();
-
-    #[allow(clippy::cast_precision_loss)]
-    let logical_w = cols as f64;
-    #[allow(clippy::cast_precision_loss)]
-    let logical_h = rows as f64 * CHAR_ASPECT;
-
-    let rects = squarify(&sizes, logical_w, logical_h);
-
-    let tiles: Vec<Tile> = items
-        .into_iter()
-        .zip(rects)
-        .map(|(it, r)| {
-            let key = it.category.unwrap_or_default();
-            let color = category_colors[&key];
-            Tile {
-                name: it.name,
-                monthly: it.monthly,
-                yearly: it.monthly * 12.0,
-                symbol: it.symbol,
-                symbol_first: it.symbol_first,
-                rect: Rect {
-                    left: r.left,
-                    top: r.top / CHAR_ASPECT,
-                    width: r.width,
-                    height: r.height / CHAR_ASPECT,
-                },
-                color,
-            }
-        })
-        .collect();
+    let tiles = make_tiles(&items, cols, rows, &category_colors);
 
     render(out, &tiles, cols, rows)?;
     ui::print_ended_notice(out, hidden_ended, "treemap")?;
