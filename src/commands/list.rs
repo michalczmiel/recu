@@ -4,7 +4,7 @@ use std::io::Write;
 use chrono::NaiveDate;
 use clap::Args;
 
-use crate::commands::{JsonExpense, OutputFormat, emit_json};
+use crate::commands::{Filters, JsonExpense, OutputFormat, emit_json};
 
 use crate::config::{self, Config};
 use crate::ui;
@@ -12,19 +12,16 @@ use rusty_money::iso;
 
 #[derive(Args, Debug, Default)]
 pub struct ListArgs {
-    /// Include ended expenses
-    #[arg(short, long)]
-    pub all: bool,
-    /// Filter by category (case-insensitive); comma-separated for multiple
-    #[arg(short, long, value_delimiter = ',')]
-    pub category: Vec<String>,
+    #[command(flatten)]
+    pub filters: Filters,
     /// Output format
     #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
     pub format: OutputFormat,
 }
 
 use crate::expense::{
-    self, DueStatus, Expense, RecurringTotals, find_currency, format_amount, format_expense_amount,
+    self, AmountRange, DueStatus, Expense, RecurringTotals, find_currency, format_amount,
+    format_expense_amount,
 };
 use crate::rates;
 use crate::store::Store;
@@ -217,6 +214,7 @@ pub(crate) fn execute_with(
     expenses: &[Expense],
     all: bool,
     categories: &[String],
+    amount: AmountRange,
 ) -> std::io::Result<()> {
     if expenses.is_empty() {
         writeln!(
@@ -233,9 +231,21 @@ pub(crate) fn execute_with(
         .or_else(|| expense::uniform_currency(expenses));
 
     let by_due = |e: &&Expense| e.days_until_next(today).unwrap_or(i64::MAX);
-    let (mut active, mut ended): (Vec<&Expense>, Vec<&Expense>) = expenses
+    let cat_matched: Vec<&Expense> = expenses
         .iter()
         .filter(|e| expense::matches_categories(e, categories))
+        .collect();
+    let hidden_amount = amount.count_hidden(
+        cat_matched.iter().copied(),
+        today,
+        all,
+        exchange_rates.as_ref(),
+        target,
+    );
+    let (mut active, mut ended): (Vec<&Expense>, Vec<&Expense>) = cat_matched
+        .iter()
+        .copied()
+        .filter(|e| amount.matches(e, exchange_rates.as_ref(), target))
         .partition(|e| !e.is_ended(today));
     active.sort_by_key(by_due);
     ended.sort_by_key(by_due);
@@ -246,14 +256,15 @@ pub(crate) fn execute_with(
     }
 
     if visible.is_empty() {
-        if categories.is_empty() {
+        let unfiltered = categories.is_empty() && amount.is_unbounded();
+        if unfiltered {
             writeln!(
                 out,
                 "All {} expenses are ended. Run 'recu list --all' to view them.",
                 ended.len()
             )?;
         } else {
-            writeln!(out, "No expenses match category filter.")?;
+            writeln!(out, "No expenses match the current filters.")?;
         }
         return Ok(());
     }
@@ -276,13 +287,10 @@ pub(crate) fn execute_with(
     print_totals(out, &totals, target_cur, active.len())?;
     print_category_breakdown(out, &active, exchange_rates.as_ref(), target, target_cur)?;
 
-    if !all && !ended.is_empty() {
-        writeln!(
-            out,
-            "{}",
-            ui::dim(&format!("+ {} ended (recu list --all)", ended.len()))
-        )?;
-    }
+    let hidden_ended = if all { 0 } else { ended.len() };
+    ui::print_ended_notice(out, hidden_ended, "list")?;
+
+    ui::print_amount_range_notice(out, hidden_amount)?;
 
     Ok(())
 }
@@ -290,13 +298,18 @@ pub(crate) fn execute_with(
 fn execute_json(
     out: &mut impl Write,
     today: NaiveDate,
+    cfg: &Config,
     expenses: &[Expense],
     all: bool,
     categories: &[String],
+    amount: AmountRange,
 ) -> std::io::Result<()> {
+    let target: Option<&str> = cfg.currency.as_deref();
+    let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let visible = expenses
         .iter()
         .filter(|e| expense::matches_categories(e, categories))
+        .filter(|e| amount.matches(e, exchange_rates.as_ref(), target))
         .filter(|e| all || !e.is_ended(today));
     let view: Vec<JsonExpense<'_>> = visible.map(JsonExpense::from).collect();
     emit_json(out, &view)
@@ -306,11 +319,27 @@ pub fn execute(args: &ListArgs, store: &Store) -> std::io::Result<()> {
     let expenses = store.list()?;
     let cfg = config::load()?;
     let today = chrono::Local::now().date_naive();
-    let categories = crate::commands::category::resolve_filter(&args.category, store)?;
+    let categories = crate::commands::category::resolve_filter(&args.filters.category, store)?;
     let mut out = std::io::stdout();
     match args.format {
-        OutputFormat::Json => execute_json(&mut out, today, &expenses, args.all, &categories),
-        OutputFormat::Text => execute_with(&mut out, today, &cfg, &expenses, args.all, &categories),
+        OutputFormat::Json => execute_json(
+            &mut out,
+            today,
+            &cfg,
+            &expenses,
+            args.filters.all,
+            &categories,
+            args.filters.amount,
+        ),
+        OutputFormat::Text => execute_with(
+            &mut out,
+            today,
+            &cfg,
+            &expenses,
+            args.filters.all,
+            &categories,
+            args.filters.amount,
+        ),
     }
 }
 
@@ -341,8 +370,39 @@ mod tests {
                 ..e.clone()
             })
             .collect();
-        execute_with(&mut buf, today(), &Config::default(), &with_ids, all, &[])
-            .expect("execute_with");
+        execute_with(
+            &mut buf,
+            today(),
+            &Config::default(),
+            &with_ids,
+            all,
+            &[],
+            AmountRange::default(),
+        )
+        .expect("execute_with");
+        String::from_utf8(buf).expect("utf8")
+    }
+
+    fn run_amount(expenses: &[Expense], all: bool, amount: AmountRange) -> String {
+        let mut buf = Vec::new();
+        let with_ids: Vec<Expense> = expenses
+            .iter()
+            .enumerate()
+            .map(|(i, e)| Expense {
+                id: (i as u64) + 1,
+                ..e.clone()
+            })
+            .collect();
+        execute_with(
+            &mut buf,
+            today(),
+            &Config::default(),
+            &with_ids,
+            all,
+            &[],
+            amount,
+        )
+        .expect("execute_with");
         String::from_utf8(buf).expect("utf8")
     }
 
@@ -452,6 +512,31 @@ mod tests {
             end_date: Some(d(2026, 4, 5)),
             ..monthly_usd("OldGym", 30.00, d(2025, 1, 1))
         }]);
+
+        // --min hides cheaper expenses, footer reports how many
+        out += "\n=== amount range hides cheaper rows ===\n";
+        out += &run_amount(
+            &[
+                monthly_usd("Netflix", 15.99, d(2026, 5, 1)),
+                monthly_usd("Spotify", 9.99, d(2026, 5, 15)),
+            ],
+            false,
+            AmountRange {
+                min: Some(12.0),
+                max: None,
+            },
+        );
+
+        // --all + amount range → ended rows outside the range are counted too
+        out += "\n=== amount range counts ended rows under --all ===\n";
+        out += &run_amount(
+            &with_ended,
+            true,
+            AmountRange {
+                min: Some(40.0),
+                max: None,
+            },
+        );
 
         insta::assert_snapshot!(out);
     }

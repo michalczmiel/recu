@@ -369,6 +369,70 @@ impl RecurringTotals {
     }
 }
 
+/// Monthly cost of `expense` converted to `target`, or `None` when it lacks
+/// an amount or interval.
+pub fn monthly_amount(
+    expense: &Expense,
+    rates: Option<&HashMap<String, f64>>,
+    target: Option<&str>,
+) -> Option<f64> {
+    let amount = expense.amount?;
+    let interval = expense.interval.as_ref()?;
+    Some(interval.to_monthly(convert(amount, expense.currency.as_deref(), rates, target)))
+}
+
+/// Filter expenses by their monthly cost (in the display currency).
+#[derive(Args, Debug, Default, Clone, Copy)]
+pub struct AmountRange {
+    /// Only show expenses costing at least this much per month
+    #[arg(long)]
+    pub min: Option<f64>,
+    /// Only show expenses costing at most this much per month
+    #[arg(long)]
+    pub max: Option<f64>,
+}
+
+impl AmountRange {
+    /// `true` when no bounds are set, so every expense passes.
+    pub fn is_unbounded(&self) -> bool {
+        self.min.is_none() && self.max.is_none()
+    }
+
+    /// `true` if `value` lies within `[min, max]`; `None` bounds are open.
+    pub fn contains(&self, value: f64) -> bool {
+        self.min.is_none_or(|lo| value >= lo) && self.max.is_none_or(|hi| value <= hi)
+    }
+
+    /// `true` if `expense`'s monthly cost lies within the range. Expenses
+    /// without a computable monthly cost are excluded once any bound is set.
+    pub fn matches(
+        &self,
+        expense: &Expense,
+        rates: Option<&HashMap<String, f64>>,
+        target: Option<&str>,
+    ) -> bool {
+        self.is_unbounded()
+            || monthly_amount(expense, rates, target).is_some_and(|m| self.contains(m))
+    }
+
+    /// Counts `expenses` hidden because they fall outside the range. Ended
+    /// expenses are skipped unless `all` is set, matching what the caller
+    /// actually displays.
+    pub fn count_hidden<'a>(
+        &self,
+        expenses: impl Iterator<Item = &'a Expense>,
+        today: NaiveDate,
+        all: bool,
+        rates: Option<&HashMap<String, f64>>,
+        target: Option<&str>,
+    ) -> usize {
+        expenses
+            .filter(|e| all || !e.is_ended(today))
+            .filter(|e| !self.matches(e, rates, target))
+            .count()
+    }
+}
+
 /// `true` if `expense`'s category matches any of `filters` (case-insensitive).
 /// Empty `filters` matches everything.
 pub fn matches_categories(expense: &Expense, filters: &[String]) -> bool {

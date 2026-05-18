@@ -2,7 +2,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
 
 use crate::config::{self, Config};
-use crate::expense::{self, Expense, convert, find_currency, format_amount, round_money};
+use crate::expense::{
+    self, AmountRange, Expense, convert, find_currency, format_amount, round_money,
+};
 use crate::rates;
 use crate::store::Store;
 use crate::ui;
@@ -11,7 +13,7 @@ use clap::Args;
 use rusty_money::iso;
 use serde::Serialize;
 
-use crate::commands::{OutputFormat, emit_json};
+use crate::commands::{Filters, OutputFormat, emit_json};
 
 const CELL_WIDTH: usize = 7;
 
@@ -27,12 +29,8 @@ pub struct CalendarArgs {
     /// Show a specific month (YYYY-MM)
     #[arg(long, value_name = "YYYY-MM", value_parser = parse_month)]
     pub month: Option<NaiveDate>,
-    /// Include ended expenses
-    #[arg(short, long)]
-    pub all: bool,
-    /// Filter by category (case-insensitive); comma-separated for multiple
-    #[arg(short, long, value_delimiter = ',')]
-    pub category: Vec<String>,
+    #[command(flatten)]
+    pub filters: Filters,
     /// Output format
     #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
     pub format: OutputFormat,
@@ -295,6 +293,7 @@ fn print_footer(
     month: NaiveDate,
     today: NaiveDate,
     hidden_ended: usize,
+    hidden_amount: usize,
 ) -> std::io::Result<()> {
     let count: u32 = by_day.values().map(|c| c.count).sum();
     let total: f64 = by_day.values().map(|c| c.total).sum();
@@ -318,13 +317,9 @@ fn print_footer(
         writeln!(out, "{}", ui::heading(&line))?;
     }
 
-    if hidden_ended > 0 {
-        writeln!(
-            out,
-            "{}",
-            ui::dim(&format!("+ {hidden_ended} ended (recu calendar --all)"))
-        )?;
-    }
+    ui::print_ended_notice(out, hidden_ended, "calendar")?;
+
+    ui::print_amount_range_notice(out, hidden_amount)?;
     Ok(())
 }
 
@@ -359,6 +354,7 @@ struct CalendarData {
     by_day: BTreeMap<NaiveDate, Vec<Charge>>,
     target_cur: Option<&'static iso::Currency>,
     hidden_ended: usize,
+    hidden_amount: usize,
 }
 
 fn prepare(
@@ -368,6 +364,7 @@ fn prepare(
     month: NaiveDate,
     all: bool,
     categories: &[String],
+    amount: AmountRange,
 ) -> std::io::Result<CalendarData> {
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
@@ -375,11 +372,12 @@ fn prepare(
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
 
-    let matching = || {
+    let cat_matching = || {
         expenses
             .iter()
             .filter(|e| expense::matches_categories(e, categories))
     };
+    let matching = || cat_matching().filter(|e| amount.matches(e, exchange_rates.as_ref(), target));
 
     let by_day = charges_for_month(
         matching(),
@@ -396,10 +394,14 @@ fn prepare(
         matching().filter(|e| e.is_ended(today)).count()
     };
 
+    let hidden_amount =
+        amount.count_hidden(cat_matching(), today, all, exchange_rates.as_ref(), target);
+
     Ok(CalendarData {
         by_day,
         target_cur,
         hidden_ended,
+        hidden_amount,
     })
 }
 
@@ -407,6 +409,7 @@ fn is_current_month(today: NaiveDate, month: NaiveDate) -> bool {
     today.year() == month.year() && today.month() == month.month()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn execute_json(
     out: &mut impl Write,
     today: NaiveDate,
@@ -415,10 +418,11 @@ fn execute_json(
     month: NaiveDate,
     all: bool,
     categories: &[String],
+    amount: AmountRange,
 ) -> std::io::Result<()> {
     let CalendarData {
         by_day, target_cur, ..
-    } = prepare(today, cfg, expenses, month, all, categories)?;
+    } = prepare(today, cfg, expenses, month, all, categories, amount)?;
 
     let total: f64 = by_day
         .values()
@@ -465,6 +469,7 @@ fn execute_json(
     emit_json(out, &envelope)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn execute_with(
     out: &mut impl Write,
     today: NaiveDate,
@@ -473,16 +478,26 @@ pub(crate) fn execute_with(
     month: NaiveDate,
     all: bool,
     categories: &[String],
+    amount: AmountRange,
 ) -> std::io::Result<()> {
     let CalendarData {
         by_day: by_day_charges,
         target_cur,
         hidden_ended,
-    } = prepare(today, cfg, expenses, month, all, categories)?;
+        hidden_amount,
+    } = prepare(today, cfg, expenses, month, all, categories, amount)?;
 
     let by_day = cells_from_charges(&by_day_charges);
     render_grid(out, month, today, &by_day)?;
-    print_footer(out, &by_day, target_cur, month, today, hidden_ended)?;
+    print_footer(
+        out,
+        &by_day,
+        target_cur,
+        month,
+        today,
+        hidden_ended,
+        hidden_amount,
+    )?;
     Ok(())
 }
 
@@ -501,7 +516,7 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
         first_of_month(today)
     };
 
-    let categories = crate::commands::category::resolve_filter(&args.category, store)?;
+    let categories = crate::commands::category::resolve_filter(&args.filters.category, store)?;
     let mut out = std::io::stdout();
     match args.format {
         OutputFormat::Json => execute_json(
@@ -510,8 +525,9 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
             &cfg,
             &expenses,
             month,
-            args.all,
+            args.filters.all,
             &categories,
+            args.filters.amount,
         ),
         OutputFormat::Text => execute_with(
             &mut out,
@@ -519,8 +535,9 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
             &cfg,
             &expenses,
             month,
-            args.all,
+            args.filters.all,
             &categories,
+            args.filters.amount,
         ),
     }
 }
@@ -554,7 +571,17 @@ mod tests {
         let cfg = Config {
             currency: Some("pln".to_string()),
         };
-        execute_with(&mut buf, today(), &cfg, expenses, month, false, &[]).expect("execute_with");
+        execute_with(
+            &mut buf,
+            today(),
+            &cfg,
+            expenses,
+            month,
+            false,
+            &[],
+            AmountRange::default(),
+        )
+        .expect("execute_with");
         String::from_utf8(buf).expect("utf8")
     }
 

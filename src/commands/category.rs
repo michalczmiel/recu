@@ -240,13 +240,23 @@ mod tests {
     }
 
     #[test]
-    fn enumeration_errors() {
-        let mut out = String::new();
-        out += "=== unknown category, known set populated ===\n";
-        out += &unknown_category_message("nope", &sample());
-        out += "\n\n=== unknown category, no known categories ===\n";
-        out += &unknown_category_message("nope", &[]);
-        insta::assert_snapshot!(out);
+    fn unknown_category_message_lists_known_categories() {
+        let msg = unknown_category_message("nope", &sample());
+        assert_eq!(
+            msg,
+            "unknown category \"nope\"; known: food, housing, streaming\n\
+             example: recu list --category food"
+        );
+    }
+
+    #[test]
+    fn unknown_category_message_with_no_known_categories() {
+        let msg = unknown_category_message("nope", &[]);
+        assert_eq!(
+            msg,
+            "unknown category \"nope\"; known: (none)\n\
+             example: recu category list"
+        );
     }
 
     #[test]

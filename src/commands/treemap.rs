@@ -1,8 +1,9 @@
 use std::collections::HashMap;
-use std::io::{self, Write as _};
+use std::io::{self, Write};
 
 use clap::Args;
 
+use crate::commands::Filters;
 use crate::config;
 use crate::expense::find_currency;
 use crate::rates;
@@ -12,12 +13,8 @@ use rusty_money::iso;
 
 #[derive(Args, Debug, Default)]
 pub struct TreemapArgs {
-    /// Include ended expenses
-    #[arg(short, long)]
-    pub all: bool,
-    /// Filter by category (case-insensitive); comma-separated for multiple
-    #[arg(short, long, value_delimiter = ',')]
-    pub category: Vec<String>,
+    #[command(flatten)]
+    pub filters: Filters,
 }
 
 // Terminal characters are roughly twice as tall as wide.
@@ -265,7 +262,7 @@ struct Tile {
 }
 
 #[allow(clippy::similar_names)]
-fn render(tiles: &[Tile], cols: usize, rows: usize) {
+fn render(out: &mut impl Write, tiles: &[Tile], cols: usize, rows: usize) -> io::Result<()> {
     let mut grid: Vec<Vec<Pixel>> = vec![vec![Pixel::default(); cols]; rows];
 
     for tile in tiles {
@@ -328,14 +325,13 @@ fn render(tiles: &[Tile], cols: usize, rows: usize) {
         }
     }
 
-    let stdout = io::stdout();
-    let mut out = io::BufWriter::new(stdout.lock());
     for row in &grid {
         for px in row {
-            let _ = write!(out, "{}", ui::truecolor_pixel(px.ch, px.fg, px.bg));
+            write!(out, "{}", ui::truecolor_pixel(px.ch, px.fg, px.bg))?;
         }
-        let _ = writeln!(out);
+        writeln!(out)?;
     }
+    Ok(())
 }
 
 fn query_terminal_size() -> (usize, usize) {
@@ -357,24 +353,112 @@ fn query_terminal_size() -> (usize, usize) {
 
 pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     let expenses = store.list()?;
+    let categories = crate::commands::category::resolve_filter(&args.filters.category, store)?;
+    let today = chrono::Local::now().date_naive();
+    let cfg = config::load()?;
+    let (cols, rows) = query_terminal_size();
+
+    let stdout = io::stdout();
+    let mut out = io::BufWriter::new(stdout.lock());
+    execute_with(
+        &mut out,
+        today,
+        &cfg,
+        expenses,
+        cols,
+        rows,
+        args.filters.all,
+        &categories,
+        args.filters.amount,
+    )
+}
+
+fn make_tiles(
+    items: &[Item],
+    cols: usize,
+    rows: usize,
+    category_colors: &std::collections::HashMap<String, (u8, u8, u8)>,
+) -> Vec<Tile> {
+    #[allow(clippy::cast_precision_loss)]
+    let logical_w = cols as f64;
+    #[allow(clippy::cast_precision_loss)]
+    let logical_h = rows as f64 * CHAR_ASPECT;
+
+    let sizes: Vec<f64> = items.iter().map(|it| it.monthly).collect();
+
+    let rects = squarify(&sizes, logical_w, logical_h);
+
+    items
+        .iter()
+        .zip(rects)
+        .map(|(it, r)| {
+            let key = it.category.clone().unwrap_or_default();
+            let color = category_colors[&key];
+            Tile {
+                name: it.name.clone(),
+                monthly: it.monthly,
+                yearly: it.monthly * 12.0,
+                symbol: it.symbol.clone(),
+                symbol_first: it.symbol_first,
+                rect: Rect {
+                    left: r.left,
+                    top: r.top / CHAR_ASPECT,
+                    width: r.width,
+                    height: r.height / CHAR_ASPECT,
+                },
+                color,
+            }
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn execute_with(
+    out: &mut impl Write,
+    today: chrono::NaiveDate,
+    cfg: &config::Config,
+    expenses: Vec<crate::expense::Expense>,
+    cols: usize,
+    rows: usize,
+    all: bool,
+    categories: &[String],
+    amount: crate::expense::AmountRange,
+) -> std::io::Result<()> {
     if expenses.is_empty() {
-        println!("No recurring expenses found.");
+        writeln!(out, "No recurring expenses found.")?;
         return Ok(());
     }
 
-    let categories = crate::commands::category::resolve_filter(&args.category, store)?;
-    let today = chrono::Local::now().date_naive();
-    let cfg = config::load()?;
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let target_cur: Option<&'static iso::Currency> = target.and_then(find_currency);
 
     let mut category_colors: HashMap<String, (u8, u8, u8)> = HashMap::new();
 
+    let hidden_amount = amount.count_hidden(
+        expenses
+            .iter()
+            .filter(|e| crate::expense::matches_categories(e, categories)),
+        today,
+        all,
+        exchange_rates.as_ref(),
+        target,
+    );
+
+    let hidden_ended = if all {
+        0
+    } else {
+        expenses
+            .iter()
+            .filter(|e| crate::expense::matches_categories(e, categories))
+            .filter(|e| e.is_ended(today))
+            .count()
+    };
+
     let mut items: Vec<Item> = expenses
         .into_iter()
-        .filter(|expense| args.all || !expense.is_ended(today))
-        .filter(|expense| crate::expense::matches_categories(expense, &categories))
+        .filter(|expense| all || !expense.is_ended(today))
+        .filter(|expense| crate::expense::matches_categories(expense, categories))
         .filter_map(|expense| {
             let amount = expense.amount?;
             let interval = expense.interval.as_ref()?;
@@ -410,7 +494,14 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
         .collect();
 
     if items.is_empty() {
-        println!("No expenses with amount and interval set.");
+        writeln!(out, "No expenses with amount and interval set.")?;
+        return Ok(());
+    }
+
+    items.retain(|it| amount.contains(it.monthly));
+
+    if items.is_empty() {
+        writeln!(out, "No expenses match the monthly amount range.")?;
         return Ok(());
     }
 
@@ -420,48 +511,18 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let (cols, rows) = query_terminal_size();
+    let tiles = make_tiles(&items, cols, rows, &category_colors);
 
-    let sizes: Vec<f64> = items.iter().map(|it| it.monthly).collect();
-
-    #[allow(clippy::cast_precision_loss)]
-    let logical_w = cols as f64;
-    #[allow(clippy::cast_precision_loss)]
-    let logical_h = rows as f64 * CHAR_ASPECT;
-
-    let rects = squarify(&sizes, logical_w, logical_h);
-
-    let tiles: Vec<Tile> = items
-        .into_iter()
-        .zip(rects)
-        .map(|(it, r)| {
-            let key = it.category.unwrap_or_default();
-            let color = category_colors[&key];
-            Tile {
-                name: it.name,
-                monthly: it.monthly,
-                yearly: it.monthly * 12.0,
-                symbol: it.symbol,
-                symbol_first: it.symbol_first,
-                rect: Rect {
-                    left: r.left,
-                    top: r.top / CHAR_ASPECT,
-                    width: r.width,
-                    height: r.height / CHAR_ASPECT,
-                },
-                color,
-            }
-        })
-        .collect();
-
-    render(&tiles, cols, rows);
+    render(out, &tiles, cols, rows)?;
+    ui::print_ended_notice(out, hidden_ended, "treemap")?;
+    ui::print_amount_range_notice(out, hidden_amount)?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expense::Interval;
+    use crate::expense::{AmountRange, Interval};
 
     #[test]
     fn to_monthly_all_intervals() {
@@ -497,6 +558,123 @@ mod tests {
         let sizes = vec![6.0, 3.0, 2.0, 2.0, 1.0];
         let rects = squarify(&sizes, 100.0, 60.0);
         assert_eq!(rects.len(), sizes.len());
+    }
+
+    fn today() -> chrono::NaiveDate {
+        chrono::NaiveDate::from_ymd_opt(2026, 5, 18).expect("valid date")
+    }
+
+    fn expense(name: &str, monthly: f64, category: &str) -> crate::expense::Expense {
+        crate::expense::Expense {
+            name: name.to_string(),
+            amount: Some(monthly),
+            currency: Some("pln".to_string()),
+            interval: Some(Interval::Monthly),
+            category: Some(category.to_string()),
+            start_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1),
+            ..Default::default()
+        }
+    }
+
+    fn run(
+        expenses: Vec<crate::expense::Expense>,
+        all: bool,
+        categories: &[String],
+        amount: AmountRange,
+    ) -> String {
+        let cfg = config::Config { currency: None };
+        let mut buf = Vec::new();
+        execute_with(
+            &mut buf,
+            today(),
+            &cfg,
+            expenses,
+            60,
+            20,
+            all,
+            categories,
+            amount,
+        )
+        .expect("execute_with");
+        String::from_utf8(buf).expect("utf8")
+    }
+
+    fn sample() -> Vec<crate::expense::Expense> {
+        vec![
+            expense("Rent", 4766.0, "housing"),
+            expense("Streaming", 1206.0, "fun"),
+            expense("Phone", 230.0, "utilities"),
+            expense("Gym", 89.0, "fun"),
+        ]
+    }
+
+    fn ended_expense(name: &str, monthly: f64, category: &str) -> crate::expense::Expense {
+        crate::expense::Expense {
+            end_date: chrono::NaiveDate::from_ymd_opt(2026, 4, 1),
+            ..expense(name, monthly, category)
+        }
+    }
+
+    #[test]
+    fn treemap() {
+        let mut s = insta::Settings::clone_current();
+        s.add_filter(r"\x1b\[[0-9;]*m", "");
+        let _guard = s.bind_to_scope();
+
+        let mut out = String::new();
+
+        out += "=== default ===\n";
+        out += &run(sample(), false, &[], AmountRange::default());
+
+        out += "\n=== filtered by category 'fun' ===\n";
+        out += &run(
+            sample(),
+            false,
+            &["fun".to_string()],
+            AmountRange::default(),
+        );
+
+        out += "\n=== min/max range 100..2000 ===\n";
+        out += &run(
+            sample(),
+            false,
+            &[],
+            AmountRange {
+                min: Some(100.0),
+                max: Some(2000.0),
+            },
+        );
+
+        out += "\n=== no recurring expenses ===\n";
+        out += &run(Vec::new(), false, &[], AmountRange::default());
+
+        out += "\n=== no expenses match category ===\n";
+        out += &run(
+            sample(),
+            false,
+            &["missing".to_string()],
+            AmountRange::default(),
+        );
+
+        out += "\n=== ended expenses hidden ===\n";
+        {
+            let mut with_ended = sample();
+            with_ended.push(ended_expense("Old Service", 50.0, "fun"));
+            out += &run(with_ended, false, &[], AmountRange::default());
+        }
+
+        out += "\n=== no expenses match amount range ===\n";
+        out += &run(
+            sample(),
+            false,
+            &[],
+            AmountRange {
+                min: Some(100_000.0),
+                max: None,
+            },
+        );
+
+        insta::assert_snapshot!(out);
     }
 
     #[test]
