@@ -18,12 +18,8 @@ pub struct TreemapArgs {
     /// Filter by category (case-insensitive); comma-separated for multiple
     #[arg(short, long, value_delimiter = ',')]
     pub category: Vec<String>,
-    /// Only show expenses costing at least this much per month
-    #[arg(long)]
-    pub min: Option<f64>,
-    /// Only show expenses costing at most this much per month
-    #[arg(long)]
-    pub max: Option<f64>,
+    #[command(flatten)]
+    pub amount: crate::commands::AmountRange,
 }
 
 // Terminal characters are roughly twice as tall as wide.
@@ -421,7 +417,8 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     }
 
     items.retain(|it| {
-        args.min.is_none_or(|min| it.monthly >= min) && args.max.is_none_or(|max| it.monthly <= max)
+        args.amount.min.is_none_or(|min| it.monthly >= min)
+            && args.amount.max.is_none_or(|max| it.monthly <= max)
     });
 
     if items.is_empty() {

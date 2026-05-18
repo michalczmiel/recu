@@ -369,6 +369,35 @@ impl RecurringTotals {
     }
 }
 
+/// Monthly cost of `expense` converted to `target`, or `None` when it lacks
+/// an amount or interval.
+pub fn monthly_amount(
+    expense: &Expense,
+    rates: Option<&HashMap<String, f64>>,
+    target: Option<&str>,
+) -> Option<f64> {
+    let amount = expense.amount?;
+    let interval = expense.interval.as_ref()?;
+    Some(interval.to_monthly(convert(amount, expense.currency.as_deref(), rates, target)))
+}
+
+/// `true` if `expense`'s monthly cost lies within `[min, max]`. `None` bounds
+/// are open. Expenses without a computable monthly cost are excluded once any
+/// bound is set.
+pub fn matches_amount_range(
+    expense: &Expense,
+    rates: Option<&HashMap<String, f64>>,
+    target: Option<&str>,
+    min: Option<f64>,
+    max: Option<f64>,
+) -> bool {
+    if min.is_none() && max.is_none() {
+        return true;
+    }
+    monthly_amount(expense, rates, target)
+        .is_some_and(|m| min.is_none_or(|lo| m >= lo) && max.is_none_or(|hi| m <= hi))
+}
+
 /// `true` if `expense`'s category matches any of `filters` (case-insensitive).
 /// Empty `filters` matches everything.
 pub fn matches_categories(expense: &Expense, filters: &[String]) -> bool {

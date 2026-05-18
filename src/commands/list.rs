@@ -4,7 +4,7 @@ use std::io::Write;
 use chrono::NaiveDate;
 use clap::Args;
 
-use crate::commands::{JsonExpense, OutputFormat, emit_json};
+use crate::commands::{AmountRange, JsonExpense, OutputFormat, emit_json};
 
 use crate::config::{self, Config};
 use crate::ui;
@@ -18,6 +18,8 @@ pub struct ListArgs {
     /// Filter by category (case-insensitive); comma-separated for multiple
     #[arg(short, long, value_delimiter = ',')]
     pub category: Vec<String>,
+    #[command(flatten)]
+    pub amount: AmountRange,
     /// Output format
     #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
     pub format: OutputFormat,
@@ -217,6 +219,7 @@ pub(crate) fn execute_with(
     expenses: &[Expense],
     all: bool,
     categories: &[String],
+    amount: AmountRange,
 ) -> std::io::Result<()> {
     if expenses.is_empty() {
         writeln!(
@@ -236,6 +239,15 @@ pub(crate) fn execute_with(
     let (mut active, mut ended): (Vec<&Expense>, Vec<&Expense>) = expenses
         .iter()
         .filter(|e| expense::matches_categories(e, categories))
+        .filter(|e| {
+            expense::matches_amount_range(
+                e,
+                exchange_rates.as_ref(),
+                target,
+                amount.min,
+                amount.max,
+            )
+        })
         .partition(|e| !e.is_ended(today));
     active.sort_by_key(by_due);
     ended.sort_by_key(by_due);
@@ -246,14 +258,15 @@ pub(crate) fn execute_with(
     }
 
     if visible.is_empty() {
-        if categories.is_empty() {
+        let unfiltered = categories.is_empty() && amount.min.is_none() && amount.max.is_none();
+        if unfiltered {
             writeln!(
                 out,
                 "All {} expenses are ended. Run 'recu list --all' to view them.",
                 ended.len()
             )?;
         } else {
-            writeln!(out, "No expenses match category filter.")?;
+            writeln!(out, "No expenses match the current filters.")?;
         }
         return Ok(());
     }
@@ -290,13 +303,26 @@ pub(crate) fn execute_with(
 fn execute_json(
     out: &mut impl Write,
     today: NaiveDate,
+    cfg: &Config,
     expenses: &[Expense],
     all: bool,
     categories: &[String],
+    amount: AmountRange,
 ) -> std::io::Result<()> {
+    let target: Option<&str> = cfg.currency.as_deref();
+    let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
     let visible = expenses
         .iter()
         .filter(|e| expense::matches_categories(e, categories))
+        .filter(|e| {
+            expense::matches_amount_range(
+                e,
+                exchange_rates.as_ref(),
+                target,
+                amount.min,
+                amount.max,
+            )
+        })
         .filter(|e| all || !e.is_ended(today));
     let view: Vec<JsonExpense<'_>> = visible.map(JsonExpense::from).collect();
     emit_json(out, &view)
@@ -309,8 +335,24 @@ pub fn execute(args: &ListArgs, store: &Store) -> std::io::Result<()> {
     let categories = crate::commands::category::resolve_filter(&args.category, store)?;
     let mut out = std::io::stdout();
     match args.format {
-        OutputFormat::Json => execute_json(&mut out, today, &expenses, args.all, &categories),
-        OutputFormat::Text => execute_with(&mut out, today, &cfg, &expenses, args.all, &categories),
+        OutputFormat::Json => execute_json(
+            &mut out,
+            today,
+            &cfg,
+            &expenses,
+            args.all,
+            &categories,
+            args.amount,
+        ),
+        OutputFormat::Text => execute_with(
+            &mut out,
+            today,
+            &cfg,
+            &expenses,
+            args.all,
+            &categories,
+            args.amount,
+        ),
     }
 }
 
@@ -341,8 +383,16 @@ mod tests {
                 ..e.clone()
             })
             .collect();
-        execute_with(&mut buf, today(), &Config::default(), &with_ids, all, &[])
-            .expect("execute_with");
+        execute_with(
+            &mut buf,
+            today(),
+            &Config::default(),
+            &with_ids,
+            all,
+            &[],
+            AmountRange::default(),
+        )
+        .expect("execute_with");
         String::from_utf8(buf).expect("utf8")
     }
 

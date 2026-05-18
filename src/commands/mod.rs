@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
 use chrono::NaiveDate;
-use clap::ValueEnum;
+use clap::{Args, ValueEnum};
 use serde::Serialize;
 
 use crate::expense::{Expense, Interval};
@@ -22,6 +22,17 @@ pub enum OutputFormat {
     #[default]
     Text,
     Json,
+}
+
+/// Filter expenses by their monthly cost (in the display currency).
+#[derive(Args, Debug, Default, Clone, Copy)]
+pub struct AmountRange {
+    /// Only show expenses costing at least this much per month
+    #[arg(long)]
+    pub min: Option<f64>,
+    /// Only show expenses costing at most this much per month
+    #[arg(long)]
+    pub max: Option<f64>,
 }
 
 #[derive(Serialize)]
