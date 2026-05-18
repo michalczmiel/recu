@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 use crate::commands::{
     OutputFormat, add, calendar, category, config, edit, list, remove, rename, treemap, undo,
 };
+use crate::expense::AmountRange;
 use crate::store::Store;
 
 #[derive(Parser, Debug)]
@@ -27,6 +28,10 @@ struct Cli {
     /// Output format (only used when no subcommand is given; equivalent to `recu list --format <FORMAT>`)
     #[arg(long, value_enum)]
     format: Option<OutputFormat>,
+
+    /// Amount filters (only used when no subcommand is given; equivalent to `recu list --min/--max`)
+    #[command(flatten)]
+    amount: AmountRange,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -78,6 +83,7 @@ pub fn run() -> std::io::Result<()> {
     match cli.command.unwrap_or(Commands::List(list::ListArgs {
         all: cli.all,
         format: cli.format.unwrap_or_default(),
+        amount: cli.amount,
         ..Default::default()
     })) {
         Commands::List(args) => list::execute(&args, &store)?,
