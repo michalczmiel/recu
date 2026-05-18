@@ -414,6 +414,20 @@ impl AmountRange {
         self.is_unbounded()
             || monthly_amount(expense, rates, target).is_some_and(|m| self.contains(m))
     }
+
+    /// Counts active `expenses` hidden because they fall outside the range.
+    pub fn count_hidden<'a>(
+        &self,
+        expenses: impl Iterator<Item = &'a Expense>,
+        today: NaiveDate,
+        rates: Option<&HashMap<String, f64>>,
+        target: Option<&str>,
+    ) -> usize {
+        expenses
+            .filter(|e| !e.is_ended(today))
+            .filter(|e| !self.matches(e, rates, target))
+            .count()
+    }
 }
 
 /// `true` if `expense`'s category matches any of `filters` (case-insensitive).

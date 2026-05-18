@@ -237,9 +237,19 @@ pub(crate) fn execute_with(
         .or_else(|| expense::uniform_currency(expenses));
 
     let by_due = |e: &&Expense| e.days_until_next(today).unwrap_or(i64::MAX);
-    let (mut active, mut ended): (Vec<&Expense>, Vec<&Expense>) = expenses
+    let cat_matched: Vec<&Expense> = expenses
         .iter()
         .filter(|e| expense::matches_categories(e, categories))
+        .collect();
+    let hidden_amount = amount.count_hidden(
+        cat_matched.iter().copied(),
+        today,
+        exchange_rates.as_ref(),
+        target,
+    );
+    let (mut active, mut ended): (Vec<&Expense>, Vec<&Expense>) = cat_matched
+        .iter()
+        .copied()
         .filter(|e| amount.matches(e, exchange_rates.as_ref(), target))
         .partition(|e| !e.is_ended(today));
     active.sort_by_key(by_due);
@@ -289,6 +299,8 @@ pub(crate) fn execute_with(
             ui::dim(&format!("+ {} ended (recu list --all)", ended.len()))
         )?;
     }
+
+    ui::print_amount_range_notice(out, hidden_amount)?;
 
     Ok(())
 }

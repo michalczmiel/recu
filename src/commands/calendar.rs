@@ -299,6 +299,7 @@ fn print_footer(
     month: NaiveDate,
     today: NaiveDate,
     hidden_ended: usize,
+    hidden_amount: usize,
 ) -> std::io::Result<()> {
     let count: u32 = by_day.values().map(|c| c.count).sum();
     let total: f64 = by_day.values().map(|c| c.total).sum();
@@ -329,6 +330,8 @@ fn print_footer(
             ui::dim(&format!("+ {hidden_ended} ended (recu calendar --all)"))
         )?;
     }
+
+    ui::print_amount_range_notice(out, hidden_amount)?;
     Ok(())
 }
 
@@ -363,6 +366,7 @@ struct CalendarData {
     by_day: BTreeMap<NaiveDate, Vec<Charge>>,
     target_cur: Option<&'static iso::Currency>,
     hidden_ended: usize,
+    hidden_amount: usize,
 }
 
 fn prepare(
@@ -380,12 +384,13 @@ fn prepare(
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
 
-    let matching = || {
+    let cat_matching = || {
         expenses
             .iter()
             .filter(|e| expense::matches_categories(e, categories))
-            .filter(|e| amount.matches(e, exchange_rates.as_ref(), target))
     };
+    let matching =
+        || cat_matching().filter(|e| amount.matches(e, exchange_rates.as_ref(), target));
 
     let by_day = charges_for_month(
         matching(),
@@ -402,10 +407,14 @@ fn prepare(
         matching().filter(|e| e.is_ended(today)).count()
     };
 
+    let hidden_amount =
+        amount.count_hidden(cat_matching(), today, exchange_rates.as_ref(), target);
+
     Ok(CalendarData {
         by_day,
         target_cur,
         hidden_ended,
+        hidden_amount,
     })
 }
 
@@ -488,11 +497,20 @@ pub(crate) fn execute_with(
         by_day: by_day_charges,
         target_cur,
         hidden_ended,
+        hidden_amount,
     } = prepare(today, cfg, expenses, month, all, categories, amount)?;
 
     let by_day = cells_from_charges(&by_day_charges);
     render_grid(out, month, today, &by_day)?;
-    print_footer(out, &by_day, target_cur, month, today, hidden_ended)?;
+    print_footer(
+        out,
+        &by_day,
+        target_cur,
+        month,
+        today,
+        hidden_ended,
+        hidden_amount,
+    )?;
     Ok(())
 }
 

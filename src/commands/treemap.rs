@@ -357,6 +357,31 @@ fn query_terminal_size() -> (usize, usize) {
     (cols, rows)
 }
 
+/// Counts active expenses with a computable monthly cost that fall outside
+/// the amount range, so the user knows the treemap is hiding something.
+fn count_outside_range(
+    expenses: &[crate::expense::Expense],
+    today: chrono::NaiveDate,
+    categories: &[String],
+    amount: crate::expense::AmountRange,
+    exchange_rates: Option<&HashMap<String, f64>>,
+    target: Option<&str>,
+) -> usize {
+    expenses
+        .iter()
+        .filter(|e| !e.is_ended(today))
+        .filter(|e| crate::expense::matches_categories(e, categories))
+        .filter_map(|e| {
+            let value = e.amount?;
+            let interval = e.interval.as_ref()?;
+            let converted =
+                crate::expense::convert(value, e.currency.as_deref(), exchange_rates, target);
+            Some(interval.to_monthly(converted))
+        })
+        .filter(|monthly| !amount.contains(*monthly))
+        .count()
+}
+
 pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     let expenses = store.list()?;
     if expenses.is_empty() {
@@ -372,6 +397,9 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     let target_cur: Option<&'static iso::Currency> = target.and_then(find_currency);
 
     let mut category_colors: HashMap<String, (u8, u8, u8)> = HashMap::new();
+
+    let hidden_amount =
+        count_outside_range(&expenses, today, &categories, args.amount, exchange_rates.as_ref(), target);
 
     let mut items: Vec<Item> = expenses
         .into_iter()
@@ -464,6 +492,8 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
         .collect();
 
     render(&tiles, cols, rows);
+
+    ui::print_amount_range_notice(&mut io::stdout(), hidden_amount)?;
     Ok(())
 }
 
