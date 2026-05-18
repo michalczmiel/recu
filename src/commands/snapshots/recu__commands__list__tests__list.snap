@@ -98,3 +98,21 @@ No expenses yet. Run 'recu add' to track your first subscription.
 
 === all ended + default hides everything ===
 All 1 expenses are ended. Run 'recu list --all' to view them.
+
+=== amount range hides cheaper rows ===
+@   name        amount  due    category
+──  ───────  ─────────  ─────  ────────
+@1  Netflix  $15.99/mo  May 1          
+
+1 expense  $15.99/month  $191.88/year
+  other  $15.99/mo  100%
++ 1 outside amount range (drop --min/--max to show all)
+
+=== amount range counts ended rows under --all ===
+@   name           amount  due    category  ends  
+──  ──────────  ─────────  ─────  ────────  ──────
+@3  AnnualPlan  $50.00/mo  May 1            Jul 15
+
+1 expense  $50.00/month  $600.00/year
+  other  $50.00/mo  100%
++ 2 outside amount range (drop --min/--max to show all)

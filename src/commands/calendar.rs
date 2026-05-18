@@ -408,7 +408,7 @@ fn prepare(
     };
 
     let hidden_amount =
-        amount.count_hidden(cat_matching(), today, exchange_rates.as_ref(), target);
+        amount.count_hidden(cat_matching(), today, all, exchange_rates.as_ref(), target);
 
     Ok(CalendarData {
         by_day,

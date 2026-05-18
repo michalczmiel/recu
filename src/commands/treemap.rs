@@ -356,11 +356,14 @@ fn query_terminal_size() -> (usize, usize) {
     (cols, rows)
 }
 
-/// Counts active expenses with a computable monthly cost that fall outside
-/// the amount range, so the user knows the treemap is hiding something.
+/// Counts expenses with a computable monthly cost that fall outside the
+/// amount range, so the user knows the treemap is hiding something. Ended
+/// expenses are skipped unless `all` is set, matching what the treemap shows.
+#[allow(clippy::too_many_arguments)]
 fn count_outside_range(
     expenses: &[crate::expense::Expense],
     today: chrono::NaiveDate,
+    all: bool,
     categories: &[String],
     amount: crate::expense::AmountRange,
     exchange_rates: Option<&HashMap<String, f64>>,
@@ -368,15 +371,9 @@ fn count_outside_range(
 ) -> usize {
     expenses
         .iter()
-        .filter(|e| !e.is_ended(today))
+        .filter(|e| all || !e.is_ended(today))
         .filter(|e| crate::expense::matches_categories(e, categories))
-        .filter_map(|e| {
-            let value = e.amount?;
-            let interval = e.interval.as_ref()?;
-            let converted =
-                crate::expense::convert(value, e.currency.as_deref(), exchange_rates, target);
-            Some(interval.to_monthly(converted))
-        })
+        .filter_map(|e| crate::expense::monthly_amount(e, exchange_rates, target))
         .filter(|monthly| !amount.contains(*monthly))
         .count()
 }
@@ -418,8 +415,15 @@ pub(crate) fn execute_with(
 
     let mut category_colors: HashMap<String, (u8, u8, u8)> = HashMap::new();
 
-    let hidden_amount =
-        count_outside_range(&expenses, today, categories, amount, exchange_rates.as_ref(), target);
+    let hidden_amount = count_outside_range(
+        &expenses,
+        today,
+        all,
+        categories,
+        amount,
+        exchange_rates.as_ref(),
+        target,
+    );
 
     let mut items: Vec<Item> = expenses
         .into_iter()

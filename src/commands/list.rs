@@ -244,6 +244,7 @@ pub(crate) fn execute_with(
     let hidden_amount = amount.count_hidden(
         cat_matched.iter().copied(),
         today,
+        all,
         exchange_rates.as_ref(),
         target,
     );
@@ -393,6 +394,29 @@ mod tests {
         String::from_utf8(buf).expect("utf8")
     }
 
+    fn run_amount(expenses: &[Expense], all: bool, amount: AmountRange) -> String {
+        let mut buf = Vec::new();
+        let with_ids: Vec<Expense> = expenses
+            .iter()
+            .enumerate()
+            .map(|(i, e)| Expense {
+                id: (i as u64) + 1,
+                ..e.clone()
+            })
+            .collect();
+        execute_with(
+            &mut buf,
+            today(),
+            &Config::default(),
+            &with_ids,
+            all,
+            &[],
+            amount,
+        )
+        .expect("execute_with");
+        String::from_utf8(buf).expect("utf8")
+    }
+
     fn monthly_usd(name: &str, amount: f64, start_date: NaiveDate) -> Expense {
         Expense {
             name: name.to_string(),
@@ -499,6 +523,31 @@ mod tests {
             end_date: Some(d(2026, 4, 5)),
             ..monthly_usd("OldGym", 30.00, d(2025, 1, 1))
         }]);
+
+        // --min hides cheaper expenses, footer reports how many
+        out += "\n=== amount range hides cheaper rows ===\n";
+        out += &run_amount(
+            &[
+                monthly_usd("Netflix", 15.99, d(2026, 5, 1)),
+                monthly_usd("Spotify", 9.99, d(2026, 5, 15)),
+            ],
+            false,
+            AmountRange {
+                min: Some(12.0),
+                max: None,
+            },
+        );
+
+        // --all + amount range → ended rows outside the range are counted too
+        out += "\n=== amount range counts ended rows under --all ===\n";
+        out += &run_amount(
+            &with_ended,
+            true,
+            AmountRange {
+                min: Some(40.0),
+                max: None,
+            },
+        );
 
         insta::assert_snapshot!(out);
     }
