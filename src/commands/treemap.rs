@@ -3,6 +3,7 @@ use std::io::{self, Write};
 
 use clap::Args;
 
+use crate::commands::Filters;
 use crate::config;
 use crate::expense::find_currency;
 use crate::rates;
@@ -12,14 +13,8 @@ use rusty_money::iso;
 
 #[derive(Args, Debug, Default)]
 pub struct TreemapArgs {
-    /// Include ended expenses
-    #[arg(short, long)]
-    pub all: bool,
-    /// Filter by category (case-insensitive); comma-separated for multiple
-    #[arg(short, long, value_delimiter = ',')]
-    pub category: Vec<String>,
     #[command(flatten)]
-    pub amount: crate::expense::AmountRange,
+    pub filters: Filters,
 }
 
 // Terminal characters are roughly twice as tall as wide.
@@ -358,7 +353,7 @@ fn query_terminal_size() -> (usize, usize) {
 
 pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     let expenses = store.list()?;
-    let categories = crate::commands::category::resolve_filter(&args.category, store)?;
+    let categories = crate::commands::category::resolve_filter(&args.filters.category, store)?;
     let today = chrono::Local::now().date_naive();
     let cfg = config::load()?;
     let (cols, rows) = query_terminal_size();
@@ -372,9 +367,9 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
         expenses,
         cols,
         rows,
-        args.all,
+        args.filters.all,
         &categories,
-        args.amount,
+        args.filters.amount,
     )
 }
 

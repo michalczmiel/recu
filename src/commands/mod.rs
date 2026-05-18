@@ -1,10 +1,10 @@
 use std::io::{self, Write};
 
 use chrono::NaiveDate;
-use clap::ValueEnum;
+use clap::{Args, ValueEnum};
 use serde::Serialize;
 
-use crate::expense::{Expense, Interval};
+use crate::expense::{AmountRange, Expense, Interval};
 
 pub mod add;
 pub mod calendar;
@@ -16,6 +16,19 @@ pub mod remove;
 pub mod rename;
 pub mod treemap;
 pub mod undo;
+
+/// Shared filtering flags for the list, calendar, and treemap commands.
+#[derive(Args, Debug, Default)]
+pub struct Filters {
+    /// Include ended expenses
+    #[arg(short, long)]
+    pub all: bool,
+    /// Filter by category (case-insensitive); comma-separated for multiple
+    #[arg(short, long, value_delimiter = ',')]
+    pub category: Vec<String>,
+    #[command(flatten)]
+    pub amount: AmountRange,
+}
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
 pub enum OutputFormat {

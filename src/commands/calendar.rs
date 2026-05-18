@@ -13,7 +13,7 @@ use clap::Args;
 use rusty_money::iso;
 use serde::Serialize;
 
-use crate::commands::{OutputFormat, emit_json};
+use crate::commands::{Filters, OutputFormat, emit_json};
 
 const CELL_WIDTH: usize = 7;
 
@@ -29,14 +29,8 @@ pub struct CalendarArgs {
     /// Show a specific month (YYYY-MM)
     #[arg(long, value_name = "YYYY-MM", value_parser = parse_month)]
     pub month: Option<NaiveDate>,
-    /// Include ended expenses
-    #[arg(short, long)]
-    pub all: bool,
-    /// Filter by category (case-insensitive); comma-separated for multiple
-    #[arg(short, long, value_delimiter = ',')]
-    pub category: Vec<String>,
     #[command(flatten)]
-    pub amount: AmountRange,
+    pub filters: Filters,
     /// Output format
     #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
     pub format: OutputFormat,
@@ -528,7 +522,7 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
         first_of_month(today)
     };
 
-    let categories = crate::commands::category::resolve_filter(&args.category, store)?;
+    let categories = crate::commands::category::resolve_filter(&args.filters.category, store)?;
     let mut out = std::io::stdout();
     match args.format {
         OutputFormat::Json => execute_json(
@@ -537,9 +531,9 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
             &cfg,
             &expenses,
             month,
-            args.all,
+            args.filters.all,
             &categories,
-            args.amount,
+            args.filters.amount,
         ),
         OutputFormat::Text => execute_with(
             &mut out,
@@ -547,9 +541,9 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
             &cfg,
             &expenses,
             month,
-            args.all,
+            args.filters.all,
             &categories,
-            args.amount,
+            args.filters.amount,
         ),
     }
 }

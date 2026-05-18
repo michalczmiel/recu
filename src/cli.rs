@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 
 use crate::commands::{
-    OutputFormat, add, calendar, category, config, edit, list, remove, rename, treemap, undo,
+    Filters, OutputFormat, add, calendar, category, config, edit, list, remove, rename, treemap,
+    undo,
 };
 use crate::expense::AmountRange;
 use crate::store::Store;
@@ -81,10 +82,12 @@ pub fn run() -> std::io::Result<()> {
     let cli = Cli::parse();
     let store = Store::at(cli.file);
     match cli.command.unwrap_or(Commands::List(list::ListArgs {
-        all: cli.all,
+        filters: Filters {
+            all: cli.all,
+            amount: cli.amount,
+            ..Default::default()
+        },
         format: cli.format.unwrap_or_default(),
-        amount: cli.amount,
-        ..Default::default()
     })) {
         Commands::List(args) => list::execute(&args, &store)?,
         Commands::Add(args) => add::execute(&args, &store)?,

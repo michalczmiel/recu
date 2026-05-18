@@ -4,7 +4,7 @@ use std::io::Write;
 use chrono::NaiveDate;
 use clap::Args;
 
-use crate::commands::{JsonExpense, OutputFormat, emit_json};
+use crate::commands::{Filters, JsonExpense, OutputFormat, emit_json};
 
 use crate::config::{self, Config};
 use crate::ui;
@@ -12,14 +12,8 @@ use rusty_money::iso;
 
 #[derive(Args, Debug, Default)]
 pub struct ListArgs {
-    /// Include ended expenses
-    #[arg(short, long)]
-    pub all: bool,
-    /// Filter by category (case-insensitive); comma-separated for multiple
-    #[arg(short, long, value_delimiter = ',')]
-    pub category: Vec<String>,
     #[command(flatten)]
-    pub amount: AmountRange,
+    pub filters: Filters,
     /// Output format
     #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
     pub format: OutputFormat,
@@ -330,7 +324,7 @@ pub fn execute(args: &ListArgs, store: &Store) -> std::io::Result<()> {
     let expenses = store.list()?;
     let cfg = config::load()?;
     let today = chrono::Local::now().date_naive();
-    let categories = crate::commands::category::resolve_filter(&args.category, store)?;
+    let categories = crate::commands::category::resolve_filter(&args.filters.category, store)?;
     let mut out = std::io::stdout();
     match args.format {
         OutputFormat::Json => execute_json(
@@ -338,18 +332,18 @@ pub fn execute(args: &ListArgs, store: &Store) -> std::io::Result<()> {
             today,
             &cfg,
             &expenses,
-            args.all,
+            args.filters.all,
             &categories,
-            args.amount,
+            args.filters.amount,
         ),
         OutputFormat::Text => execute_with(
             &mut out,
             today,
             &cfg,
             &expenses,
-            args.all,
+            args.filters.all,
             &categories,
-            args.amount,
+            args.filters.amount,
         ),
     }
 }
