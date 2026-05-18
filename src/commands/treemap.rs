@@ -18,6 +18,12 @@ pub struct TreemapArgs {
     /// Filter by category (case-insensitive); comma-separated for multiple
     #[arg(short, long, value_delimiter = ',')]
     pub category: Vec<String>,
+    /// Only show expenses costing at least this much per month
+    #[arg(long)]
+    pub min: Option<f64>,
+    /// Only show expenses costing at most this much per month
+    #[arg(long)]
+    pub max: Option<f64>,
 }
 
 // Terminal characters are roughly twice as tall as wide.
@@ -411,6 +417,15 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
 
     if items.is_empty() {
         println!("No expenses with amount and interval set.");
+        return Ok(());
+    }
+
+    items.retain(|it| {
+        args.min.is_none_or(|min| it.monthly >= min) && args.max.is_none_or(|max| it.monthly <= max)
+    });
+
+    if items.is_empty() {
+        println!("No expenses match the monthly amount range.");
         return Ok(());
     }
 
