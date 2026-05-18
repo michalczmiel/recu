@@ -356,28 +356,6 @@ fn query_terminal_size() -> (usize, usize) {
     (cols, rows)
 }
 
-/// Counts expenses with a computable monthly cost that fall outside the
-/// amount range, so the user knows the treemap is hiding something. Ended
-/// expenses are skipped unless `all` is set, matching what the treemap shows.
-#[allow(clippy::too_many_arguments)]
-fn count_outside_range(
-    expenses: &[crate::expense::Expense],
-    today: chrono::NaiveDate,
-    all: bool,
-    categories: &[String],
-    amount: crate::expense::AmountRange,
-    exchange_rates: Option<&HashMap<String, f64>>,
-    target: Option<&str>,
-) -> usize {
-    expenses
-        .iter()
-        .filter(|e| all || !e.is_ended(today))
-        .filter(|e| crate::expense::matches_categories(e, categories))
-        .filter_map(|e| crate::expense::monthly_amount(e, exchange_rates, target))
-        .filter(|monthly| !amount.contains(*monthly))
-        .count()
-}
-
 pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     let expenses = store.list()?;
     let categories = crate::commands::category::resolve_filter(&args.category, store)?;
@@ -388,7 +366,15 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
     let stdout = io::stdout();
     let mut out = io::BufWriter::new(stdout.lock());
     execute_with(
-        &mut out, today, &cfg, expenses, cols, rows, args.all, &categories, args.amount,
+        &mut out,
+        today,
+        &cfg,
+        expenses,
+        cols,
+        rows,
+        args.all,
+        &categories,
+        args.amount,
     )
 }
 
@@ -415,12 +401,12 @@ pub(crate) fn execute_with(
 
     let mut category_colors: HashMap<String, (u8, u8, u8)> = HashMap::new();
 
-    let hidden_amount = count_outside_range(
-        &expenses,
+    let hidden_amount = amount.count_hidden(
+        expenses
+            .iter()
+            .filter(|e| crate::expense::matches_categories(e, categories)),
         today,
         all,
-        categories,
-        amount,
         exchange_rates.as_ref(),
         target,
     );
@@ -575,11 +561,26 @@ mod tests {
         }
     }
 
-    fn run(expenses: Vec<crate::expense::Expense>, all: bool, categories: &[String], amount: AmountRange) -> String {
+    fn run(
+        expenses: Vec<crate::expense::Expense>,
+        all: bool,
+        categories: &[String],
+        amount: AmountRange,
+    ) -> String {
         let cfg = config::Config { currency: None };
         let mut buf = Vec::new();
-        execute_with(&mut buf, today(), &cfg, expenses, 60, 20, all, categories, amount)
-            .expect("execute_with");
+        execute_with(
+            &mut buf,
+            today(),
+            &cfg,
+            expenses,
+            60,
+            20,
+            all,
+            categories,
+            amount,
+        )
+        .expect("execute_with");
         String::from_utf8(buf).expect("utf8")
     }
 
@@ -604,28 +605,44 @@ mod tests {
         out += &run(sample(), false, &[], AmountRange::default());
 
         out += "\n=== filtered by category 'fun' ===\n";
-        out += &run(sample(), false, &["fun".to_string()], AmountRange::default());
+        out += &run(
+            sample(),
+            false,
+            &["fun".to_string()],
+            AmountRange::default(),
+        );
 
         out += "\n=== min/max range 100..2000 ===\n";
         out += &run(
             sample(),
             false,
             &[],
-            AmountRange { min: Some(100.0), max: Some(2000.0) },
+            AmountRange {
+                min: Some(100.0),
+                max: Some(2000.0),
+            },
         );
 
         out += "\n=== no recurring expenses ===\n";
         out += &run(Vec::new(), false, &[], AmountRange::default());
 
         out += "\n=== no expenses match category ===\n";
-        out += &run(sample(), false, &["missing".to_string()], AmountRange::default());
+        out += &run(
+            sample(),
+            false,
+            &["missing".to_string()],
+            AmountRange::default(),
+        );
 
         out += "\n=== no expenses match amount range ===\n";
         out += &run(
             sample(),
             false,
             &[],
-            AmountRange { min: Some(100_000.0), max: None },
+            AmountRange {
+                min: Some(100_000.0),
+                max: None,
+            },
         );
 
         insta::assert_snapshot!(out);

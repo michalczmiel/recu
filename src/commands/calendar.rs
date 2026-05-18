@@ -389,8 +389,7 @@ fn prepare(
             .iter()
             .filter(|e| expense::matches_categories(e, categories))
     };
-    let matching =
-        || cat_matching().filter(|e| amount.matches(e, exchange_rates.as_ref(), target));
+    let matching = || cat_matching().filter(|e| amount.matches(e, exchange_rates.as_ref(), target));
 
     let by_day = charges_for_month(
         matching(),
