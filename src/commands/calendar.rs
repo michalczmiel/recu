@@ -2,7 +2,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
 
 use crate::config::{self, Config};
-use crate::expense::{self, Expense, convert, find_currency, format_amount, round_money};
+use crate::expense::{
+    self, AmountRange, Expense, convert, find_currency, format_amount, round_money,
+};
 use crate::rates;
 use crate::store::Store;
 use crate::ui;
@@ -11,7 +13,7 @@ use clap::Args;
 use rusty_money::iso;
 use serde::Serialize;
 
-use crate::commands::{AmountRange, OutputFormat, emit_json};
+use crate::commands::{OutputFormat, emit_json};
 
 const CELL_WIDTH: usize = 7;
 
@@ -382,15 +384,7 @@ fn prepare(
         expenses
             .iter()
             .filter(|e| expense::matches_categories(e, categories))
-            .filter(|e| {
-                expense::matches_amount_range(
-                    e,
-                    exchange_rates.as_ref(),
-                    target,
-                    amount.min,
-                    amount.max,
-                )
-            })
+            .filter(|e| amount.matches(e, exchange_rates.as_ref(), target))
     };
 
     let by_day = charges_for_month(

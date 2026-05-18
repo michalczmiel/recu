@@ -381,21 +381,39 @@ pub fn monthly_amount(
     Some(interval.to_monthly(convert(amount, expense.currency.as_deref(), rates, target)))
 }
 
-/// `true` if `expense`'s monthly cost lies within `[min, max]`. `None` bounds
-/// are open. Expenses without a computable monthly cost are excluded once any
-/// bound is set.
-pub fn matches_amount_range(
-    expense: &Expense,
-    rates: Option<&HashMap<String, f64>>,
-    target: Option<&str>,
-    min: Option<f64>,
-    max: Option<f64>,
-) -> bool {
-    if min.is_none() && max.is_none() {
-        return true;
+/// Filter expenses by their monthly cost (in the display currency).
+#[derive(Args, Debug, Default, Clone, Copy)]
+pub struct AmountRange {
+    /// Only show expenses costing at least this much per month
+    #[arg(long)]
+    pub min: Option<f64>,
+    /// Only show expenses costing at most this much per month
+    #[arg(long)]
+    pub max: Option<f64>,
+}
+
+impl AmountRange {
+    /// `true` when no bounds are set, so every expense passes.
+    pub fn is_unbounded(&self) -> bool {
+        self.min.is_none() && self.max.is_none()
     }
-    monthly_amount(expense, rates, target)
-        .is_some_and(|m| min.is_none_or(|lo| m >= lo) && max.is_none_or(|hi| m <= hi))
+
+    /// `true` if `value` lies within `[min, max]`; `None` bounds are open.
+    pub fn contains(&self, value: f64) -> bool {
+        self.min.is_none_or(|lo| value >= lo) && self.max.is_none_or(|hi| value <= hi)
+    }
+
+    /// `true` if `expense`'s monthly cost lies within the range. Expenses
+    /// without a computable monthly cost are excluded once any bound is set.
+    pub fn matches(
+        &self,
+        expense: &Expense,
+        rates: Option<&HashMap<String, f64>>,
+        target: Option<&str>,
+    ) -> bool {
+        self.is_unbounded()
+            || monthly_amount(expense, rates, target).is_some_and(|m| self.contains(m))
+    }
 }
 
 /// `true` if `expense`'s category matches any of `filters` (case-insensitive).

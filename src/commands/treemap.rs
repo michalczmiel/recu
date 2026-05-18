@@ -19,7 +19,7 @@ pub struct TreemapArgs {
     #[arg(short, long, value_delimiter = ',')]
     pub category: Vec<String>,
     #[command(flatten)]
-    pub amount: crate::commands::AmountRange,
+    pub amount: crate::expense::AmountRange,
 }
 
 // Terminal characters are roughly twice as tall as wide.
@@ -416,10 +416,7 @@ pub fn execute(args: &TreemapArgs, store: &Store) -> std::io::Result<()> {
         return Ok(());
     }
 
-    items.retain(|it| {
-        args.amount.min.is_none_or(|min| it.monthly >= min)
-            && args.amount.max.is_none_or(|max| it.monthly <= max)
-    });
+    items.retain(|it| args.amount.contains(it.monthly));
 
     if items.is_empty() {
         println!("No expenses match the monthly amount range.");

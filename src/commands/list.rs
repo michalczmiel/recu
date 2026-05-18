@@ -4,7 +4,7 @@ use std::io::Write;
 use chrono::NaiveDate;
 use clap::Args;
 
-use crate::commands::{AmountRange, JsonExpense, OutputFormat, emit_json};
+use crate::commands::{JsonExpense, OutputFormat, emit_json};
 
 use crate::config::{self, Config};
 use crate::ui;
@@ -26,7 +26,8 @@ pub struct ListArgs {
 }
 
 use crate::expense::{
-    self, DueStatus, Expense, RecurringTotals, find_currency, format_amount, format_expense_amount,
+    self, AmountRange, DueStatus, Expense, RecurringTotals, find_currency, format_amount,
+    format_expense_amount,
 };
 use crate::rates;
 use crate::store::Store;
@@ -239,15 +240,7 @@ pub(crate) fn execute_with(
     let (mut active, mut ended): (Vec<&Expense>, Vec<&Expense>) = expenses
         .iter()
         .filter(|e| expense::matches_categories(e, categories))
-        .filter(|e| {
-            expense::matches_amount_range(
-                e,
-                exchange_rates.as_ref(),
-                target,
-                amount.min,
-                amount.max,
-            )
-        })
+        .filter(|e| amount.matches(e, exchange_rates.as_ref(), target))
         .partition(|e| !e.is_ended(today));
     active.sort_by_key(by_due);
     ended.sort_by_key(by_due);
@@ -258,7 +251,7 @@ pub(crate) fn execute_with(
     }
 
     if visible.is_empty() {
-        let unfiltered = categories.is_empty() && amount.min.is_none() && amount.max.is_none();
+        let unfiltered = categories.is_empty() && amount.is_unbounded();
         if unfiltered {
             writeln!(
                 out,
@@ -314,15 +307,7 @@ fn execute_json(
     let visible = expenses
         .iter()
         .filter(|e| expense::matches_categories(e, categories))
-        .filter(|e| {
-            expense::matches_amount_range(
-                e,
-                exchange_rates.as_ref(),
-                target,
-                amount.min,
-                amount.max,
-            )
-        })
+        .filter(|e| amount.matches(e, exchange_rates.as_ref(), target))
         .filter(|e| all || !e.is_ended(today));
     let view: Vec<JsonExpense<'_>> = visible.map(JsonExpense::from).collect();
     emit_json(out, &view)
