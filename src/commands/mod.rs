@@ -9,6 +9,7 @@ use crate::expense::{AmountRange, Expense, Interval};
 pub mod add;
 pub mod calendar;
 pub mod category;
+pub mod completion;
 pub mod config;
 pub mod edit;
 pub mod list;
