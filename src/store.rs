@@ -343,10 +343,7 @@ fn row_to_expense(headers: &[String], record: &csv::StringRecord) -> io::Result<
         match h.as_str() {
             "id" => {
                 e.id = v.parse().map_err(|_| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("invalid id '{v}'"),
-                    )
+                    io::Error::new(io::ErrorKind::InvalidData, format!("invalid id '{v}'"))
                 })?;
             }
             "name" => e.name = v.to_string(),
@@ -355,23 +352,21 @@ fn row_to_expense(headers: &[String], record: &csv::StringRecord) -> io::Result<
                     None
                 } else {
                     Some(v.parse::<f64>().map_err(|_| {
-                        io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            format!("invalid amount '{v}'"),
-                        )
+                        io::Error::new(io::ErrorKind::InvalidData, format!("invalid amount '{v}'"))
                     })?)
                 };
             }
             "currency" => e.currency = empty_to_none(v),
             "start_date" => e.start_date = parse_opt_date(v)?,
             "interval" => {
-                e.interval = if v.is_empty() {
-                    None
-                } else {
-                    Some(v.parse().map_err(|msg: String| {
-                        io::Error::new(io::ErrorKind::InvalidData, msg)
-                    })?)
-                };
+                e.interval =
+                    if v.is_empty() {
+                        None
+                    } else {
+                        Some(v.parse().map_err(|msg: String| {
+                            io::Error::new(io::ErrorKind::InvalidData, msg)
+                        })?)
+                    };
             }
             "category" => e.category = empty_to_none(v),
             "end_date" => e.end_date = parse_opt_date(v)?,
@@ -845,13 +840,19 @@ mod tests {
         )?;
 
         let before = store.list()?;
-        assert_eq!(before[0].extra.get("notes").map(String::as_str), Some("personal"));
+        assert_eq!(
+            before[0].extra.get("notes").map(String::as_str),
+            Some("personal")
+        );
 
         store.update("Netflix", &named("Netflix", 14.99))?;
 
         let after = store.list()?;
         assert_eq!(after[0].amount, Some(14.99));
-        assert_eq!(after[0].extra.get("notes").map(String::as_str), Some("personal"));
+        assert_eq!(
+            after[0].extra.get("notes").map(String::as_str),
+            Some("personal")
+        );
 
         // Raw file should still contain the column header and value.
         let raw = fs::read_to_string(&store.path)?;
