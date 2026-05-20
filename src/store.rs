@@ -861,6 +861,85 @@ mod tests {
     }
 
     #[test]
+    fn loads_legacy_csv_without_end_date_column() -> io::Result<()> {
+        let store = test_support::store();
+        fs::write(
+            store.path.as_path(),
+            "id,name,amount,currency,start_date,interval,category\n\
+             1,Netflix,9.99,usd,,monthly,streaming\n",
+        )?;
+        let entries = store.list()?;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].end_date, None);
+        assert_eq!(entries[0].category.as_deref(), Some("streaming"));
+        Ok(())
+    }
+
+    #[test]
+    fn preserves_multiple_interleaved_custom_columns() -> io::Result<()> {
+        let store = test_support::store();
+        fs::write(
+            store.path.as_path(),
+            "id,notes,name,vendor,amount,currency,start_date,interval,category,end_date\n\
+             1,personal,Netflix,acme,9.99,usd,,monthly,,\n",
+        )?;
+        store.update("Netflix", &named("Netflix", 14.99))?;
+        let raw = fs::read_to_string(&store.path)?;
+        assert!(raw.contains("notes"), "notes header lost: {raw}");
+        assert!(raw.contains("vendor"), "vendor header lost: {raw}");
+        assert!(raw.contains("personal"), "notes value lost: {raw}");
+        assert!(raw.contains("acme"), "vendor value lost: {raw}");
+        Ok(())
+    }
+
+    #[test]
+    fn flexible_short_row_loads_with_missing_trailing_cells() -> io::Result<()> {
+        let store = test_support::store();
+        // Trailing empty cells omitted — common when spreadsheets export.
+        fs::write(
+            store.path.as_path(),
+            "id,name,amount,currency,start_date,interval,category,end_date\n\
+             1,Netflix,9.99,usd,,monthly\n",
+        )?;
+        let entries = store.list()?;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].category, None);
+        assert_eq!(entries[0].end_date, None);
+        Ok(())
+    }
+
+    #[test]
+    fn empty_optional_cells_load_as_none() -> io::Result<()> {
+        let store = test_support::store();
+        fs::write(
+            store.path.as_path(),
+            "id,name,amount,currency,start_date,interval,category,end_date\n\
+             1,Netflix,,,,,,\n",
+        )?;
+        let e = &store.list()?[0];
+        assert_eq!(e.amount, None);
+        assert_eq!(e.currency, None);
+        assert_eq!(e.start_date, None);
+        assert_eq!(e.interval, None);
+        assert_eq!(e.category, None);
+        assert_eq!(e.end_date, None);
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_amount_returns_invalid_data() -> io::Result<()> {
+        let store = test_support::store();
+        fs::write(
+            store.path.as_path(),
+            "id,name,amount,currency,start_date,interval,category,end_date\n\
+             1,Netflix,not-a-number,usd,,monthly,,\n",
+        )?;
+        let err = store.list().expect_err("bad amount should fail");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        Ok(())
+    }
+
+    #[test]
     fn clear_categories_multiple() -> io::Result<()> {
         let store = test_support::store();
         store.save(&Expense {
