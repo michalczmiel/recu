@@ -78,13 +78,11 @@ enum Commands {
     Undo,
     /// Generate shell completion script
     #[command(after_help = "Examples:
-  # bash — per-user (bash-completion v2)
-  recu completion bash > ~/.local/share/bash-completion/completions/recu
-  # bash — or source from ~/.bashrc
+  # bash — source from ~/.bashrc
   echo 'eval \"$(recu completion bash)\"' >> ~/.bashrc
 
-  # zsh — drop into a user fpath dir, then add it to fpath before compinit
-  mkdir -p ~/.zfunc && recu completion zsh > ~/.zfunc/_recu
+  # zsh — oh-my-zsh (auto-loaded)
+  mkdir -p ~/.oh-my-zsh/completions && recu completion zsh > ~/.oh-my-zsh/completions/_recu
 
   # fish — auto-loaded from this path
   recu completion fish > ~/.config/fish/completions/recu.fish")]
