@@ -1,8 +1,23 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
 
+use chrono::NaiveDate;
+
 use crate::expense::Expense;
+
+/// CSV columns we own. Anything else is round-tripped via `Expense::extra`.
+const KNOWN_COLUMNS: &[&str] = &[
+    "id",
+    "name",
+    "amount",
+    "currency",
+    "start_date",
+    "interval",
+    "category",
+    "end_date",
+];
 
 pub struct Store {
     path: PathBuf,
@@ -49,10 +64,18 @@ impl Store {
             return Ok(vec![]);
         }
         let mut reader = csv::Reader::from_path(&self.path).map_err(io_invalid_data)?;
-        reader
-            .deserialize()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(io_invalid_data)
+        let headers: Vec<String> = reader
+            .headers()
+            .map_err(io_invalid_data)?
+            .iter()
+            .map(str::to_string)
+            .collect();
+        let mut out = Vec::new();
+        for record in reader.records() {
+            let record = record.map_err(io_invalid_data)?;
+            out.push(row_to_expense(&headers, &record)?);
+        }
+        Ok(out)
     }
 
     fn write_all(&self, entries: &[Expense]) -> io::Result<()> {
@@ -61,11 +84,49 @@ impl Store {
         {
             fs::create_dir_all(parent)?;
         }
+        let mut extra_keys: BTreeSet<String> = BTreeSet::new();
+        for e in entries {
+            extra_keys.extend(e.extra.keys().cloned());
+        }
+        let extra_keys: Vec<String> = extra_keys.into_iter().collect();
+
         let tmp = self.path.with_extension("csv.tmp");
         {
             let mut writer = csv::Writer::from_path(&tmp).map_err(io_invalid_data)?;
+            let mut header: Vec<&str> = KNOWN_COLUMNS.to_vec();
+            header.extend(extra_keys.iter().map(String::as_str));
+            writer.write_record(&header).map_err(io_invalid_data)?;
             for entry in entries {
-                writer.serialize(entry).map_err(io_invalid_data)?;
+                // Destructure exhaustively so adding a field to `Expense` forces
+                // a corresponding update to `KNOWN_COLUMNS` and this row builder.
+                let Expense {
+                    id,
+                    name,
+                    amount,
+                    currency,
+                    start_date,
+                    interval,
+                    category,
+                    end_date,
+                    extra,
+                } = entry;
+                let mut row: Vec<String> = vec![
+                    id.to_string(),
+                    name.clone(),
+                    amount.map(|a| a.to_string()).unwrap_or_default(),
+                    currency.clone().unwrap_or_default(),
+                    start_date.map(|d| d.to_string()).unwrap_or_default(),
+                    interval
+                        .as_ref()
+                        .map(|i| i.name().to_string())
+                        .unwrap_or_default(),
+                    category.clone().unwrap_or_default(),
+                    end_date.map(|d| d.to_string()).unwrap_or_default(),
+                ];
+                for k in &extra_keys {
+                    row.push(extra.get(k).cloned().unwrap_or_default());
+                }
+                writer.write_record(&row).map_err(io_invalid_data)?;
             }
             writer.flush()?;
         }
@@ -269,6 +330,74 @@ impl Store {
 
 fn io_invalid_data<E: std::error::Error + Send + Sync + 'static>(err: E) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, err)
+}
+
+fn row_to_expense(headers: &[String], record: &csv::StringRecord) -> io::Result<Expense> {
+    let mut e = Expense::default();
+    for (h, v) in headers.iter().zip(record.iter()) {
+        match h.as_str() {
+            "id" => {
+                e.id = v.parse().map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("invalid id '{v}'"),
+                    )
+                })?;
+            }
+            "name" => e.name = v.to_string(),
+            "amount" => {
+                e.amount = if v.is_empty() {
+                    None
+                } else {
+                    Some(v.parse::<f64>().map_err(|_| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("invalid amount '{v}'"),
+                        )
+                    })?)
+                };
+            }
+            "currency" => e.currency = empty_to_none(v),
+            "start_date" => e.start_date = parse_opt_date(v)?,
+            "interval" => {
+                e.interval = if v.is_empty() {
+                    None
+                } else {
+                    Some(v.parse().map_err(|msg: String| {
+                        io::Error::new(io::ErrorKind::InvalidData, msg)
+                    })?)
+                };
+            }
+            "category" => e.category = empty_to_none(v),
+            "end_date" => e.end_date = parse_opt_date(v)?,
+            other => {
+                e.extra.insert(other.to_string(), v.to_string());
+            }
+        }
+    }
+    Ok(e)
+}
+
+fn empty_to_none(v: &str) -> Option<String> {
+    if v.is_empty() {
+        None
+    } else {
+        Some(v.to_string())
+    }
+}
+
+fn parse_opt_date(v: &str) -> io::Result<Option<NaiveDate>> {
+    if v.is_empty() {
+        return Ok(None);
+    }
+    NaiveDate::parse_from_str(v, "%Y-%m-%d")
+        .map(Some)
+        .map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("invalid date '{v}', expected YYYY-MM-DD"),
+            )
+        })
 }
 
 fn resolve_index_in(entries: &[Expense], target: &str) -> io::Result<usize> {
@@ -697,6 +826,32 @@ mod tests {
         let msg = store.restore()?;
         assert_eq!(msg, "Reverted edit of 'Netflix'");
         assert_eq!(store.list()?[0].category.as_deref(), Some("streaming"));
+        Ok(())
+    }
+
+    #[test]
+    fn preserves_unknown_csv_columns_across_edits() -> io::Result<()> {
+        let store = test_support::store();
+        // Hand-write a CSV with a user-added "notes" column.
+        fs::write(
+            store.path.as_path(),
+            "id,name,amount,currency,start_date,interval,category,end_date,notes\n\
+             1,Netflix,9.99,usd,,monthly,,,personal\n",
+        )?;
+
+        let before = store.list()?;
+        assert_eq!(before[0].extra.get("notes").map(String::as_str), Some("personal"));
+
+        store.update("Netflix", &named("Netflix", 14.99))?;
+
+        let after = store.list()?;
+        assert_eq!(after[0].amount, Some(14.99));
+        assert_eq!(after[0].extra.get("notes").map(String::as_str), Some("personal"));
+
+        // Raw file should still contain the column header and value.
+        let raw = fs::read_to_string(&store.path)?;
+        assert!(raw.contains("notes"), "header lost: {raw}");
+        assert!(raw.contains("personal"), "value lost: {raw}");
         Ok(())
     }
 

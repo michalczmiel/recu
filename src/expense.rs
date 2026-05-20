@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use chrono::{Datelike, NaiveDate};
 use clap::{Args, ValueEnum};
@@ -17,6 +17,19 @@ pub enum Interval {
 impl std::fmt::Display for Interval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
+    }
+}
+
+impl std::str::FromStr for Interval {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "weekly" => Ok(Self::Weekly),
+            "monthly" => Ok(Self::Monthly),
+            "quarterly" => Ok(Self::Quarterly),
+            "yearly" => Ok(Self::Yearly),
+            other => Err(format!("invalid interval '{other}'")),
+        }
     }
 }
 
@@ -100,6 +113,10 @@ pub struct Expense {
     pub category: Option<String>,
     #[serde(default)]
     pub end_date: Option<NaiveDate>,
+    /// User-defined CSV columns we don't recognize. Preserved on write so editing
+    /// an expense doesn't silently drop the user's own bookkeeping columns.
+    #[serde(skip)]
+    pub extra: BTreeMap<String, String>,
 }
 
 impl Expense {
