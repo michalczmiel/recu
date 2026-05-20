@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 
 use crate::commands::{
-    Filters, OutputFormat, add, calendar, category, config, edit, list, remove, rename, treemap,
-    undo,
+    Filters, OutputFormat, add, calendar, category, completion, config, edit, list, remove, rename,
+    treemap, undo,
 };
 use crate::expense::AmountRange;
 use crate::store::Store;
@@ -76,6 +76,17 @@ enum Commands {
     Calendar(calendar::CalendarArgs),
     /// Undo the last add, edit, rename, or remove
     Undo,
+    /// Generate shell completion script
+    #[command(after_help = "Examples:
+  # bash — source from ~/.bashrc
+  echo 'eval \"$(recu completion bash)\"' >> ~/.bashrc
+
+  # zsh — oh-my-zsh (auto-loaded)
+  mkdir -p ~/.oh-my-zsh/completions && recu completion zsh > ~/.oh-my-zsh/completions/_recu
+
+  # fish — auto-loaded from this path
+  recu completion fish > ~/.config/fish/completions/recu.fish")]
+    Completion(completion::CompletionArgs),
 }
 
 pub fn run() -> std::io::Result<()> {
@@ -99,6 +110,7 @@ pub fn run() -> std::io::Result<()> {
         Commands::Category { command } => category::run(&command, &store)?,
         Commands::Calendar(args) => calendar::execute(&args, &store)?,
         Commands::Undo => undo::execute(&store)?,
+        Commands::Completion(args) => completion::execute(&args, &mut Cli::command()),
     }
     Ok(())
 }

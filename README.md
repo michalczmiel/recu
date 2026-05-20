@@ -117,22 +117,25 @@ Track recurring expenses
 Usage: recu [OPTIONS] [COMMAND]
 
 Commands:
-  list      List recurring expenses. Amounts converted to display currency when configured [aliases: ls]
-  add       Add a recurring expense
-  edit      Edit a recurring expense
-  rename    Rename a recurring expense
-  remove    Remove one or more recurring expenses [aliases: rm]
-  treemap   Visualize expenses as a treemap
-  config    Manage configuration
-  category  Manage expense categories
-  calendar  Show recurring expenses on a month grid
-  undo      Undo the last add, edit, rename, or remove
-  help      Print this message or the help of the given subcommand(s)
+  list        List recurring expenses. Amounts converted to display currency when configured [aliases: ls]
+  add         Add a recurring expense
+  edit        Edit a recurring expense
+  rename      Rename a recurring expense
+  remove      Remove one or more recurring expenses [aliases: rm]
+  treemap     Visualize expenses as a treemap
+  config      Manage configuration
+  category    Manage expense categories
+  calendar    Show recurring expenses on a month grid
+  undo        Undo the last add, edit, rename, or remove
+  completion  Generate shell completion script
+  help        Print this message or the help of the given subcommand(s)
 
 Options:
   -f, --file <FILE>      Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
   -a, --all              Include ended expenses (only used when no subcommand is given; equivalent to `recu list --all`)
       --format <FORMAT>  Output format (only used when no subcommand is given; equivalent to `recu list --format <FORMAT>`) [possible values: text, json]
+      --min <MIN>        Only show expenses costing at least this much per month
+      --max <MAX>        Only show expenses costing at most this much per month
   -h, --help             Print help
   -V, --version          Print version
 ```
