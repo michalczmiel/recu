@@ -63,7 +63,12 @@ impl Store {
         if !self.path.exists() {
             return Ok(vec![]);
         }
-        let mut reader = csv::Reader::from_path(&self.path).map_err(io_invalid_data)?;
+        // `flexible(true)` so hand-edited CSVs with trailing-empty cells
+        // omitted (common in spreadsheets) still parse.
+        let mut reader = csv::ReaderBuilder::new()
+            .flexible(true)
+            .from_path(&self.path)
+            .map_err(io_invalid_data)?;
         let headers: Vec<String> = reader
             .headers()
             .map_err(io_invalid_data)?
