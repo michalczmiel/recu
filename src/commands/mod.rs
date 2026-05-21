@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::io::{self, Write};
 
 use chrono::NaiveDate;
-use clap::{Args, ValueEnum};
+use clap::Args;
 use serde::Serialize;
 
 use crate::expense::{AmountRange, Expense, Interval};
@@ -30,13 +30,6 @@ pub struct Filters {
     pub category: Vec<String>,
     #[command(flatten)]
     pub amount: AmountRange,
-}
-
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
-pub enum OutputFormat {
-    #[default]
-    Text,
-    Json,
 }
 
 #[derive(Serialize)]

@@ -1,6 +1,6 @@
 use clap::Args;
 
-use crate::commands::{JsonExpense, OutputFormat, emit_json};
+use crate::commands::{JsonExpense, emit_json};
 use crate::expense::{Expense, ExpenseFields};
 use crate::prompt::{
     install_render_config, pick, prompt_amount, prompt_category, prompt_currency, prompt_date,
@@ -40,9 +40,9 @@ pub struct EditArgs {
     pub target: String,
     #[command(flatten)]
     pub fields: ExpenseFields,
-    /// Output format
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-    pub format: OutputFormat,
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 fn display<T: ToString>(v: Option<T>) -> String {
@@ -125,11 +125,10 @@ pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
         Expense::from(&args.fields)
     };
     let updated = store.update(&args.target, &patch)?;
-    match args.format {
-        OutputFormat::Json => {
-            emit_json(&mut std::io::stdout(), &JsonExpense::from(&updated))?;
-        }
-        OutputFormat::Text => println!("Updated '{}'", args.target),
+    if args.json {
+        emit_json(&mut std::io::stdout(), &JsonExpense::from(&updated))?;
+    } else {
+        println!("Updated '{}'", args.target);
     }
     Ok(())
 }

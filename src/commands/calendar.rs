@@ -13,7 +13,7 @@ use clap::Args;
 use rusty_money::iso;
 use serde::Serialize;
 
-use crate::commands::{Filters, OutputFormat, emit_json};
+use crate::commands::{Filters, emit_json};
 
 const CELL_WIDTH: usize = 7;
 
@@ -31,9 +31,9 @@ pub struct CalendarArgs {
     pub month: Option<NaiveDate>,
     #[command(flatten)]
     pub filters: Filters,
-    /// Output format
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-    pub format: OutputFormat,
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 fn parse_month(s: &str) -> Result<NaiveDate, String> {
@@ -518,8 +518,8 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
 
     let categories = crate::commands::category::resolve_filter(&args.filters.category, store)?;
     let mut out = std::io::stdout();
-    match args.format {
-        OutputFormat::Json => execute_json(
+    if args.json {
+        execute_json(
             &mut out,
             today,
             &cfg,
@@ -528,8 +528,9 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
             args.filters.all,
             &categories,
             args.filters.amount,
-        ),
-        OutputFormat::Text => execute_with(
+        )
+    } else {
+        execute_with(
             &mut out,
             today,
             &cfg,
@@ -538,7 +539,7 @@ pub fn execute(args: &CalendarArgs, store: &Store) -> std::io::Result<()> {
             args.filters.all,
             &categories,
             args.filters.amount,
-        ),
+        )
     }
 }
 

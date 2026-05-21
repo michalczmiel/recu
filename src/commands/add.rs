@@ -1,6 +1,6 @@
 use clap::Args;
 
-use crate::commands::{JsonExpense, OutputFormat, emit_json};
+use crate::commands::{JsonExpense, emit_json};
 use crate::expense::{Expense, ExpenseInput};
 use crate::prompt::{
     install_render_config, prompt_amount, prompt_category, prompt_currency, prompt_date,
@@ -20,9 +20,9 @@ use crate::store::Store;
 pub struct AddArgs {
     #[command(flatten)]
     pub fields: ExpenseInput,
-    /// Output format
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-    pub format: OutputFormat,
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 fn prompt_fields(input: &ExpenseInput, store: &Store) -> std::io::Result<Expense> {
@@ -59,12 +59,11 @@ pub fn execute(args: &AddArgs, store: &Store) -> std::io::Result<()> {
 
     store.save(&expense)?;
 
-    match args.format {
-        OutputFormat::Json => {
-            let saved = store.get(&expense.name)?;
-            emit_json(&mut std::io::stdout(), &JsonExpense::from(&saved))?;
-        }
-        OutputFormat::Text => println!("Added {}", expense.summary()),
+    if args.json {
+        let saved = store.get(&expense.name)?;
+        emit_json(&mut std::io::stdout(), &JsonExpense::from(&saved))?;
+    } else {
+        println!("Added {}", expense.summary());
     }
     Ok(())
 }
@@ -96,7 +95,7 @@ mod tests {
                 name: Some(name.to_string()),
                 ..Default::default()
             },
-            format: OutputFormat::Text,
+            json: false,
         }
     }
 
@@ -125,7 +124,7 @@ mod tests {
                     end_date: Some(date("2026-12-31")),
                 },
             },
-            format: OutputFormat::Text,
+            json: false,
         };
         execute(&args, &store).expect("add should succeed");
         let e = load(&store, "Hulu");
