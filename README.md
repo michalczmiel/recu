@@ -185,3 +185,29 @@ Options:
   -h, --help             Print help
   -V, --version          Print version
 ```
+
+```sh
+$ recu add --help
+Add a recurring expense
+
+Usage: recu add [OPTIONS] [NAME]
+
+Arguments:
+  [NAME]  Expense name
+
+Options:
+  -a, --amount <AMOUNT>      Amount (e.g. 9.99 or 9,99)
+  -f, --file <FILE>          Path to the CSV storage file [env: RECU_FILE=] [default: recu.csv]
+  -c, --currency <CURRENCY>  ISO 4217 currency code (e.g. usd, eur)
+  -d, --date <DATE>          Start date (YYYY-MM-DD)
+  -i, --interval <INTERVAL>  Billing interval [possible values: weekly, monthly, quarterly, yearly]
+      --category <CATEGORY>  Category label (e.g. streaming, utilities)
+      --end <END_DATE>       End date — when the subscription stops (YYYY-MM-DD)
+      --format <FORMAT>      Output format [default: text] [possible values: text, json]
+  -h, --help                 Print help
+
+Examples:
+  recu add Netflix -a 9.99 -c usd -d 2026-05-01 -i monthly
+  recu add Netflix             # stored with name only, fill in later via 'recu edit'
+  recu add                     # interactive mode
+```
