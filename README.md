@@ -79,13 +79,7 @@ cargo binstall recu
 
 ## Schema
 
-`recu` stores one expense per CSV row.
-
-```csv
-id,name,amount,currency,start_date,interval,category,end_date
-1,Streamberry,19.99,usd,2026-04-22,monthly,Streaming,
-17,Domain,15.00,usd,2025-11-08,yearly,Infrastructure,
-```
+`recu` stores one expense per CSV row. See [examples/recu.csv](examples/recu.csv) for a full sample.
 
 | Column       | Required | Format / values                         | Notes                                         |
 | ------------ | -------- | --------------------------------------- | --------------------------------------------- |
