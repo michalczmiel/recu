@@ -98,6 +98,9 @@ fn charges_for_month<'a>(
         if let Some(interval) = exp.interval.as_ref() {
             let mut d = interval.next_payment(first, start);
             while d <= end {
+                if exp.end_date.is_some_and(|e| d > e) {
+                    break;
+                }
                 by_day.entry(d).or_default().push(charge());
                 d = interval.next_payment(first, d + chrono::Days::new(1));
             }
@@ -365,9 +368,10 @@ fn prepare(
     all: bool,
     categories: &[String],
     amount: AmountRange,
-) -> std::io::Result<CalendarData> {
+) -> CalendarData {
     let target: Option<&str> = cfg.currency.as_deref();
-    let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
+    let exchange_rates: Option<HashMap<String, f64>> =
+        rates::rates_for(&mut std::io::stderr(), target);
     let target_cur: Option<&'static iso::Currency> = target
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
@@ -397,12 +401,12 @@ fn prepare(
     let hidden_amount =
         amount.count_hidden(cat_matching(), today, all, exchange_rates.as_ref(), target);
 
-    Ok(CalendarData {
+    CalendarData {
         by_day,
         target_cur,
         hidden_ended,
         hidden_amount,
-    })
+    }
 }
 
 fn is_current_month(today: NaiveDate, month: NaiveDate) -> bool {
@@ -422,7 +426,7 @@ fn execute_json(
 ) -> std::io::Result<()> {
     let CalendarData {
         by_day, target_cur, ..
-    } = prepare(today, cfg, expenses, month, all, categories, amount)?;
+    } = prepare(today, cfg, expenses, month, all, categories, amount);
 
     let total: f64 = by_day
         .values()
@@ -485,7 +489,7 @@ pub(crate) fn execute_with(
         target_cur,
         hidden_ended,
         hidden_amount,
-    } = prepare(today, cfg, expenses, month, all, categories, amount)?;
+    } = prepare(today, cfg, expenses, month, all, categories, amount);
 
     let by_day = cells_from_charges(&by_day_charges);
     render_grid(out, month, today, &by_day)?;
@@ -614,6 +618,31 @@ mod tests {
         out += &run(d(2026, 11, 1), &[]);
 
         insta::assert_snapshot!(out);
+    }
+
+    #[test]
+    fn charges_stop_after_end_date() {
+        let exp = Expense {
+            end_date: Some(d(2026, 6, 15)),
+            ..monthly_pln("Sub", 10.0, d(2026, 6, 5))
+        };
+        let today = d(2026, 6, 10);
+        let charges = charges_for_month(&[exp], d(2026, 6, 1), today, None, None, true);
+        assert_eq!(charges.len(), 1);
+        assert!(charges.contains_key(&d(2026, 6, 5)));
+    }
+
+    #[test]
+    fn charges_stop_after_end_date_weekly() {
+        let exp = Expense {
+            interval: Some(Interval::Weekly),
+            end_date: Some(d(2026, 6, 10)),
+            ..monthly_pln("Gym", 5.0, d(2026, 6, 1))
+        };
+        let today = d(2026, 6, 1);
+        let charges = charges_for_month(&[exp], d(2026, 6, 1), today, None, None, true);
+        let dates: Vec<NaiveDate> = charges.keys().copied().collect();
+        assert_eq!(dates, vec![d(2026, 6, 1), d(2026, 6, 8)]);
     }
 
     #[test]

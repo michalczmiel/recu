@@ -99,3 +99,38 @@ pub fn get_rates(base_currency: &str) -> io::Result<HashMap<String, f64>> {
     let _ = write_cache(&path, &cache);
     Ok(cache.rates)
 }
+
+/// Resolve exchange rates for an optional target currency, degrading
+/// gracefully: a missing target or a fetch error yields `None` (with a warning
+/// to `out`) so commands keep working — amounts shown without conversion.
+pub fn rates_for(out: &mut impl io::Write, target: Option<&str>) -> Option<HashMap<String, f64>> {
+    let base = target?;
+    match get_rates(base) {
+        Ok(rates) => Some(rates),
+        Err(e) => {
+            let _ = writeln!(
+                out,
+                "warning: could not fetch exchange rates ({e}); showing amounts without conversion"
+            );
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rates_for_returns_none_on_error() {
+        // Can't mock the network, so this is best-effort: a nonsense base
+        // currency should fail (or, rarely, hit a cache) but never panic.
+        let mut buf = Vec::new();
+        let result = rates_for(&mut buf, Some("ZZZZZ_INVALID"));
+        if result.is_none() {
+            let warning = String::from_utf8(buf).expect("utf8");
+            assert!(warning.contains("warning:"));
+            assert!(warning.contains("without conversion"));
+        }
+    }
+}

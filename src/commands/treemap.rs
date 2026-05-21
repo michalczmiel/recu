@@ -430,7 +430,8 @@ pub(crate) fn execute_with(
     }
 
     let target: Option<&str> = cfg.currency.as_deref();
-    let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
+    let exchange_rates: Option<HashMap<String, f64>> =
+        rates::rates_for(&mut std::io::stderr(), target);
     let target_cur: Option<&'static iso::Currency> = target.and_then(find_currency);
 
     let mut category_colors: HashMap<String, (u8, u8, u8)> = HashMap::new();

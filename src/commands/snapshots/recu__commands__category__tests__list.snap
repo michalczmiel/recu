@@ -1,0 +1,35 @@
+---
+source: src/commands/category.rs
+expression: out
+---
+=== empty ===
+No categories found.
+
+=== empty json ===
+[]
+
+=== a few categories ===
+@1  food
+@2  housing
+@3  streaming
+
+=== a few categories json ===
+[
+  "food",
+  "housing",
+  "streaming"
+]
+
+=== many categories widen id column ===
+@1   cat1
+@2   cat2
+@3   cat3
+@4   cat4
+@5   cat5
+@6   cat6
+@7   cat7
+@8   cat8
+@9   cat9
+@10  cat10
+@11  cat11
+@12  cat12

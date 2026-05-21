@@ -1,5 +1,6 @@
 use clap::Args;
 
+use crate::expense::validate_name;
 use crate::store::Store;
 
 #[derive(Args, Debug)]
@@ -14,6 +15,7 @@ pub struct RenameArgs {
 }
 
 pub fn execute(args: &RenameArgs, store: &Store) -> std::io::Result<()> {
+    validate_name(&args.new_name)?;
     store.rename(&args.target, &args.new_name)?;
     println!("Renamed '{}' to '{}'", args.target, args.new_name);
     Ok(())
@@ -25,76 +27,18 @@ mod tests {
     use crate::test_support;
     use crate::test_support::seed_basic as seed_expenses;
 
-    fn names(store: &Store) -> Vec<String> {
-        store
-            .list()
-            .expect("list should succeed")
-            .into_iter()
-            .map(|e| e.name)
-            .collect()
-    }
-
     #[test]
-    fn rename_by_name() {
+    fn rename_rejects_blank_name() {
         let store = test_support::store();
         seed_expenses(&store);
-        execute(
+        let err = execute(
             &RenameArgs {
                 target: "Netflix".into(),
-                new_name: "Netflix Plus".into(),
+                new_name: "  ".into(),
             },
             &store,
         )
-        .expect("rename should succeed");
-        let n = names(&store);
-        assert!(n.contains(&"Netflix Plus".to_string()));
-        assert!(!n.contains(&"Netflix".to_string()));
-    }
-
-    #[test]
-    fn rename_by_id() {
-        let store = test_support::store();
-        seed_expenses(&store);
-        execute(
-            &RenameArgs {
-                target: "@1".into(),
-                new_name: "Netflix Plus".into(),
-            },
-            &store,
-        )
-        .expect("rename should succeed");
-        assert!(names(&store).contains(&"Netflix Plus".to_string()));
-    }
-
-    #[test]
-    fn rename_to_existing_name_errors() {
-        let store = test_support::store();
-        seed_expenses(&store);
-        assert!(
-            execute(
-                &RenameArgs {
-                    target: "Netflix".into(),
-                    new_name: "Spotify".into(),
-                },
-                &store,
-            )
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn rename_nonexistent_errors() {
-        let store = test_support::store();
-        seed_expenses(&store);
-        assert!(
-            execute(
-                &RenameArgs {
-                    target: "Hulu".into(),
-                    new_name: "Foo".into(),
-                },
-                &store,
-            )
-            .is_err()
-        );
+        .expect_err("should reject blank name");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     }
 }

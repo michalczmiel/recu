@@ -159,6 +159,20 @@ impl Expense {
             None => DueStatus::Unknown,
         }
     }
+
+    /// Validate that `end_date` is not before `start_date`. Returns an error
+    /// when both dates are present and `end_date < start_date`.
+    pub fn validate_dates(&self) -> std::io::Result<()> {
+        if let (Some(start), Some(end)) = (self.start_date, self.end_date)
+            && end < start
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("end date ({end}) must not be before start date ({start})"),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Sorted union of every expense's unknown CSV column names.
@@ -501,6 +515,17 @@ pub fn normalize_currency(s: &str) -> Result<String, String> {
         ));
     }
     Ok(lower)
+}
+
+/// Validate that a name is not empty or whitespace-only.
+pub fn validate_name(name: &str) -> std::io::Result<()> {
+    if name.trim().is_empty() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "expense name cannot be empty or whitespace-only",
+        ));
+    }
+    Ok(())
 }
 
 pub fn parse_amount(s: &str) -> Result<f64, String> {
