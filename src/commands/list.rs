@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::io;
 use std::io::Write;
 
 use chrono::NaiveDate;
@@ -237,7 +236,7 @@ pub(crate) fn execute_with(
 
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> =
-        target.and_then(|t| rates::get_rates_graceful(&mut io::stderr(), t));
+        rates::rates_for(&mut std::io::stderr(), target);
     let target_cur: Option<&'static iso::Currency> = target
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
@@ -319,7 +318,7 @@ fn execute_json(
 ) -> std::io::Result<()> {
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> =
-        target.and_then(|t| rates::get_rates_graceful(&mut io::stderr(), t));
+        rates::rates_for(&mut std::io::stderr(), target);
     let visible = expenses
         .iter()
         .filter(|e| expense::matches_categories(e, categories))

@@ -102,8 +102,6 @@ impl Store {
             return Ok(entries.swap_remove(index));
         }
 
-        self.snapshot()?;
-
         let expense = &mut entries[index];
         expense.amount = changes.amount.or(expense.amount);
         expense.currency = changes
@@ -123,8 +121,10 @@ impl Store {
             .or(expense.category.as_ref())
             .cloned();
         expense.end_date = changes.end_date.or(expense.end_date);
+        expense.validate_dates()?;
 
         let updated = expense.clone();
+        self.snapshot()?;
         self.write_all(&entries)?;
         Ok(updated)
     }

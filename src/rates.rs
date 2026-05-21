@@ -100,14 +100,12 @@ pub fn get_rates(base_currency: &str) -> io::Result<HashMap<String, f64>> {
     Ok(cache.rates)
 }
 
-/// Like [`get_rates`], but returns `None` with a stderr warning instead of
-/// propagating errors. Commands keep working — amounts are simply shown in
-/// their original currencies.
-pub fn get_rates_graceful(
-    out: &mut impl io::Write,
-    base_currency: &str,
-) -> Option<HashMap<String, f64>> {
-    match get_rates(base_currency) {
+/// Resolve exchange rates for an optional target currency, degrading
+/// gracefully: a missing target or a fetch error yields `None` (with a warning
+/// to `out`) so commands keep working — amounts shown without conversion.
+pub fn rates_for(out: &mut impl io::Write, target: Option<&str>) -> Option<HashMap<String, f64>> {
+    let base = target?;
+    match get_rates(base) {
         Ok(rates) => Some(rates),
         Err(e) => {
             let _ = writeln!(
@@ -124,14 +122,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn get_rates_graceful_returns_none_on_error() {
-        // Use an invalid base currency to trigger an error (no cache, network
-        // call will fail or return an error for a nonsense code).
-        // We can't easily mock the network, but we can verify the function
-        // returns None instead of panicking and writes a warning.
+    fn rates_for_returns_none_on_error() {
+        // Can't mock the network, so this is best-effort: a nonsense base
+        // currency should fail (or, rarely, hit a cache) but never panic.
         let mut buf = Vec::new();
-        let result = get_rates_graceful(&mut buf, "ZZZZZ_INVALID");
-        // Either cached (unlikely) or failed gracefully
+        let result = rates_for(&mut buf, Some("ZZZZZ_INVALID"));
         if result.is_none() {
             let warning = String::from_utf8(buf).expect("utf8");
             assert!(warning.contains("warning:"));

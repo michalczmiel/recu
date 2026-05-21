@@ -371,7 +371,7 @@ fn prepare(
 ) -> CalendarData {
     let target: Option<&str> = cfg.currency.as_deref();
     let exchange_rates: Option<HashMap<String, f64>> =
-        target.and_then(|t| rates::get_rates_graceful(&mut std::io::stderr(), t));
+        rates::rates_for(&mut std::io::stderr(), target);
     let target_cur: Option<&'static iso::Currency> = target
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
@@ -622,23 +622,18 @@ mod tests {
 
     #[test]
     fn charges_stop_after_end_date() {
-        // A monthly expense ending June 15 should NOT produce a charge on June 20
-        // even when include_ended (--all) is true.
         let exp = Expense {
             end_date: Some(d(2026, 6, 15)),
             ..monthly_pln("Sub", 10.0, d(2026, 6, 5))
         };
         let today = d(2026, 6, 10);
-        // --all mode: include_ended = true
         let charges = charges_for_month(&[exp], d(2026, 6, 1), today, None, None, true);
-        // Only June 5 should appear; no charge after end_date (June 15)
         assert_eq!(charges.len(), 1);
         assert!(charges.contains_key(&d(2026, 6, 5)));
     }
 
     #[test]
     fn charges_stop_after_end_date_weekly() {
-        // Weekly expense starting June 1, ending June 10 — should only show June 1 and June 8.
         let exp = Expense {
             interval: Some(Interval::Weekly),
             end_date: Some(d(2026, 6, 10)),

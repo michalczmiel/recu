@@ -117,20 +117,13 @@ fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<Expense> {
 }
 
 pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
-    let current = store.get(&args.target)?;
     let patch = if args.fields == ExpenseFields::default() {
         install_render_config();
+        let current = store.get(&args.target)?;
         prompt_fields(&current, store)?
     } else {
         Expense::from(&args.fields)
     };
-
-    Expense {
-        start_date: patch.start_date.or(current.start_date),
-        end_date: patch.end_date.or(current.end_date),
-        ..Default::default()
-    }
-    .validate_dates()?;
 
     let updated = store.update(&args.target, &patch)?;
     if args.json {
