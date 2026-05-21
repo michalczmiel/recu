@@ -44,7 +44,13 @@ fn colorize_row(row: &[String], status: &DueStatus) -> Vec<String> {
         .collect()
 }
 
-fn build_row(expense: &Expense, today: NaiveDate, show_ends: bool, is_ended: bool) -> Vec<String> {
+fn build_row(
+    expense: &Expense,
+    today: NaiveDate,
+    show_ends: bool,
+    is_ended: bool,
+    extra_keys: &[String],
+) -> Vec<String> {
     let amount = match expense.amount {
         None => "-".into(),
         Some(a) => {
@@ -71,6 +77,9 @@ fn build_row(expense: &Expense, today: NaiveDate, show_ends: bool, is_ended: boo
         due_str,
         expense.category.clone().unwrap_or_default(),
     ];
+    for key in extra_keys {
+        row.push(expense.extra.get(key).cloned().unwrap_or_default());
+    }
     if show_ends {
         let ends_str = expense
             .end_date
@@ -155,12 +164,13 @@ fn print_table(
     statuses: &[DueStatus],
     show_ends: bool,
     ended_start: Option<usize>,
+    extra_keys: &[String],
 ) -> std::io::Result<()> {
-    let headers: Vec<&str> = if show_ends {
-        vec!["@", "name", "amount", "due", "category", "ends"]
-    } else {
-        vec!["@", "name", "amount", "due", "category"]
-    };
+    let mut headers: Vec<&str> = vec!["@", "name", "amount", "due", "category"];
+    headers.extend(extra_keys.iter().map(String::as_str));
+    if show_ends {
+        headers.push("ends");
+    }
     let n = headers.len();
     let widths: Vec<usize> = (0..n)
         .map(|i| {
@@ -270,18 +280,19 @@ pub(crate) fn execute_with(
     }
 
     let show_ends = visible.iter().any(|e| e.end_date.is_some());
+    let extra_keys = expense::extra_key_union(visible.iter().copied());
 
     let rows: Vec<Vec<String>> = visible
         .iter()
         .enumerate()
-        .map(|(i, e)| build_row(e, today, show_ends, i >= active.len()))
+        .map(|(i, e)| build_row(e, today, show_ends, i >= active.len(), &extra_keys))
         .collect();
 
     let statuses: Vec<DueStatus> = visible.iter().map(|e| e.due_status(today)).collect();
 
     let ended_start = (all && !ended.is_empty()).then_some(active.len());
 
-    print_table(out, &rows, &statuses, show_ends, ended_start)?;
+    print_table(out, &rows, &statuses, show_ends, ended_start, &extra_keys)?;
 
     let totals = RecurringTotals::compute(active.iter().copied(), exchange_rates.as_ref(), target);
     print_totals(out, &totals, target_cur, active.len())?;
@@ -418,6 +429,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn list() {
         let mut s = insta::Settings::clone_current();
         s.add_filter(r"\x1b\[[0-9;]*m", "");
@@ -537,6 +549,26 @@ mod tests {
                 max: None,
             },
         );
+
+        // Custom CSV columns surface as extra table columns, sorted, blank when missing
+        out += "\n=== custom csv columns ===\n";
+        out += &run(&[
+            Expense {
+                extra: [
+                    ("note".to_string(), "family plan".to_string()),
+                    ("vendor".to_string(), "Netflix Inc".to_string()),
+                ]
+                .into_iter()
+                .collect(),
+                ..monthly_usd("Netflix", 15.99, d(2026, 5, 1))
+            },
+            Expense {
+                extra: [("vendor".to_string(), "Spotify AB".to_string())]
+                    .into_iter()
+                    .collect(),
+                ..monthly_usd("Spotify", 9.99, d(2026, 5, 15))
+            },
+        ]);
 
         insta::assert_snapshot!(out);
     }

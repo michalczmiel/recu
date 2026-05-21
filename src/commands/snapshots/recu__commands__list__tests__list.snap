@@ -116,3 +116,12 @@ All 1 expenses are ended. Run 'recu list --all' to view them.
 1 expense  $50.00/month  $600.00/year
   other  $50.00/mo  100%
 + 2 outside amount range (drop --min/--max to show all)
+
+=== custom csv columns ===
+@   name        amount  due     category  note         vendor     
+──  ───────  ─────────  ──────  ────────  ───────────  ───────────
+@1  Netflix  $15.99/mo  May 1             family plan  Netflix Inc
+@2  Spotify   $9.99/mo  May 15                         Spotify AB 
+
+2 expenses  $25.98/month  $311.76/year
+  other  $25.98/mo  100%

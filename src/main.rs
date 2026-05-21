@@ -1,6 +1,7 @@
 mod cli;
 mod commands;
 mod config;
+mod csv_io;
 mod expense;
 mod prompt;
 mod rates;

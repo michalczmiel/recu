@@ -12,14 +12,15 @@ CLI tool for tracking recurring expenses. Built with Rust (edition 2024).
 - `src/expense.rs` - expense data model (`Expense`, `Interval`, `ExpenseInput`)
 - `src/config.rs` - config model and load/save logic
 - `src/rates.rs` - currency exchange rates (fetch, cache, convert)
-- `src/store.rs` - data persistence
+- `src/store.rs` - data persistence (transactions, undo snapshots, id assignment)
+- `src/csv_io.rs` - CSV <-> `Expense` serialization (reads/writes the data file)
 
 ## Module conventions
 
 Each module wraps one concern so commands speak domain vocabulary, not library APIs:
 
 - `prompt` is the only place that imports `inquire`.
-- `store` is the only place that imports `csv` and touches the data file.
+- `csv_io` is the only place that imports `csv`; `store` and `csv_io` are the only places that touch the data file.
 - `ui` is the only place that imports `colored`. Commands use `ui::dim`, `ui::heading`, `ui::due`, etc. instead of `.red()` / `.bold()` / `.dimmed()`.
 - `rates` is the only place that performs network I/O or touches the rates cache.
 

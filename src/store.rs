@@ -2,6 +2,7 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
+use crate::csv_io;
 use crate::expense::Expense;
 
 pub struct Store {
@@ -45,14 +46,7 @@ impl Store {
     }
 
     pub fn list(&self) -> io::Result<Vec<Expense>> {
-        if !self.path.exists() {
-            return Ok(vec![]);
-        }
-        let mut reader = csv::Reader::from_path(&self.path).map_err(io_invalid_data)?;
-        reader
-            .deserialize()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(io_invalid_data)
+        csv_io::read_rows(&self.path)
     }
 
     fn write_all(&self, entries: &[Expense]) -> io::Result<()> {
@@ -61,14 +55,9 @@ impl Store {
         {
             fs::create_dir_all(parent)?;
         }
+
         let tmp = self.path.with_extension("csv.tmp");
-        {
-            let mut writer = csv::Writer::from_path(&tmp).map_err(io_invalid_data)?;
-            for entry in entries {
-                writer.serialize(entry).map_err(io_invalid_data)?;
-            }
-            writer.flush()?;
-        }
+        csv_io::write_rows(&tmp, entries)?;
         fs::rename(tmp, &self.path)?;
 
         let max_id = entries.iter().map(|e| e.id).max().unwrap_or(0);
@@ -265,10 +254,6 @@ impl Store {
         fs::rename(&undo, &self.path)?;
         Ok(msg)
     }
-}
-
-fn io_invalid_data<E: std::error::Error + Send + Sync + 'static>(err: E) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, err)
 }
 
 fn resolve_index_in(entries: &[Expense], target: &str) -> io::Result<usize> {

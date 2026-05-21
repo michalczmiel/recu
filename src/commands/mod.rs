@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io::{self, Write};
 
 use chrono::NaiveDate;
@@ -54,6 +55,8 @@ pub(crate) struct JsonExpense<'a> {
     pub category: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_date: Option<NaiveDate>,
+    #[serde(flatten)]
+    pub extra: &'a BTreeMap<String, String>,
 }
 
 pub(crate) fn emit_json<T: Serialize>(out: &mut impl Write, value: &T) -> io::Result<()> {
@@ -72,6 +75,7 @@ impl<'a> From<&'a Expense> for JsonExpense<'a> {
             interval: e.interval.as_ref(),
             category: e.category.as_deref(),
             end_date: e.end_date,
+            extra: &e.extra,
         }
     }
 }

@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use chrono::{Datelike, NaiveDate};
 use clap::{Args, ValueEnum};
 use rusty_money::{Findable, iso};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, ValueEnum)]
+#[derive(Serialize, Debug, Clone, PartialEq, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum Interval {
     Weekly,
@@ -17,6 +17,18 @@ pub enum Interval {
 impl std::fmt::Display for Interval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
+    }
+}
+
+impl std::str::FromStr for Interval {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let lower = s.to_ascii_lowercase();
+        <Self as ValueEnum>::value_variants()
+            .iter()
+            .find(|v| v.name() == lower)
+            .cloned()
+            .ok_or_else(|| format!("invalid interval '{s}'"))
     }
 }
 
@@ -88,7 +100,7 @@ pub enum DueStatus {
     Unknown,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct Expense {
     pub id: u64,
     pub name: String,
@@ -96,10 +108,11 @@ pub struct Expense {
     pub currency: Option<String>,
     pub start_date: Option<NaiveDate>,
     pub interval: Option<Interval>,
-    #[serde(default)]
     pub category: Option<String>,
-    #[serde(default)]
     pub end_date: Option<NaiveDate>,
+    /// User-defined CSV columns we don't recognize. Preserved on write so editing
+    /// an expense doesn't silently drop the user's own bookkeeping columns.
+    pub extra: BTreeMap<String, String>,
 }
 
 impl Expense {
@@ -146,6 +159,17 @@ impl Expense {
             None => DueStatus::Unknown,
         }
     }
+}
+
+/// Sorted union of every expense's unknown CSV column names.
+pub fn extra_key_union<'a>(expenses: impl IntoIterator<Item = &'a Expense>) -> Vec<String> {
+    let mut set: BTreeSet<&str> = BTreeSet::new();
+    for e in expenses {
+        for k in e.extra.keys() {
+            set.insert(k.as_str());
+        }
+    }
+    set.into_iter().map(String::from).collect()
 }
 
 #[cfg(test)]
