@@ -54,7 +54,7 @@ $ recu list
 - Categories with merge/rename, spend breakdown and percentages
 - Visualizations: month calendar, treemap
 - Multi-currency with auto-conversion to a display currency
-- Filter by min/max monthly cost; `text` or `json` output for scripting
+- Filter by min/max monthly cost; `--json` output for scripting
 - Undo for the last mutating command
 - Supports custom CSV columns
 - Shell completion generation
@@ -81,7 +81,7 @@ cargo binstall recu
 - Set a default file with `export RECU_FILE=~/.finances/recu.csv`, or target any file with `-f`. Separate datasets (personal, biz, household) are just separate files — alias each: `alias recu-biz='recu -f ~/.finances/biz.csv'`.
 - Set a display currency with `recu config set currency pln` — multi-currency entries auto-convert on display.
 - Set `--end` when a subscription stops to keep it in history instead of removing it; `recu list --all` shows ended ones.
-- Pipe to scripts with `recu list --format json | jq ...` — null fields are omitted so the shape stays compact.
+- Pipe to scripts with `recu list --json | jq ...` — null fields are omitted so the shape stays compact.
 - Add your own columns to the CSV (e.g. `vendor`, `notes`) — recu preserves them and shows them as extra columns in `recu list`.
 - Reference expenses by `@id` or name (case-insensitive) in any mutating command, and batch them: `recu rm @1,@3,Spookify` removes several at once.
 - Flags `--category`, `--min`, and `--max` work on `list`, `calendar`, and `treemap` alike — slice any view, e.g. `recu list -c streaming,dev` or `recu treemap --min 10`.
@@ -179,7 +179,7 @@ Commands:
 Options:
   -f, --file <FILE>      Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
   -a, --all              Include ended expenses (only used when no subcommand is given; equivalent to `recu list --all`)
-      --format <FORMAT>  Output format (only used when no subcommand is given; equivalent to `recu list --format <FORMAT>`) [possible values: text, json]
+      --json             Output as JSON (only used when no subcommand is given; equivalent to `recu list --json`)
       --min <MIN>        Only show expenses costing at least this much per month
       --max <MAX>        Only show expenses costing at most this much per month
   -h, --help             Print help
@@ -203,7 +203,7 @@ Options:
   -i, --interval <INTERVAL>  Billing interval [possible values: weekly, monthly, quarterly, yearly]
       --category <CATEGORY>  Category label (e.g. streaming, utilities)
       --end <END_DATE>       End date — when the subscription stops (YYYY-MM-DD)
-      --format <FORMAT>      Output format [default: text] [possible values: text, json]
+      --json                 Output as JSON
   -h, --help                 Print help
 
 Examples:
