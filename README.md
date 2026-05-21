@@ -163,11 +163,11 @@ Track recurring expenses
 Usage: recu [OPTIONS] [COMMAND]
 
 Commands:
-  list        List recurring expenses. Amounts converted to display currency when configured [aliases: ls]
+  list        List recurring expenses. Amounts converted to display currency when configured
   add         Add a recurring expense
   edit        Edit a recurring expense
   rename      Rename a recurring expense
-  remove      Remove one or more recurring expenses [aliases: rm]
+  remove      Remove one or more recurring expenses
   treemap     Visualize expenses as a treemap
   config      Manage configuration
   category    Manage expense categories
