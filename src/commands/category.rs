@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Write};
 
 use clap::{Args, Subcommand};
 
@@ -63,6 +63,21 @@ pub(crate) fn resolve_filter(inputs: &[String], store: &Store) -> io::Result<Vec
         .iter()
         .map(|t| resolve_target(t, &categories))
         .collect()
+}
+
+fn render_list(out: &mut impl Write, categories: &[String], json: bool) -> io::Result<()> {
+    if json {
+        emit_json(out, &categories)?;
+    } else if categories.is_empty() {
+        writeln!(out, "No categories found.")?;
+    } else {
+        let width = categories.len().to_string().len() + 1;
+        for (i, cat) in categories.iter().enumerate() {
+            let id = format!("@{}", i + 1);
+            writeln!(out, "{id:<width$}  {cat}")?;
+        }
+    }
+    Ok(())
 }
 
 fn resolve_target(target: &str, categories: &[String]) -> io::Result<String> {
@@ -139,17 +154,7 @@ pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
     match cmd {
         CategoryCommand::List(args) => {
             let categories = store.categories()?;
-            if args.json {
-                emit_json(&mut std::io::stdout(), &categories)?;
-            } else if categories.is_empty() {
-                println!("No categories found.");
-            } else {
-                let width = (categories.len()).to_string().len() + 1;
-                for (i, cat) in categories.iter().enumerate() {
-                    let id = format!("@{}", i + 1);
-                    println!("{id:<width$}  {cat}");
-                }
-            }
+            render_list(&mut std::io::stdout(), &categories, args.json)?;
         }
         CategoryCommand::Remove(args) => {
             if args.targets.is_empty() {
@@ -209,6 +214,37 @@ mod tests {
         vec!["food".into(), "housing".into(), "streaming".into()]
     }
 
+    fn run_list(categories: &[String], json: bool) -> String {
+        let mut buf = Vec::new();
+        render_list(&mut buf, categories, json).expect("render_list");
+        String::from_utf8(buf).expect("utf8")
+    }
+
+    #[test]
+    fn list() {
+        let mut out = String::new();
+
+        out += "=== empty ===\n";
+        out += &run_list(&[], false);
+
+        out += "\n=== empty json ===\n";
+        out += &run_list(&[], true);
+
+        // Single-digit count → width 2; @ids reflect store order
+        out += "\n=== a few categories ===\n";
+        out += &run_list(&sample(), false);
+
+        out += "\n=== a few categories json ===\n";
+        out += &run_list(&sample(), true);
+
+        // 10+ categories → two-digit @ids widen the id column
+        let many: Vec<String> = (1..=12).map(|i| format!("cat{i}")).collect();
+        out += "\n=== many categories widen id column ===\n";
+        out += &run_list(&many, false);
+
+        insta::assert_snapshot!(out);
+    }
+
     #[test]
     fn resolve_target_by_name_is_case_insensitive() {
         let cats = sample();
@@ -228,32 +264,18 @@ mod tests {
     }
 
     #[test]
-    fn resolve_target_non_numeric_id_is_invalid_input() {
+    fn resolve_target_invalid_ids() {
         let cats = sample();
-        let err = resolve_target("@abc", &cats).expect_err("non-numeric id should fail");
-        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
-        assert!(err.to_string().contains("@abc"));
-    }
-
-    #[test]
-    fn resolve_target_empty_id_is_invalid_input() {
-        let cats = sample();
-        let err = resolve_target("@", &cats).expect_err("empty id should fail");
-        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
-    }
-
-    #[test]
-    fn resolve_target_zero_id_is_not_found() {
-        let cats = sample();
-        let err = resolve_target("@0", &cats).expect_err("zero id should fail");
-        assert_eq!(err.kind(), io::ErrorKind::NotFound);
-    }
-
-    #[test]
-    fn resolve_target_out_of_range_id_is_not_found() {
-        let cats = sample();
-        let err = resolve_target("@99", &cats).expect_err("out-of-range id should fail");
-        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        let cases = [
+            ("@abc", io::ErrorKind::InvalidInput),
+            ("@", io::ErrorKind::InvalidInput),
+            ("@0", io::ErrorKind::NotFound),
+            ("@99", io::ErrorKind::NotFound),
+        ];
+        for (input, expected) in cases {
+            let err = resolve_target(input, &cats).expect_err("invalid id should fail");
+            assert_eq!(err.kind(), expected, "input: {input}");
+        }
     }
 
     #[test]
