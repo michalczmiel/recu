@@ -1,5 +1,10 @@
 # recu
 
+[![Crates.io](https://img.shields.io/crates/v/recu.svg)](https://crates.io/crates/recu)
+[![npm](https://img.shields.io/npm/v/@michalczmiel/recu.svg)](https://www.npmjs.com/package/@michalczmiel/recu)
+[![CI](https://github.com/michalczmiel/recu/actions/workflows/ci.yml/badge.svg)](https://github.com/michalczmiel/recu/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/crates/l/recu.svg)](LICENSE)
+
 `recu` is a cli for managing and visualizing recurring expenses using CSV.
 
 ```sh
