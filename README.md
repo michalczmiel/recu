@@ -2,8 +2,6 @@
 
 `recu` is a cli for managing and visualizing recurring expenses using CSV.
 
-![recu demo](https://raw.githubusercontent.com/michalczmiel/recu/main/docs/demo.gif)
-
 ```sh
 $ recu list
 @    name                     amount  due     category
@@ -50,6 +48,34 @@ $ recu list
 - Supports custom CSV columns
 - Shell completion generation
 
+## Demo
+
+![recu demo](https://raw.githubusercontent.com/michalczmiel/recu/main/docs/demo.gif)
+
+## Installation
+
+Install globally with your preferred method
+
+```sh
+npm install -g @michalczmiel/recu
+```
+
+```sh
+cargo install recu
+```
+
+```sh
+cargo binstall recu
+```
+
+## Tips
+
+- Keep `recu.csv` in a git repo (e.g. `~/.finances`) for free history and diffs. Gitignore the working files recu creates: `*.undo`, `*.seq`.
+- Set a default file with `export RECU_FILE=~/.finances/recu.csv`, or target any file with `-f`. Separate datasets (personal, biz, household) are just separate files — alias each: `alias recu-biz='recu -f ~/.finances/biz.csv'`.
+- Set a display currency with `recu config set currency pln` — multi-currency entries auto-convert on display.
+- Set `--end` when a subscription stops to keep it in history instead of removing it; `recu list --all` shows ended ones.
+- Pipe to scripts with `recu list --format json | jq ...` — null fields are omitted so the shape stays compact.
+
 ## Schema
 
 `recu` stores one expense per CSV row.
@@ -73,107 +99,7 @@ id,name,amount,currency,start_date,interval,category,end_date
 
 Any extra columns are preserved and `recu` leaves them untouched. Trailing empty cells may be omitted.
 
-## Installation
-
-Install globally with your preferred method
-
-```sh
-npm install -g @michalczmiel/recu
-```
-
-```sh
-cargo install recu
-```
-
-```sh
-cargo binstall recu
-```
-
-## Tips
-
-### Version your data
-
-Keep `recu.csv` in a git repo for free history and diffs. A dedicated folder like `~/.finances` works well. Add a `.gitignore` to exclude the working files recu creates alongside the CSV:
-
-```gitignore
-*.undo
-*.seq
-```
-
-### Set a default file
-
-Point `RECU_FILE` at your main file in `~/.bashrc` or `~/.zshrc`:
-
-```sh
-export RECU_FILE=~/.finances/recu.csv
-```
-
-### Multiple accounts via multiple files
-
-`recu` is just one CSV per dataset — keep separate files for personal, business, shared household etc. Add bash aliases pointing each to its own file:
-
-```sh
-alias recu-biz='recu -f ~/.finances/biz.csv'
-alias recu-home='recu -f ~/.finances/home.csv'
-```
-
-### Set a display currency
-
-Set a default currency and `recu` auto-converts multi-currency entries to it on display:
-
-```sh
-recu config set currency pln
-```
-
-### End-date instead of removing
-
-When a subscription stops, set `--end` instead of `remove` to keep it in history. `recu list --all` shows ended ones.
-
-### JSON output for scripting
-
-Pipe `recu list` into `jq` (or any tool) with `--format json`:
-
-```sh
-recu list --format json | jq '[.[] | select(.category == "Streaming")] | length'
-```
-
-Null fields are omitted, so the shape stays compact.
-
-### Let an LLM agent do the grunt work
-
-Point any coding agent (Pi, OpenCode, Claude Code, Codex etc.) at your shell and ask it to "import my subscriptions into recu, suggest categories, and find overlapping subscriptions". It can discover the interface via `recu help` and each subcommand's `--help`.
-
 ## Examples
-
-```sh
-$ recu --help
-Track recurring expenses
-
-Usage: recu [OPTIONS] [COMMAND]
-
-Commands:
-  list        List recurring expenses. Amounts converted to display currency when configured [aliases: ls]
-  add         Add a recurring expense
-  edit        Edit a recurring expense
-  rename      Rename a recurring expense
-  remove      Remove one or more recurring expenses [aliases: rm]
-  treemap     Visualize expenses as a treemap
-  config      Manage configuration
-  category    Manage expense categories
-  calendar    Show recurring expenses on a month grid
-  undo        Undo the last add, edit, rename, or remove
-  completion  Generate shell completion script
-  help        Print this message or the help of the given subcommand(s)
-
-Options:
-  -f, --file <FILE>      Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
-  -a, --all              Include ended expenses (only used when no subcommand is given; equivalent to `recu list --all`)
-      --format <FORMAT>  Output format (only used when no subcommand is given; equivalent to `recu list --format <FORMAT>`) [possible values: text, json]
-      --min <MIN>        Only show expenses costing at least this much per month
-      --max <MAX>        Only show expenses costing at most this much per month
-  -h, --help             Print help
-  -V, --version          Print version
-```
 
 ```sh
 $ recu calendar
@@ -220,50 +146,31 @@ $ recu treemap
 ```
 
 ```sh
-$ recu help add
-Add a recurring expense
+$ recu --help
+Track recurring expenses
 
-Usage: recu add [OPTIONS] [NAME]
-
-Arguments:
-  [NAME]  Expense name
-
-Options:
-  -a, --amount <AMOUNT>      Amount (e.g. 9.99 or 9,99)
-  -f, --file <FILE>          Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
-  -c, --currency <CURRENCY>  ISO 4217 currency code (e.g. usd, eur)
-  -d, --date <DATE>          Start date (YYYY-MM-DD)
-  -i, --interval <INTERVAL>  Billing interval [possible values: weekly, monthly, quarterly, yearly]
-      --category <CATEGORY>  Category label (e.g. streaming, utilities)
-      --end <END_DATE>       End date — when the subscription stops (YYYY-MM-DD)
-      --format <FORMAT>      Output format [default: text] [possible values: text, json]
-  -h, --help                 Print help
-
-Examples:
-  recu add Netflix -a 9.99 -c usd -d 2026-05-01 -i monthly
-  recu add Netflix             # stored with name only, fill in later via 'recu edit'
-  recu add                     # interactive mode
-```
-
-```sh
-$ recu help category
-Manage expense categories
-
-Usage: recu category [OPTIONS] <COMMAND>
+Usage: recu [OPTIONS] [COMMAND]
 
 Commands:
-  list    List categories currently used by expenses
-  remove  Remove categories from all matching expenses [aliases: rm]
-  rename  Rename one or more categories into a destination (merges if dst already exists)
-  help    Print this message or the help of the given subcommand(s)
+  list        List recurring expenses. Amounts converted to display currency when configured [aliases: ls]
+  add         Add a recurring expense
+  edit        Edit a recurring expense
+  rename      Rename a recurring expense
+  remove      Remove one or more recurring expenses [aliases: rm]
+  treemap     Visualize expenses as a treemap
+  config      Manage configuration
+  category    Manage expense categories
+  calendar    Show recurring expenses on a month grid
+  undo        Undo the last add, edit, rename, or remove
+  completion  Generate shell completion script
+  help        Print this message or the help of the given subcommand(s)
 
 Options:
-  -f, --file <FILE>  Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
-  -h, --help         Print help
-
-Examples:
-  recu category list
-  recu category remove streaming
-  recu category rename streaming Streaming
-  recu category rename streaming,subs Streaming
+  -f, --file <FILE>      Path to the CSV storage file [env: RECU_FILE=examples/recu.csv] [default: recu.csv]
+  -a, --all              Include ended expenses (only used when no subcommand is given; equivalent to `recu list --all`)
+      --format <FORMAT>  Output format (only used when no subcommand is given; equivalent to `recu list --format <FORMAT>`) [possible values: text, json]
+      --min <MIN>        Only show expenses costing at least this much per month
+      --max <MAX>        Only show expenses costing at most this much per month
+  -h, --help             Print help
+  -V, --version          Print version
 ```
