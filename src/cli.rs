@@ -52,7 +52,7 @@ enum Commands {
     /// Rename a recurring expense
     Rename(rename::RenameArgs),
     /// Remove one or more recurring expenses
-    #[command(visible_alias = "rm")]
+    #[command(aliases = ["rm", "delete", "del"])]
     Remove(remove::RemoveArgs),
     /// Visualize expenses as a treemap
     Treemap(treemap::TreemapArgs),
