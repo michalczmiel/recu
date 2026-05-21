@@ -3,16 +3,31 @@
 use std::io;
 
 use clap::{Args, Subcommand, ValueEnum};
+use serde::Serialize;
 
+use crate::commands::emit_json;
 use crate::config;
 use crate::expense::normalize_currency;
+
+#[derive(Serialize)]
+struct JsonConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    currency: Option<String>,
+}
 
 #[derive(Subcommand, Debug)]
 pub enum ConfigCommand {
     /// Print current configuration
-    List,
+    List(ConfigListArgs),
     /// Set a configuration value
     Set(ConfigSetArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct ConfigListArgs {
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Args, Debug)]
@@ -35,11 +50,20 @@ pub enum ConfigKey {
 
 pub fn run(cmd: &ConfigCommand) -> io::Result<()> {
     match cmd {
-        ConfigCommand::List => {
+        ConfigCommand::List(args) => {
             let cfg = config::load()?;
-            match cfg.currency {
-                Some(ref c) => println!("currency = {c}"),
-                None => println!("(no configuration set)"),
+            if args.json {
+                emit_json(
+                    &mut std::io::stdout(),
+                    &JsonConfig {
+                        currency: cfg.currency.clone(),
+                    },
+                )?;
+            } else {
+                match cfg.currency {
+                    Some(ref c) => println!("currency = {c}"),
+                    None => println!("(no configuration set)"),
+                }
             }
         }
         ConfigCommand::Set(args) => match args.key {
