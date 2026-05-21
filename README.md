@@ -7,6 +7,12 @@
 
 `recu` is a cli for managing and visualizing recurring expenses using CSV.
 
+[Demo](#demo) • [Features](#features) • [Installation](#installation) • [Examples](#examples) • [Tips](#tips) • [Schema](#schema)
+
+## Demo
+
+![recu demo](https://raw.githubusercontent.com/michalczmiel/recu/main/docs/demo.gif)
+
 ```sh
 $ recu list
 @    name                     amount  due     category
@@ -52,10 +58,6 @@ $ recu list
 - Undo for the last mutating command
 - Supports custom CSV columns
 - Shell completion generation
-
-## Demo
-
-![recu demo](https://raw.githubusercontent.com/michalczmiel/recu/main/docs/demo.gif)
 
 ## Installation
 
