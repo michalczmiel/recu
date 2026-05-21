@@ -19,6 +19,17 @@ pub fn validate_dates(expense: &Expense) -> io::Result<()> {
     Ok(())
 }
 
+/// Validate that a name is not empty or whitespace-only.
+fn validate_name(name: &str) -> io::Result<()> {
+    if name.trim().is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "expense name cannot be empty or whitespace-only",
+        ));
+    }
+    Ok(())
+}
+
 pub struct Store {
     path: PathBuf,
 }
@@ -83,6 +94,7 @@ impl Store {
     }
 
     pub fn save(&self, expense: &Expense) -> io::Result<()> {
+        validate_name(&expense.name)?;
         validate_dates(expense)?;
         let mut entries = self.list()?;
         if entries
@@ -145,6 +157,7 @@ impl Store {
     }
 
     pub fn rename(&self, target: &str, new_name: &str) -> io::Result<()> {
+        validate_name(new_name)?;
         let mut entries = self.list()?;
         let index = resolve_index_in(&entries, target)?;
 
@@ -773,6 +786,43 @@ mod tests {
                 },
             )
             .expect_err("should reject end < start");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        Ok(())
+    }
+
+    #[test]
+    fn save_rejects_empty_name() -> io::Result<()> {
+        let store = test_support::store();
+        let expense = Expense {
+            name: "  ".to_string(),
+            amount: Some(10.0),
+            ..Default::default()
+        };
+        let err = store.save(&expense).expect_err("should reject blank name");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(store.list()?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn save_rejects_truly_empty_name() {
+        let store = test_support::store();
+        let expense = Expense {
+            name: String::new(),
+            amount: Some(10.0),
+            ..Default::default()
+        };
+        let err = store.save(&expense).expect_err("should reject empty name");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn rename_rejects_blank_name() -> io::Result<()> {
+        let store = test_support::store();
+        store.save(&named("Netflix", 9.99))?;
+        let err = store
+            .rename("Netflix", "  ")
+            .expect_err("should reject blank name");
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
         Ok(())
     }
