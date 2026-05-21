@@ -98,6 +98,9 @@ fn charges_for_month<'a>(
         if let Some(interval) = exp.interval.as_ref() {
             let mut d = interval.next_payment(first, start);
             while d <= end {
+                if exp.end_date.is_some_and(|e| d > e) {
+                    break;
+                }
                 by_day.entry(d).or_default().push(charge());
                 d = interval.next_payment(first, d + chrono::Days::new(1));
             }
@@ -614,6 +617,36 @@ mod tests {
         out += &run(d(2026, 11, 1), &[]);
 
         insta::assert_snapshot!(out);
+    }
+
+    #[test]
+    fn charges_stop_after_end_date() {
+        // A monthly expense ending June 15 should NOT produce a charge on June 20
+        // even when include_ended (--all) is true.
+        let exp = Expense {
+            end_date: Some(d(2026, 6, 15)),
+            ..monthly_pln("Sub", 10.0, d(2026, 6, 5))
+        };
+        let today = d(2026, 6, 10);
+        // --all mode: include_ended = true
+        let charges = charges_for_month(&[exp], d(2026, 6, 1), today, None, None, true);
+        // Only June 5 should appear; no charge after end_date (June 15)
+        assert_eq!(charges.len(), 1);
+        assert!(charges.contains_key(&d(2026, 6, 5)));
+    }
+
+    #[test]
+    fn charges_stop_after_end_date_weekly() {
+        // Weekly expense starting June 1, ending June 10 — should only show June 1 and June 8.
+        let exp = Expense {
+            interval: Some(Interval::Weekly),
+            end_date: Some(d(2026, 6, 10)),
+            ..monthly_pln("Gym", 5.0, d(2026, 6, 1))
+        };
+        let today = d(2026, 6, 1);
+        let charges = charges_for_month(&[exp], d(2026, 6, 1), today, None, None, true);
+        let dates: Vec<NaiveDate> = charges.keys().copied().collect();
+        assert_eq!(dates, vec![d(2026, 6, 1), d(2026, 6, 8)]);
     }
 
     #[test]
