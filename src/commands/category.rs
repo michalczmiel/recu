@@ -7,11 +7,13 @@ use crate::store::Store;
 #[derive(Subcommand, Debug)]
 pub enum CategoryCommand {
     /// List categories currently used by expenses
+    #[command(alias = "ls")]
     List,
     /// Remove categories from all matching expenses
-    #[command(visible_alias = "rm")]
+    #[command(aliases = ["rm", "delete", "del"])]
     Remove(CategoryRemoveArgs),
     /// Rename one or more categories into a destination (merges if dst already exists)
+    #[command(alias = "mv")]
     Rename(CategoryRenameArgs),
 }
 

@@ -41,16 +41,19 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// List recurring expenses. Amounts converted to display currency when configured.
-    #[command(visible_alias = "ls")]
+    #[command(alias = "ls")]
     List(list::ListArgs),
     /// Add a recurring expense
+    #[command(aliases = ["new", "create"])]
     Add(add::AddArgs),
     /// Edit a recurring expense
+    #[command(alias = "update")]
     Edit(edit::EditArgs),
     /// Rename a recurring expense
+    #[command(alias = "mv")]
     Rename(rename::RenameArgs),
     /// Remove one or more recurring expenses
-    #[command(visible_alias = "rm")]
+    #[command(aliases = ["rm", "delete", "del"])]
     Remove(remove::RemoveArgs),
     /// Visualize expenses as a treemap
     Treemap(treemap::TreemapArgs),
@@ -73,6 +76,7 @@ enum Commands {
         command: category::CategoryCommand,
     },
     /// Show recurring expenses on a month grid
+    #[command(alias = "cal")]
     Calendar(calendar::CalendarArgs),
     /// Undo the last add, edit, rename, or remove
     Undo,
@@ -86,6 +90,7 @@ enum Commands {
 
   # fish — auto-loaded from this path
   recu completion fish > ~/.config/fish/completions/recu.fish")]
+    #[command(alias = "completions")]
     Completion(completion::CompletionArgs),
 }
 
