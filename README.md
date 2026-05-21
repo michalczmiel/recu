@@ -76,6 +76,11 @@ cargo binstall recu
 - Set `--end` when a subscription stops to keep it in history instead of removing it; `recu list --all` shows ended ones.
 - Pipe to scripts with `recu list --format json | jq ...` — null fields are omitted so the shape stays compact.
 - Add your own columns to the CSV (e.g. `vendor`, `notes`) — recu preserves them and shows them as extra columns in `recu list`.
+- Reference expenses by `@id` or name (case-insensitive) in any mutating command, and batch them: `recu rm @1,@3,Spookify` removes several at once.
+- Flags `--category`, `--min`, and `--max` work on `list`, `calendar`, and `treemap` alike — slice any view, e.g. `recu list -c streaming,dev` or `recu treemap --min 10`.
+- Tidy up categories without touching each row: `recu category rename streaming,subs Streaming` merges and renames in one go.
+- Plan ahead with `recu calendar --next` or `recu calendar --month 2026-12` to see charges in a future month.
+- Hand grunt work to an LLM: point it at `recu --help` and let it do the tedious stuff — bulk cleanup, importing expenses from a bank export or another file, normalizing categories, etc.
 
 ## Schema
 
