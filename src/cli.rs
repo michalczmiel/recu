@@ -75,6 +75,7 @@ enum Commands {
         command: category::CategoryCommand,
     },
     /// Show recurring expenses on a month grid
+    #[command(alias = "cal")]
     Calendar(calendar::CalendarArgs),
     /// Undo the last add, edit, rename, or remove
     Undo,
