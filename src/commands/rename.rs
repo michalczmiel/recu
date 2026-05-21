@@ -1,5 +1,6 @@
 use clap::Args;
 
+use crate::expense::validate_name;
 use crate::store::Store;
 
 #[derive(Args, Debug)]
@@ -14,6 +15,7 @@ pub struct RenameArgs {
 }
 
 pub fn execute(args: &RenameArgs, store: &Store) -> std::io::Result<()> {
+    validate_name(&args.new_name)?;
     store.rename(&args.target, &args.new_name)?;
     println!("Renamed '{}' to '{}'", args.target, args.new_name);
     Ok(())
@@ -96,5 +98,20 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn rename_rejects_blank_name() {
+        let store = test_support::store();
+        seed_expenses(&store);
+        let err = execute(
+            &RenameArgs {
+                target: "Netflix".into(),
+                new_name: "  ".into(),
+            },
+            &store,
+        )
+        .expect_err("should reject blank name");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     }
 }

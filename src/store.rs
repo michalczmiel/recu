@@ -5,31 +5,6 @@ use std::path::PathBuf;
 use crate::csv_io;
 use crate::expense::Expense;
 
-/// Validate that `end_date` is not before `start_date`. Returns an error
-/// when both dates are present and `end_date < start_date`.
-pub fn validate_dates(expense: &Expense) -> io::Result<()> {
-    if let (Some(start), Some(end)) = (expense.start_date, expense.end_date)
-        && end < start
-    {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("end date ({end}) must not be before start date ({start})"),
-        ));
-    }
-    Ok(())
-}
-
-/// Validate that a name is not empty or whitespace-only.
-fn validate_name(name: &str) -> io::Result<()> {
-    if name.trim().is_empty() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "expense name cannot be empty or whitespace-only",
-        ));
-    }
-    Ok(())
-}
-
 pub struct Store {
     path: PathBuf,
 }
@@ -94,8 +69,6 @@ impl Store {
     }
 
     pub fn save(&self, expense: &Expense) -> io::Result<()> {
-        validate_name(&expense.name)?;
-        validate_dates(expense)?;
         let mut entries = self.list()?;
         if entries
             .iter()
@@ -149,7 +122,7 @@ impl Store {
             .cloned();
         expense.end_date = changes.end_date.or(expense.end_date);
 
-        validate_dates(expense)?;
+        expense.validate_dates()?;
 
         let updated = expense.clone();
         self.write_all(&entries)?;
@@ -157,7 +130,6 @@ impl Store {
     }
 
     pub fn rename(&self, target: &str, new_name: &str) -> io::Result<()> {
-        validate_name(new_name)?;
         let mut entries = self.list()?;
         let index = resolve_index_in(&entries, target)?;
 
@@ -742,34 +714,6 @@ mod tests {
     }
 
     #[test]
-    fn save_rejects_end_before_start() -> io::Result<()> {
-        let store = test_support::store();
-        let expense = Expense {
-            start_date: Some(test_support::d(2026, 6, 1)),
-            end_date: Some(test_support::d(2025, 1, 1)),
-            ..named("Bad", 10.0)
-        };
-        let err = store.save(&expense).expect_err("should reject end < start");
-        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
-        assert!(store.list()?.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn save_accepts_end_equal_to_start() -> io::Result<()> {
-        let store = test_support::store();
-        let date = test_support::d(2026, 6, 1);
-        let expense = Expense {
-            start_date: Some(date),
-            end_date: Some(date),
-            ..named("Same", 10.0)
-        };
-        store.save(&expense)?;
-        assert_eq!(store.list()?.len(), 1);
-        Ok(())
-    }
-
-    #[test]
     fn update_rejects_end_before_start() -> io::Result<()> {
         let store = test_support::store();
         let expense = Expense {
@@ -786,43 +730,6 @@ mod tests {
                 },
             )
             .expect_err("should reject end < start");
-        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
-        Ok(())
-    }
-
-    #[test]
-    fn save_rejects_empty_name() -> io::Result<()> {
-        let store = test_support::store();
-        let expense = Expense {
-            name: "  ".to_string(),
-            amount: Some(10.0),
-            ..Default::default()
-        };
-        let err = store.save(&expense).expect_err("should reject blank name");
-        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
-        assert!(store.list()?.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn save_rejects_truly_empty_name() {
-        let store = test_support::store();
-        let expense = Expense {
-            name: String::new(),
-            amount: Some(10.0),
-            ..Default::default()
-        };
-        let err = store.save(&expense).expect_err("should reject empty name");
-        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
-    }
-
-    #[test]
-    fn rename_rejects_blank_name() -> io::Result<()> {
-        let store = test_support::store();
-        store.save(&named("Netflix", 9.99))?;
-        let err = store
-            .rename("Netflix", "  ")
-            .expect_err("should reject blank name");
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
         Ok(())
     }

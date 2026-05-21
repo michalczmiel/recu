@@ -1,7 +1,7 @@
 use clap::Args;
 
 use crate::commands::{JsonExpense, emit_json};
-use crate::expense::{Expense, ExpenseInput};
+use crate::expense::{Expense, ExpenseInput, validate_name};
 use crate::prompt::{
     install_render_config, prompt_amount, prompt_category, prompt_currency, prompt_date,
     prompt_interval, prompt_name,
@@ -48,6 +48,7 @@ fn prompt_fields(input: &ExpenseInput, store: &Store) -> std::io::Result<Expense
 pub fn execute(args: &AddArgs, store: &Store) -> std::io::Result<()> {
     let f = &args.fields;
     let expense = if let Some(name) = &f.name {
+        validate_name(name)?;
         Expense {
             name: name.clone(),
             ..Expense::from(&f.fields)
@@ -56,6 +57,8 @@ pub fn execute(args: &AddArgs, store: &Store) -> std::io::Result<()> {
         install_render_config();
         prompt_fields(f, store)?
     };
+
+    expense.validate_dates()?;
 
     store.save(&expense)?;
 
@@ -174,5 +177,57 @@ mod tests {
         assert!(names.contains(&"Spotify".to_string()));
         assert!(names.contains(&"NY Times".to_string()));
         assert!(names.contains(&"Hulu".to_string()));
+    }
+
+    #[test]
+    fn add_rejects_blank_name() {
+        let store = test_support::store();
+        let err = execute(&args_with_name("  "), &store).expect_err("should reject blank name");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(store.list().expect("list").is_empty());
+    }
+
+    #[test]
+    fn add_rejects_empty_name() {
+        let store = test_support::store();
+        let err = execute(&args_with_name(""), &store).expect_err("should reject empty name");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn add_rejects_end_before_start() {
+        let store = test_support::store();
+        let args = AddArgs {
+            fields: ExpenseInput {
+                name: Some("Bad".into()),
+                fields: ExpenseFields {
+                    date: Some(date("2026-06-01")),
+                    end_date: Some(date("2025-01-01")),
+                    ..Default::default()
+                },
+            },
+            json: false,
+        };
+        let err = execute(&args, &store).expect_err("should reject end < start");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(store.list().expect("list").is_empty());
+    }
+
+    #[test]
+    fn add_accepts_end_equal_to_start() {
+        let store = test_support::store();
+        let args = AddArgs {
+            fields: ExpenseInput {
+                name: Some("Same".into()),
+                fields: ExpenseFields {
+                    date: Some(date("2026-06-01")),
+                    end_date: Some(date("2026-06-01")),
+                    ..Default::default()
+                },
+            },
+            json: false,
+        };
+        execute(&args, &store).expect("should accept end == start");
+        assert_eq!(store.list().expect("list").len(), 1);
     }
 }
