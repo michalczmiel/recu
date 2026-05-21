@@ -439,6 +439,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn list() {
         let mut s = insta::Settings::clone_current();
         s.add_filter(r"\x1b\[[0-9;]*m", "");
