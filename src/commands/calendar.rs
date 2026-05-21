@@ -368,9 +368,10 @@ fn prepare(
     all: bool,
     categories: &[String],
     amount: AmountRange,
-) -> std::io::Result<CalendarData> {
+) -> CalendarData {
     let target: Option<&str> = cfg.currency.as_deref();
-    let exchange_rates: Option<HashMap<String, f64>> = target.map(rates::get_rates).transpose()?;
+    let exchange_rates: Option<HashMap<String, f64>> =
+        target.and_then(|t| rates::get_rates_graceful(&mut std::io::stderr(), t));
     let target_cur: Option<&'static iso::Currency> = target
         .and_then(find_currency)
         .or_else(|| expense::uniform_currency(expenses));
@@ -400,12 +401,12 @@ fn prepare(
     let hidden_amount =
         amount.count_hidden(cat_matching(), today, all, exchange_rates.as_ref(), target);
 
-    Ok(CalendarData {
+    CalendarData {
         by_day,
         target_cur,
         hidden_ended,
         hidden_amount,
-    })
+    }
 }
 
 fn is_current_month(today: NaiveDate, month: NaiveDate) -> bool {
@@ -425,7 +426,7 @@ fn execute_json(
 ) -> std::io::Result<()> {
     let CalendarData {
         by_day, target_cur, ..
-    } = prepare(today, cfg, expenses, month, all, categories, amount)?;
+    } = prepare(today, cfg, expenses, month, all, categories, amount);
 
     let total: f64 = by_day
         .values()
@@ -488,7 +489,7 @@ pub(crate) fn execute_with(
         target_cur,
         hidden_ended,
         hidden_amount,
-    } = prepare(today, cfg, expenses, month, all, categories, amount)?;
+    } = prepare(today, cfg, expenses, month, all, categories, amount);
 
     let by_day = cells_from_charges(&by_day_charges);
     render_grid(out, month, today, &by_day)?;

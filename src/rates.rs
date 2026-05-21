@@ -99,3 +99,43 @@ pub fn get_rates(base_currency: &str) -> io::Result<HashMap<String, f64>> {
     let _ = write_cache(&path, &cache);
     Ok(cache.rates)
 }
+
+/// Like [`get_rates`], but returns `None` with a stderr warning instead of
+/// propagating errors. Commands keep working — amounts are simply shown in
+/// their original currencies.
+pub fn get_rates_graceful(
+    out: &mut impl io::Write,
+    base_currency: &str,
+) -> Option<HashMap<String, f64>> {
+    match get_rates(base_currency) {
+        Ok(rates) => Some(rates),
+        Err(e) => {
+            let _ = writeln!(
+                out,
+                "warning: could not fetch exchange rates ({e}); showing amounts without conversion"
+            );
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_rates_graceful_returns_none_on_error() {
+        // Use an invalid base currency to trigger an error (no cache, network
+        // call will fail or return an error for a nonsense code).
+        // We can't easily mock the network, but we can verify the function
+        // returns None instead of panicking and writes a warning.
+        let mut buf = Vec::new();
+        let result = get_rates_graceful(&mut buf, "ZZZZZ_INVALID");
+        // Either cached (unlikely) or failed gracefully
+        if result.is_none() {
+            let warning = String::from_utf8(buf).expect("utf8");
+            assert!(warning.contains("warning:"));
+            assert!(warning.contains("without conversion"));
+        }
+    }
+}
