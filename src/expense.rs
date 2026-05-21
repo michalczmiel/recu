@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use chrono::{Datelike, NaiveDate};
 use clap::{Args, ValueEnum};
@@ -159,6 +159,17 @@ impl Expense {
             None => DueStatus::Unknown,
         }
     }
+}
+
+/// Sorted union of every expense's unknown CSV column names.
+pub fn extra_key_union<'a>(expenses: impl IntoIterator<Item = &'a Expense>) -> Vec<String> {
+    let mut set: BTreeSet<&str> = BTreeSet::new();
+    for e in expenses {
+        for k in e.extra.keys() {
+            set.insert(k.as_str());
+        }
+    }
+    set.into_iter().map(String::from).collect()
 }
 
 #[cfg(test)]

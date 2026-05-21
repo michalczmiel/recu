@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::io::Write;
 
 use chrono::NaiveDate;
@@ -42,16 +42,6 @@ fn colorize_row(row: &[String], status: &DueStatus) -> Vec<String> {
             _ => ui::due(status, cell).to_string(),
         })
         .collect()
-}
-
-fn collect_extra_keys(expenses: &[&Expense]) -> Vec<String> {
-    let mut set: BTreeSet<&str> = BTreeSet::new();
-    for e in expenses {
-        for k in e.extra.keys() {
-            set.insert(k.as_str());
-        }
-    }
-    set.into_iter().map(String::from).collect()
 }
 
 fn build_row(
@@ -290,7 +280,7 @@ pub(crate) fn execute_with(
     }
 
     let show_ends = visible.iter().any(|e| e.end_date.is_some());
-    let extra_keys = collect_extra_keys(&visible);
+    let extra_keys = expense::extra_key_union(visible.iter().copied());
 
     let rows: Vec<Vec<String>> = visible
         .iter()

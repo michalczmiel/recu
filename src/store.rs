@@ -1,11 +1,10 @@
-use std::collections::BTreeSet;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
 
 use chrono::NaiveDate;
 
-use crate::expense::Expense;
+use crate::expense::{self, Expense};
 
 /// CSV columns we own. Anything else is round-tripped via `Expense::extra`.
 const KNOWN_COLUMNS: &[&str] = &[
@@ -89,11 +88,7 @@ impl Store {
         {
             fs::create_dir_all(parent)?;
         }
-        let mut extra_keys: BTreeSet<String> = BTreeSet::new();
-        for e in entries {
-            extra_keys.extend(e.extra.keys().cloned());
-        }
-        let extra_keys: Vec<String> = extra_keys.into_iter().collect();
+        let extra_keys = expense::extra_key_union(entries);
 
         let tmp = self.path.with_extension("csv.tmp");
         {
@@ -123,7 +118,7 @@ impl Store {
                     start_date.map(|d| d.to_string()).unwrap_or_default(),
                     interval
                         .as_ref()
-                        .map(|i| i.name().to_string())
+                        .map(ToString::to_string)
                         .unwrap_or_default(),
                     category.clone().unwrap_or_default(),
                     end_date.map(|d| d.to_string()).unwrap_or_default(),
