@@ -50,6 +50,7 @@ enum Commands {
     #[command(alias = "update")]
     Edit(edit::EditArgs),
     /// Rename a recurring expense
+    #[command(alias = "mv")]
     Rename(rename::RenameArgs),
     /// Remove one or more recurring expenses
     #[command(aliases = ["rm", "delete", "del"])]
