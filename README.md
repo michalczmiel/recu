@@ -75,6 +75,7 @@ cargo binstall recu
 - Set a display currency with `recu config set currency pln` — multi-currency entries auto-convert on display.
 - Set `--end` when a subscription stops to keep it in history instead of removing it; `recu list --all` shows ended ones.
 - Pipe to scripts with `recu list --format json | jq ...` — null fields are omitted so the shape stays compact.
+- Add your own columns to the CSV (e.g. `vendor`, `notes`) — recu preserves them and shows them as extra columns in `recu list`.
 
 ## Schema
 
@@ -98,6 +99,10 @@ id,name,amount,currency,start_date,interval,category,end_date
 | `end_date`   | no       | `YYYY-MM-DD`                            | set = ended; hidden unless `--all`            |
 
 Any extra columns are preserved and `recu` leaves them untouched. Trailing empty cells may be omitted.
+
+## Currency
+
+When you set a display currency, recu converts amounts using exchange rates fetched from the external Frankfurter API (api.frankfurter.dev). Rates are cached locally at ~/.cache/recu/rates.json and refreshed once a day, so conversion works offline between fetches.
 
 ## Examples
 
