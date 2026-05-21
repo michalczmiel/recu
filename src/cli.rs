@@ -47,6 +47,7 @@ enum Commands {
     #[command(aliases = ["new", "create"])]
     Add(add::AddArgs),
     /// Edit a recurring expense
+    #[command(alias = "update")]
     Edit(edit::EditArgs),
     /// Rename a recurring expense
     Rename(rename::RenameArgs),
