@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 
 use clap::{Args, Subcommand};
+use serde::Serialize;
 
 use crate::commands::emit_json;
 use crate::store::Store;
@@ -50,6 +51,12 @@ pub struct CategoryRenameArgs {
     pub sources: Vec<String>,
     /// Destination category name
     pub dst: String,
+}
+
+#[derive(Serialize)]
+struct CategoryRemoval<'a> {
+    category: &'a str,
+    expenses_updated: usize,
 }
 
 /// Resolves comma-separated `@id` or name inputs against the store's categories.
@@ -172,7 +179,10 @@ pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
                 let items: Vec<_> = resolved
                     .iter()
                     .zip(counts.iter())
-                    .map(|(name, &count)| serde_json::json!({ "category": name, "expenses_updated": count }))
+                    .map(|(name, &count)| CategoryRemoval {
+                        category: name,
+                        expenses_updated: count,
+                    })
                     .collect();
                 emit_json(&mut std::io::stdout(), &items)?;
             } else {
