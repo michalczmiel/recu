@@ -44,6 +44,7 @@ enum Commands {
     #[command(alias = "ls")]
     List(list::ListArgs),
     /// Add a recurring expense
+    #[command(aliases = ["new", "create"])]
     Add(add::AddArgs),
     /// Edit a recurring expense
     Edit(edit::EditArgs),
