@@ -68,7 +68,7 @@ impl Store {
         Ok(())
     }
 
-    pub fn save(&self, expense: &Expense) -> io::Result<()> {
+    pub fn save(&self, expense: &Expense) -> io::Result<Expense> {
         let mut entries = self.list()?;
         if entries
             .iter()
@@ -82,8 +82,10 @@ impl Store {
         self.snapshot()?;
         let mut new_entry = expense.clone();
         new_entry.id = self.next_id(&entries);
+        let saved = new_entry.clone();
         entries.push(new_entry);
-        self.write_all(&entries)
+        self.write_all(&entries)?;
+        Ok(saved)
     }
 
     pub fn get(&self, target: &str) -> io::Result<Expense> {
@@ -121,8 +123,6 @@ impl Store {
             .or(expense.category.as_ref())
             .cloned();
         expense.end_date = changes.end_date.or(expense.end_date);
-
-        expense.validate_dates()?;
 
         let updated = expense.clone();
         self.write_all(&entries)?;
@@ -710,27 +710,6 @@ mod tests {
         assert_eq!(expenses[0].category, None);
         assert_eq!(expenses[1].category, None);
         assert_eq!(expenses[2].category.as_deref(), Some("food"));
-        Ok(())
-    }
-
-    #[test]
-    fn update_rejects_end_before_start() -> io::Result<()> {
-        let store = test_support::store();
-        let expense = Expense {
-            start_date: Some(test_support::d(2026, 6, 1)),
-            ..named("Netflix", 9.99)
-        };
-        store.save(&expense)?;
-        let err = store
-            .update(
-                "Netflix",
-                &Expense {
-                    end_date: Some(test_support::d(2025, 1, 1)),
-                    ..Default::default()
-                },
-            )
-            .expect_err("should reject end < start");
-        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
         Ok(())
     }
 }

@@ -60,10 +60,9 @@ pub fn execute(args: &AddArgs, store: &Store) -> std::io::Result<()> {
 
     expense.validate_dates()?;
 
-    store.save(&expense)?;
+    let saved = store.save(&expense)?;
 
     if args.json {
-        let saved = store.get(&expense.name)?;
         emit_json(&mut std::io::stdout(), &JsonExpense::from(&saved))?;
     } else {
         println!("Added {}", expense.summary());

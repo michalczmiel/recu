@@ -117,13 +117,21 @@ fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<Expense> {
 }
 
 pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
+    let current = store.get(&args.target)?;
     let patch = if args.fields == ExpenseFields::default() {
         install_render_config();
-        let current = store.get(&args.target)?;
         prompt_fields(&current, store)?
     } else {
         Expense::from(&args.fields)
     };
+
+    Expense {
+        start_date: patch.start_date.or(current.start_date),
+        end_date: patch.end_date.or(current.end_date),
+        ..Default::default()
+    }
+    .validate_dates()?;
+
     let updated = store.update(&args.target, &patch)?;
     if args.json {
         emit_json(&mut std::io::stdout(), &JsonExpense::from(&updated))?;
@@ -326,5 +334,32 @@ mod tests {
         let e = load(&store, "Netflix");
         assert_eq!(e.amount, Some(9.99));
         assert_eq!(e.currency.as_deref(), Some("usd"));
+    }
+
+    #[test]
+    fn edit_rejects_end_before_start() {
+        let store = test_support::store();
+        seed_expenses(&store);
+        // First set a start_date on Netflix
+        store
+            .update(
+                "Netflix",
+                &Expense {
+                    start_date: Some(date("2026-06-01")),
+                    ..Default::default()
+                },
+            )
+            .expect("setup should succeed");
+        // Now try to set end_date before start_date
+        let args = EditArgs {
+            target: "Netflix".to_string(),
+            fields: ExpenseFields {
+                end_date: Some(date("2025-01-01")),
+                ..Default::default()
+            },
+            json: false,
+        };
+        let err = execute(&args, &store).expect_err("should reject end < start");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     }
 }
