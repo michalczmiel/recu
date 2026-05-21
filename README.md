@@ -36,6 +36,41 @@ $ recu list
 + 1 ended (recu list --all)
 ```
 
+## Features
+
+- You own your CSV, edit by hand, version with git
+- List, add, edit, rename, remove expenses
+- Categories with merge/rename, spend breakdown and percentages
+- Visualizations: month calendar, treemap
+- Multi-currency with auto-conversion to a display currency
+- Filter by min/max monthly cost; `text` or `json` output for scripting
+- Undo for the last mutating command
+- Supports custom CSV columns
+- Shell completion generation
+
+## Schema
+
+`recu` stores one expense per CSV row.
+
+```csv
+id,name,amount,currency,start_date,interval,category,end_date
+1,Streamberry,19.99,usd,2026-04-22,monthly,Streaming,
+17,Domain,15.00,usd,2025-11-08,yearly,Infrastructure,
+```
+
+| Column       | Required | Format / values                         | Notes                                         |
+| ------------ | -------- | --------------------------------------- | --------------------------------------------- |
+| `id`         | yes      | positive integer, unique                | auto-assigned on `add`; referenced as `@id`   |
+| `name`       | yes      | text                                    |                                               |
+| `amount`     | no       | decimal, `.` or `,` separator (`9.99`)  | empty = unset, fill in later via `edit`       |
+| `currency`   | no       | ISO 4217 code (`usd`, `eur`, `pln`)     | converted to display currency when configured |
+| `start_date` | no       | `YYYY-MM-DD`                            | when the subscription began                   |
+| `interval`   | no       | `weekly` `monthly` `quarterly` `yearly` | drives monthly/yearly normalization           |
+| `category`   | no       | text                                    | free-form label; managed via `recu category`  |
+| `end_date`   | no       | `YYYY-MM-DD`                            | set = ended; hidden unless `--all`            |
+
+Any extra columns are preserved and `recu` leaves them untouched. Trailing empty cells may be omitted.
+
 ## Installation
 
 Install globally with your preferred method
