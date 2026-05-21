@@ -89,6 +89,7 @@ enum Commands {
 
   # fish — auto-loaded from this path
   recu completion fish > ~/.config/fish/completions/recu.fish")]
+    #[command(alias = "completions")]
     Completion(completion::CompletionArgs),
 }
 
