@@ -1,30 +1,28 @@
 # recu
 
-Track recurring expenses from a single CSV file. Outputs as a list, calendar, or treemap.
-
-> This project is still in development, the interfaces and features may change.
+`recu` is a cli for managing and visualizing recurring expenses using CSV.
 
 ```sh
 $ recu list
-@    name                     amount  due     category      
+@    name                     amount  due     category
 ───  ────────────────────  ─────────  ──────  ──────────────
-@15  Amazoo Prime          $14.99/mo  Fri     Shopping      
-@13  iSmog+                 $2.99/mo  Sun     Cloud         
-@2   Spookify               $9.99/mo  Mon     Streaming     
-@14  Goggle One             $2.99/mo  Tue     Cloud         
-@6   Adobo Creative Cloud  $54.99/mo  May 20  Productivity  
-@1   Streamberry           $19.99/mo  May 22  Streaming     
+@15  Amazoo Prime          $14.99/mo  Fri     Shopping
+@13  iSmog+                 $2.99/mo  Sun     Cloud
+@2   Spookify               $9.99/mo  Mon     Streaming
+@14  Goggle One             $2.99/mo  Tue     Cloud
+@6   Adobo Creative Cloud  $54.99/mo  May 20  Productivity
+@1   Streamberry           $19.99/mo  May 22  Streaming
 @18  Web Hosting            $6.99/mo  May 24  Infrastructure
-@5   Ghibli+               $11.99/mo  May 25  Streaming     
-@9   0Password              $4.99/mo  May 28  Security      
-@4   Pear TV+              $12.99/mo  May 30  Streaming     
-@3   ViewTube Premium      $15.99/mo  Jun 1   Streaming     
-@16  Gym                   $45.00/mo  Jun 1   Health        
-@8   Potion                $10.00/mo  Jun 3   Productivity  
-@11  GitHug Pro             $4.00/mo  Jun 7   Dev           
-@12  ChatGBT Plus          $20.00/mo  Jun 10  Dev           
+@5   Ghibli+               $11.99/mo  May 25  Streaming
+@9   0Password              $4.99/mo  May 28  Security
+@4   Pear TV+              $12.99/mo  May 30  Streaming
+@3   ViewTube Premium      $15.99/mo  Jun 1   Streaming
+@16  Gym                   $45.00/mo  Jun 1   Health
+@8   Potion                $10.00/mo  Jun 3   Productivity
+@11  GitHug Pro             $4.00/mo  Jun 7   Dev
+@12  ChatGBT Plus          $20.00/mo  Jun 10  Dev
 @17  Domain                $15.00/yr  Nov 8   Infrastructure
-@7   Macrosoft 365         $99.99/yr  Dec 1   Productivity  
+@7   Macrosoft 365         $99.99/yr  Dec 1   Productivity
 
 17 expenses  $247.47/month  $2969.67/year
   Productivity    $73.32/mo   30%
@@ -154,7 +152,7 @@ $ recu calendar
      18     19     20     21     22     23     24
      10      3     55            20             7
      25     26     27     28     29     30     31
-     12                    5            13       
+     12                    5            13
 
 15 charges   $237.89   paid $94.99, remaining $142.90
 + 1 ended (recu calendar --all)
@@ -181,7 +179,7 @@ $ recu treemap
 │                              ││           ││$144/yr  │ ┌─────────┐┌───┐┌─────┐
 │                              ││           ││         │ │Web Host…││iS…││Gogg…│
 │                              ││           ││         │ │$7/mo    ││   │└─────┘
-└──────────────────────────────┘└───────────┘└─────────┘ └─────────┘└───┘       
+└──────────────────────────────┘└───────────┘└─────────┘ └─────────┘└───┘
 ```
 
 ```sh
