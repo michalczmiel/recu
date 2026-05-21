@@ -320,7 +320,9 @@ fn diff_description(before: &[Expense], after: &[Expense]) -> String {
 mod tests {
     use super::*;
 
+    use crate::expense::Interval;
     use crate::test_support;
+    use chrono::NaiveDate;
 
     fn named(name: &str, amount: f64) -> Expense {
         test_support::expense(name)
@@ -461,6 +463,29 @@ mod tests {
     }
 
     #[test]
+    fn update_merges_only_provided_fields() -> io::Result<()> {
+        let store = test_support::store();
+        store.save(&named("Netflix", 9.99))?;
+        store.update(
+            "Netflix",
+            &Expense {
+                currency: Some("eur".into()),
+                interval: Some(Interval::Yearly),
+                start_date: NaiveDate::from_ymd_opt(2025, 1, 1),
+                end_date: NaiveDate::from_ymd_opt(2026, 12, 31),
+                ..Default::default()
+            },
+        )?;
+        let e = store.list()?.swap_remove(0);
+        assert_eq!(e.amount, Some(9.99)); // untouched
+        assert_eq!(e.currency.as_deref(), Some("eur"));
+        assert_eq!(e.interval, Some(Interval::Yearly));
+        assert_eq!(e.start_date, NaiveDate::from_ymd_opt(2025, 1, 1));
+        assert_eq!(e.end_date, NaiveDate::from_ymd_opt(2026, 12, 31));
+        Ok(())
+    }
+
+    #[test]
     fn resolve_index_invalid_ids() -> io::Result<()> {
         let store = test_support::store();
         store.save(&named("Netflix", 9.99))?;
@@ -475,6 +500,28 @@ mod tests {
             let err = store.remove(&[input]).expect_err("invalid id should fail");
             assert_eq!(err.kind(), expected, "input: {input}");
         }
+        Ok(())
+    }
+
+    #[test]
+    fn rename_changes_name_by_id_and_name() -> io::Result<()> {
+        let store = test_support::store();
+        store.save(&named("Netflix", 9.99))?;
+        store.save(&named("Spotify", 5.99))?;
+        store.rename("@1", "Netflix Plus")?;
+        store.rename("spotify", "Spotify Plus")?; // case-insensitive match
+        let names: Vec<String> = store.list()?.into_iter().map(|e| e.name).collect();
+        assert_eq!(names, vec!["Netflix Plus", "Spotify Plus"]);
+        Ok(())
+    }
+
+    #[test]
+    fn remove_by_name_is_case_insensitive() -> io::Result<()> {
+        let store = test_support::store();
+        store.save(&named("Netflix", 9.99))?;
+        let names = store.remove(&["netflix"])?;
+        assert_eq!(names, vec!["Netflix"]);
+        assert!(store.list()?.is_empty());
         Ok(())
     }
 

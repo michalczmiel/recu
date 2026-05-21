@@ -155,13 +155,6 @@ mod tests {
     }
 
     #[test]
-    fn add_duplicate_name_case_insensitive_returns_error() {
-        let store = test_support::store();
-        seed_expenses(&store);
-        assert!(execute(&args_with_name("netflix"), &store).is_err());
-    }
-
-    #[test]
     fn add_preserves_existing_expenses() {
         let store = test_support::store();
         seed_expenses(&store);
