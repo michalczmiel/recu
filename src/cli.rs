@@ -3,8 +3,7 @@ use std::path::PathBuf;
 use clap::{CommandFactory, Parser, Subcommand};
 
 use crate::commands::{
-    Filters, OutputFormat, add, calendar, category, completion, config, edit, list, remove, rename,
-    treemap, undo,
+    Filters, add, calendar, category, completion, config, edit, list, remove, rename, treemap, undo,
 };
 use crate::expense::AmountRange;
 use crate::store::Store;
@@ -26,9 +25,9 @@ struct Cli {
     #[arg(short, long)]
     all: bool,
 
-    /// Output format (only used when no subcommand is given; equivalent to `recu list --format <FORMAT>`)
-    #[arg(long, value_enum)]
-    format: Option<OutputFormat>,
+    /// Output as JSON (only used when no subcommand is given; equivalent to `recu list --json`)
+    #[arg(long)]
+    json: bool,
 
     /// Amount filters (only used when no subcommand is given; equivalent to `recu list --min/--max`)
     #[command(flatten)]
@@ -103,7 +102,7 @@ pub fn run() -> std::io::Result<()> {
             amount: cli.amount,
             ..Default::default()
         },
-        format: cli.format.unwrap_or_default(),
+        json: cli.json,
     })) {
         Commands::List(args) => list::execute(&args, &store)?,
         Commands::Add(args) => add::execute(&args, &store)?,

@@ -1,6 +1,6 @@
 use clap::Args;
 
-use crate::commands::{OutputFormat, emit_json};
+use crate::commands::emit_json;
 use crate::store::Store;
 
 #[derive(Args, Debug)]
@@ -16,20 +16,19 @@ pub struct RemoveArgs {
     /// For multiple targets, prefer @id to avoid ambiguity.
     #[arg(value_delimiter = ',')]
     pub targets: Vec<String>,
-    /// Output format
-    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-    pub format: OutputFormat,
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 pub fn execute(args: &RemoveArgs, store: &Store) -> std::io::Result<()> {
     let targets: Vec<&str> = args.targets.iter().map(String::as_str).collect();
     let names = store.remove(&targets)?;
-    match args.format {
-        OutputFormat::Json => emit_json(&mut std::io::stdout(), &names)?,
-        OutputFormat::Text => {
-            for name in names {
-                println!("Removed '{name}'");
-            }
+    if args.json {
+        emit_json(&mut std::io::stdout(), &names)?;
+    } else {
+        for name in names {
+            println!("Removed '{name}'");
         }
     }
     Ok(())

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::io::{self, Write};
 
 use chrono::NaiveDate;
-use clap::{Args, ValueEnum};
+use clap::Args;
 use serde::Serialize;
 
 use crate::expense::{AmountRange, Expense, Interval};
@@ -32,13 +32,6 @@ pub struct Filters {
     pub amount: AmountRange,
 }
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
-pub enum OutputFormat {
-    #[default]
-    Text,
-    Json,
-}
-
 #[derive(Serialize)]
 pub(crate) struct JsonExpense<'a> {
     pub id: u64,
@@ -55,8 +48,24 @@ pub(crate) struct JsonExpense<'a> {
     pub category: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_date: Option<NaiveDate>,
-    #[serde(flatten)]
+    #[serde(flatten, serialize_with = "serialize_non_empty_extra")]
     pub extra: &'a BTreeMap<String, String>,
+}
+
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "signature required by serde serialize_with"
+)]
+fn serialize_non_empty_extra<S: serde::Serializer>(
+    map: &&BTreeMap<String, String>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    use serde::ser::SerializeMap;
+    let mut m = serializer.serialize_map(None)?;
+    for (k, v) in map.iter().filter(|(_, v)| !v.is_empty()) {
+        m.serialize_entry(k, v)?;
+    }
+    m.end()
 }
 
 pub(crate) fn emit_json<T: Serialize>(out: &mut impl Write, value: &T) -> io::Result<()> {

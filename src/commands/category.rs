@@ -2,19 +2,27 @@ use std::io;
 
 use clap::{Args, Subcommand};
 
+use crate::commands::emit_json;
 use crate::store::Store;
 
 #[derive(Subcommand, Debug)]
 pub enum CategoryCommand {
     /// List categories currently used by expenses
     #[command(alias = "ls")]
-    List,
+    List(CategoryListArgs),
     /// Remove categories from all matching expenses
     #[command(aliases = ["rm", "delete", "del"])]
     Remove(CategoryRemoveArgs),
     /// Rename one or more categories into a destination (merges if dst already exists)
     #[command(alias = "mv")]
     Rename(CategoryRenameArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct CategoryListArgs {
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Args, Debug)]
@@ -26,6 +34,9 @@ pub struct CategoryRemoveArgs {
     /// Categories to remove: @id or name (case-insensitive), comma-separated.
     #[arg(value_delimiter = ',')]
     pub targets: Vec<String>,
+    /// Output as JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Args, Debug)]
@@ -126,9 +137,11 @@ fn resolve_sources(targets: &[String], categories: &[String]) -> io::Result<Vec<
 
 pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
     match cmd {
-        CategoryCommand::List => {
+        CategoryCommand::List(args) => {
             let categories = store.categories()?;
-            if categories.is_empty() {
+            if args.json {
+                emit_json(&mut std::io::stdout(), &categories)?;
+            } else if categories.is_empty() {
                 println!("No categories found.");
             } else {
                 let width = (categories.len()).to_string().len() + 1;
@@ -150,8 +163,17 @@ pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
 
             let refs: Vec<&str> = resolved.iter().map(String::as_str).collect();
             let counts = store.clear_categories(&refs)?;
-            for (name, count) in resolved.iter().zip(counts.iter()) {
-                println!("Removed category '{name}' from {count} expense(s).");
+            if args.json {
+                let items: Vec<_> = resolved
+                    .iter()
+                    .zip(counts.iter())
+                    .map(|(name, &count)| serde_json::json!({ "category": name, "expenses_updated": count }))
+                    .collect();
+                emit_json(&mut std::io::stdout(), &items)?;
+            } else {
+                for (name, count) in resolved.iter().zip(counts.iter()) {
+                    println!("Removed category '{name}' from {count} expense(s).");
+                }
             }
         }
         CategoryCommand::Rename(args) => {
