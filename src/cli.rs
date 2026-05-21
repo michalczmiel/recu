@@ -41,7 +41,7 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// List recurring expenses. Amounts converted to display currency when configured.
-    #[command(visible_alias = "ls")]
+    #[command(alias = "ls")]
     List(list::ListArgs),
     /// Add a recurring expense
     Add(add::AddArgs),
