@@ -68,11 +68,11 @@ fn menu_items(e: &Expense) -> Vec<MenuItem> {
     ]
 }
 
-fn prompt_fields(current: &Expense, store: &Store) -> std::io::Result<Expense> {
+fn prompt_fields(current: &Expense, name: &str, store: &Store) -> std::io::Result<Expense> {
     let mut working = current.clone();
 
     loop {
-        let choice = pick("Edit:", menu_items(&working))?;
+        let choice = pick(&format!("Edit '{name}':"), menu_items(&working))?;
 
         match choice {
             None => break,
@@ -120,7 +120,7 @@ pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
     let patch = if args.fields == ExpenseFields::default() {
         install_render_config();
         let current = store.get(&args.target)?;
-        prompt_fields(&current, store)?
+        prompt_fields(&current, &current.name, store)?
     } else {
         Expense::from(&args.fields)
     };
@@ -129,7 +129,7 @@ pub fn execute(args: &EditArgs, store: &Store) -> std::io::Result<()> {
     if args.json {
         emit_json(&mut std::io::stdout(), &JsonExpense::from(&updated))?;
     } else {
-        println!("Updated '{}'", args.target);
+        println!("Updated '{}'", updated.name);
     }
     Ok(())
 }

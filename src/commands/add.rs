@@ -65,7 +65,7 @@ pub fn execute(args: &AddArgs, store: &Store) -> std::io::Result<()> {
     if args.json {
         emit_json(&mut std::io::stdout(), &JsonExpense::from(&saved))?;
     } else {
-        println!("Added {}", expense.summary());
+        println!("Added {}", expense.name);
     }
     Ok(())
 }

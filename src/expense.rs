@@ -134,22 +134,6 @@ impl Expense {
         self.days_until_end(today).is_some_and(|d| d < 0)
     }
 
-    pub fn summary(&self) -> String {
-        let parts: Vec<String> = [
-            self.amount
-                .map(|a| format_expense_amount(self.currency.as_deref(), a)),
-            self.interval.as_ref().map(ToString::to_string),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        if parts.is_empty() {
-            self.name.clone()
-        } else {
-            format!("{}: {}", self.name, parts.join(", "))
-        }
-    }
-
     pub fn due_status(&self, today: NaiveDate) -> DueStatus {
         match self.days_until_next(today) {
             Some(d) if d <= 0 => DueStatus::Overdue,
