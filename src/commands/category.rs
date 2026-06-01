@@ -128,7 +128,7 @@ fn unknown_category_message(target: &str, categories: &[String]) -> String {
         || "recu category list".to_string(),
         |c| format!("recu list --category {c}"),
     );
-    format!("unknown category \"{target}\"; known: {known}\nexample: {example}")
+    format!("unknown category '{target}'; known: {known}\nexample: {example}")
 }
 
 fn validate_dst(dst: &str) -> io::Result<&str> {
@@ -187,7 +187,7 @@ pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
                 emit_json(&mut std::io::stdout(), &items)?;
             } else {
                 for (name, count) in resolved.iter().zip(counts.iter()) {
-                    println!("Removed category '{name}' from {count} expense(s).");
+                    println!("Removed category '{name}' from {count} expense(s)");
                 }
             }
         }
@@ -201,7 +201,7 @@ pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
 
             if resolved.len() == 1 {
                 println!(
-                    "Renamed category '{}' to '{}' in {} expense(s).",
+                    "Renamed category '{}' to '{}' in {} expense(s)",
                     resolved[0], dst, counts[0]
                 );
             } else {
@@ -209,7 +209,7 @@ pub fn run(cmd: &CategoryCommand, store: &Store) -> io::Result<()> {
                     println!("  '{name}': {count} expense(s)");
                 }
                 let total: usize = counts.iter().sum();
-                println!("Renamed into '{dst}' ({total} expense(s) total).");
+                println!("Renamed into '{dst}' ({total} expense(s) total)");
             }
         }
     }
@@ -300,7 +300,7 @@ mod tests {
         let msg = unknown_category_message("nope", &sample());
         assert_eq!(
             msg,
-            "unknown category \"nope\"; known: food, housing, streaming\n\
+            "unknown category 'nope'; known: food, housing, streaming\n\
              example: recu list --category food"
         );
     }
@@ -310,7 +310,7 @@ mod tests {
         let msg = unknown_category_message("nope", &[]);
         assert_eq!(
             msg,
-            "unknown category \"nope\"; known: (none)\n\
+            "unknown category 'nope'; known: (none)\n\
              example: recu category list"
         );
     }
