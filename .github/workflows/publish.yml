@@ -2,25 +2,33 @@ name: Publish
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to publish (X.Y.Z, must already be tagged as vX.Y.Z by release.yml)"
-        required: true
-        type: string
 
 permissions: {}
 
 concurrency:
-  group: publish-${{ inputs.version }}
+  group: publish-${{ github.ref_name }}
   cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
-  TAG: v${{ inputs.version }}
+  TAG: ${{ github.ref_name }}
 
 jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ensure dispatched from a tag
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "::error::This workflow must be run from a tag, not '$GITHUB_REF'."
+            exit 1
+          fi
+
   build:
     name: build (${{ matrix.target }})
+    needs: [guard]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
@@ -45,8 +53,6 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: "11.0"
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ env.TAG }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -98,8 +104,6 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ env.TAG }}
 
       - name: Download all archive artifacts
         uses: actions/download-artifact@v8
@@ -149,8 +153,6 @@ jobs:
             runner: ubuntu-22.04-arm
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ env.TAG }}
 
       - uses: actions/setup-node@v6
         with:
@@ -209,9 +211,7 @@ jobs:
 
       - name: Publish
         working-directory: pkg
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
+        run: npm publish --access public
 
   publish-npm-main:
     needs: [publish-npm-platform]
@@ -222,8 +222,6 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ env.TAG }}
 
       - uses: actions/setup-node@v6
         with:
@@ -235,9 +233,7 @@ jobs:
 
       - name: Publish
         working-directory: npm/recu
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
+        run: npm publish --access public
 
   publish-crates:
     needs: [publish-npm-main, github-release]
@@ -248,8 +244,6 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ env.TAG }}
 
       - uses: dtolnay/rust-toolchain@stable
 
