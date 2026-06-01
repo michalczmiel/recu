@@ -73,7 +73,7 @@ pub fn run(cmd: &ConfigCommand) -> io::Result<()> {
                 let mut cfg = config::load()?;
                 cfg.currency = Some(code.clone());
                 config::save(&cfg)?;
-                println!("currency set to {code}");
+                println!("Currency set to {code}");
             }
         },
     }
