@@ -47,6 +47,22 @@ Source may be a bank statement, an app export (CSV/JSON), or a screenshot.
 4. Present proposed changes; let the user pick which to apply — never edit unprompted.
 5. Run `recu edit <target> -a <amount>` per confirmed change, then `recu list`.
 
+## Recipe: find cancellation candidates via audit
+
+Surface subscriptions worth cutting or downgrading, ranked by annual savings. The CSV has **no usage data**, so never claim something is "unused", flag candidates by cost and redundancy, then let the user confirm what they actually use.
+
+1. `recu list --json` for the full set. Amounts are raw at their `interval`; normalize to monthly to compare (weekly ×52/12, quarterly ÷3, yearly ÷12), or lean on `--min`/`--max` which already filter by monthly cost.
+2. Flag candidates from signals the data _does_ support:
+   - **Redundant** — several entries serving the same purpose.
+   - **Expensive** — biggest monthly/annual hits; small per-charge yearly bills add up.
+   - **Stale-looking** — old `start_date` on something the user may have forgotten.
+3. Ask the user which flagged ones they still use — don't guess. Pair the question with each item's annualized cost so the trade-off is concrete.
+4. Present a ranked table: name, monthly, **annual savings if cut**, and the reason flagged. Total the savings.
+5. Apply only confirmed choices:
+   - Cancelled → `recu edit <target> --end <today>` to stop it but keep history (prefer over `remove`).
+   - Downgraded to a cheaper tier → `recu edit <target> -a <amount>`.
+     Confirm the exact commands first, run them, then `recu list` to show the new total. Mention `recu undo` reverses the last change.
+
 ## Recipe: export the calendar to an .ics file
 
 Turn upcoming charges into calendar events the user can import into Apple/Google/Outlook calendars.

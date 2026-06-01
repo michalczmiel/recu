@@ -25,7 +25,7 @@ _HEADER: tuple[str, ...] = (
 )
 
 
-def escape(text):
+def escape(text: str) -> str:
     """Escape a value per RFC 5545 (backslash, semicolon, comma, newline)."""
     return (
         text.replace("\\", "\\\\")
@@ -35,7 +35,7 @@ def escape(text):
     )
 
 
-def fold(line):
+def fold(line: str) -> str:
     """Fold content lines to <=75 octets, continuation lines start with a space."""
     raw = line.encode("utf-8")
     if len(raw) <= 75:
@@ -63,7 +63,7 @@ class Event:
     summary: str
     stamp: str  # DTSTAMP, UTC
 
-    def to_lines(self):
+    def to_lines(self) -> list[str]:
         return [
             "BEGIN:VEVENT",
             f"UID:{self.uid}",
@@ -83,7 +83,7 @@ class IcsCalendar:
     month: str | None = None
 
     @classmethod
-    def from_json(cls, cal):
+    def from_json(cls, cal) -> "IcsCalendar":
         """Parse `recu calendar --json` output into an IcsCalendar."""
         stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         currency = cal.get("currency") or ""
@@ -102,14 +102,14 @@ class IcsCalendar:
                 )
         return cls(events=events, month=cal.get("month"))
 
-    def to_lines(self):
+    def to_lines(self) -> list[str]:
         lines = list(_HEADER)
         for event in self.events:
             lines += event.to_lines()
         lines.append("END:VCALENDAR")
         return lines
 
-    def render(self):
+    def render(self) -> str:
         """Serialize to a CRLF-terminated .ics string."""
         return "\r\n".join(self.to_lines()) + "\r\n"
 
