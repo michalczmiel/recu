@@ -53,6 +53,13 @@ Source may be a bank statement, an app export (CSV/JSON), or a screenshot.
 4. Present proposed changes; let the user pick which to apply — never edit unprompted.
 5. Run `recu edit <target> -a <amount>` per confirmed change, then `recu list`.
 
+## Recipe: monthly spending overview
+
+Answer "what am I paying this month?" — total, what's already due vs. still upcoming, and the biggest hits.
+
+1. `recu calendar` for the visual grid, or `recu calendar --json` for the numbers: `{ month, currency, total, paid, remaining, days: [{ date, charges: [{ id, name, amount }] }] }`. `--next`/`--month YYYY-MM` for other months; amounts are in the configured display currency (see the currency note in the audit recipe).
+2. Summarize: `total` for the month, `paid` (charges dated on/before today) vs. `remaining`, and the few largest charges across `days`.
+
 ## Recipe: find cancellation candidates via audit
 
 Surface subscriptions worth cutting or downgrading, ranked by annual savings. The CSV has **no usage data**, so never claim something is "unused", flag candidates by cost and redundancy, then let the user confirm what they actually use.
@@ -81,7 +88,7 @@ Turn upcoming charges into calendar events the user can import into Apple/Google
 recu calendar --json | python3 scripts/calendar_to_ics.py -o recu-2026-06.ics
 ```
 
-1. Pick the month: `recu calendar --json` (current), `--next`, or `--month YYYY-MM`. JSON shape is `{ month, currency, total, days: [{ date, charges: [{ id, name, amount }] }] }`.
-2. Pipe it into the script with `-o <file>.ics` (omit `-o` to write to stdout). Each charge becomes one all-day `VEVENT`.
+1. Pick the month: `recu calendar --json` (current), `--next`, or `--month YYYY-MM`. JSON shape is `{ month, currency, total, paid, remaining, days: [{ date, charges: [{ id, name, amount }] }] }`.
+2. Pipe it into the script with `-o <file>.ics` (omit `-o` to write to stdout). Default the filename to `recu-<month>.ics` using the `month` field (e.g. `recu-2026-06.ics`). Each charge becomes one all-day `VEVENT`.
 3. Fallback only if Python is unavailable: read `scripts/calendar_to_ics.py` and port its logic (header, VEVENT shape, UID scheme, escaping, line folding) to Node/Bash so output stays in sync. Don't reconstruct the format from memory.
 4. Read-only export — no CSV touched, no confirmation needed. Report the output path and event count (from stderr).
