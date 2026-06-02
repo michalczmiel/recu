@@ -10,6 +10,8 @@ Usage:
     recu calendar --json --next | python3 calendar_to_ics.py -o next.ics
 """
 
+from __future__ import annotations
+
 import argparse
 import datetime as dt
 import json

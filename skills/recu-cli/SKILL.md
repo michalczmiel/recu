@@ -11,6 +11,12 @@ Globals: `--json` for machine-readable output, `-f/--file` (or `RECU_FILE`) to t
 
 Commands: `list` `add` `edit` `rename` `remove` `treemap` `calendar` `category {list,remove,rename}` `config {list,set}` `undo`.
 
+## Bundled scripts
+
+Paths are relative to the skill root; run with `python3`, don't rely on the executable bit. All are Python 3 stdlib only — no `pip install`. Prefer running them over generating equivalent code: they're tested and deterministic.
+
+- `scripts/calendar_to_ics.py` — convert `recu calendar --json` (stdin) into an RFC 5545 `.ics`. Flags: `-o <file>` (else stdout). Stdout is the ICS; a `Wrote N event(s)...` summary goes to stderr. See the ICS recipe below.
+
 ## Safety rules
 
 - **Confirm before writing.** `add`, `edit`, `rename`, `remove`, `category remove/rename`, `config set` mutate the CSV. Show the exact command(s) and get approval first, so the user catches wrong targets or amounts before they land. Read-only commands (`list`, `treemap`, `calendar`, `category list`, `config list`) need no confirmation.
@@ -27,7 +33,7 @@ Indices resolve against the _current_ list order, so `recu list` (or `--json`) f
 
 ## Reading & auditing spend
 
-`recu list` for the table, `recu list --json` to compute totals, `recu treemap`/`recu calendar` to visualize. Filter any of them with `--category`, `--min`, `--max`. Ended expenses are hidden unless `--all`; mark a stopped subscription with `--end <date>` instead of removing it to keep history.
+`recu list` for the table — it already prints monthly/yearly totals and a per-category breakdown, in the configured display currency (`recu config list` to check). Use `recu list --json` for raw per-item fields, not totals (it has none, and skips currency conversion). `recu treemap`/`recu calendar` to visualize. Filter any of them with `--category`, `--min`, `--max`. Ended expenses are hidden unless `--all`; mark a stopped subscription with `--end <date>` instead of removing it to keep history.
 
 ## Recipe: import from an external source
 
@@ -47,33 +53,42 @@ Source may be a bank statement, an app export (CSV/JSON), or a screenshot.
 4. Present proposed changes; let the user pick which to apply — never edit unprompted.
 5. Run `recu edit <target> -a <amount>` per confirmed change, then `recu list`.
 
+## Recipe: monthly spending overview
+
+Answer "what am I paying this month?" — total, what's already due vs. still upcoming, and the biggest hits.
+
+1. `recu calendar` for the visual grid, or `recu calendar --json` for the numbers: `{ month, currency, total, paid, remaining, days: [{ date, total, charges: [{ id, name, amount }] }] }`. Each day carries its own `total` (sum of that day's charges). `--next`/`--month YYYY-MM` for other months; amounts are in the configured display currency (see the currency note in the audit recipe).
+2. Summarize: `total` for the month, `paid` (charges dated on/before today) vs. `remaining`, and the few largest charges (use each day's `total` or the per-charge `amount`).
+
 ## Recipe: find cancellation candidates via audit
 
 Surface subscriptions worth cutting or downgrading, ranked by annual savings. The CSV has **no usage data**, so never claim something is "unused", flag candidates by cost and redundancy, then let the user confirm what they actually use.
 
-1. `recu list --json` for the full set. Amounts are raw at their `interval`; normalize to monthly to compare (weekly ×52/12, quarterly ÷3, yearly ÷12), or lean on `--min`/`--max` which already filter by monthly cost.
-2. Flag candidates from signals the data _does_ support:
+1. First `recu config list` for a display currency:
+   - **Set** → the plain `recu list` table already converts every amount to it, normalizes to monthly, and prints per-category and grand totals. Read that instead of recomputing.
+   - **Not set** → totals across mixed currencies are meaningless. Ask the user which currency to report in, then `recu config set currency <iso>` (confirm the command first — it's a write). Never guess exchange rates.
+   - **`--json` is raw** regardless: amounts stay at their stored currency and `interval`, no conversion or totals.
+2. `recu list --json` only when you need per-item fields. Amounts are raw at their `interval`; normalize to monthly to compare (weekly ×52/12, quarterly ÷3, yearly ÷12), or lean on `--min`/`--max` which already filter by monthly cost.
+3. Flag candidates from signals the data _does_ support:
    - **Redundant** — several entries serving the same purpose.
    - **Expensive** — biggest monthly/annual hits; small per-charge yearly bills add up.
    - **Stale-looking** — old `start_date` on something the user may have forgotten.
-3. Ask the user which flagged ones they still use — don't guess. Pair the question with each item's annualized cost so the trade-off is concrete.
-4. Present a ranked table: name, monthly, **annual savings if cut**, and the reason flagged. Total the savings.
-5. Apply only confirmed choices:
+4. Ask the user which flagged ones they still use — don't guess. Pair the question with each item's annualized cost so the trade-off is concrete.
+5. Present a ranked table: name, monthly, **annual savings if cut**, and the reason flagged. Total the savings.
+6. Apply only confirmed choices:
    - Cancelled → `recu edit <target> --end <today>` to stop it but keep history (prefer over `remove`).
    - Downgraded to a cheaper tier → `recu edit <target> -a <amount>`.
      Confirm the exact commands first, run them, then `recu list` to show the new total. Mention `recu undo` reverses the last change.
 
 ## Recipe: export the calendar to an .ics file
 
-Turn upcoming charges into calendar events the user can import into Apple/Google/Outlook calendars.
-
-Use the bundled `scripts/calendar_to_ics.py` helper — it reads `recu calendar --json` on stdin and emits a valid RFC 5545 file (all-day events, CRLF line endings, proper escaping, stable UIDs for clean re-imports). Don't hand-write ICS.
+Turn upcoming charges into calendar events the user can import into Apple/Google/Outlook calendars. Run `scripts/calendar_to_ics.py` (above) — it emits valid RFC 5545 (all-day events, CRLF, proper escaping, stable UIDs for clean re-imports). Don't hand-write ICS.
 
 ```sh
 recu calendar --json | python3 scripts/calendar_to_ics.py -o recu-2026-06.ics
 ```
 
-1. Pick the month: `recu calendar --json` (current), `--next`, or `--month YYYY-MM`. JSON shape is `{ month, currency, total, days: [{ date, charges: [{ id, name, amount }] }] }`.
-2. Pipe it into the helper with `-o <file>.ics` (or omit `-o` to write the ICS to stdout). Each charge becomes one all-day `VEVENT`; the helper prints the event count and path to stderr.
-3. If Python is unavailable, read `scripts/calendar_to_ics.py` and replicate its logic in Node/Bash — port the header, VEVENT shape, UID scheme, escaping, and line folding from the source so the output stays in sync. Don't reconstruct the format from memory.
-4. This is a read-only export — no CSV is touched, so no confirmation needed. Report the output path and event count.
+1. Pick the month: `recu calendar --json` (current), `--next`, or `--month YYYY-MM`. JSON shape is `{ month, currency, total, paid, remaining, days: [{ date, total, charges: [{ id, name, amount }] }] }`.
+2. Pipe it into the script with `-o <file>.ics` (omit `-o` to write to stdout). Default the filename to `recu-<month>.ics` using the `month` field (e.g. `recu-2026-06.ics`). Each charge becomes one all-day `VEVENT`.
+3. Fallback only if Python is unavailable: read `scripts/calendar_to_ics.py` and port its logic (header, VEVENT shape, UID scheme, escaping, line folding) to Node/Bash so output stays in sync. Don't reconstruct the format from memory.
+4. Read-only export — no CSV touched, no confirmation needed. Report the output path and event count (from stderr).
