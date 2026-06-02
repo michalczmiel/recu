@@ -11,6 +11,12 @@ Globals: `--json` for machine-readable output, `-f/--file` (or `RECU_FILE`) to t
 
 Commands: `list` `add` `edit` `rename` `remove` `treemap` `calendar` `category {list,remove,rename}` `config {list,set}` `undo`.
 
+## Bundled scripts
+
+Paths are relative to the skill root; run with `python3`, don't rely on the executable bit. All are Python 3 stdlib only — no `pip install`. Prefer running them over generating equivalent code: they're tested and deterministic.
+
+- `scripts/calendar_to_ics.py` — convert `recu calendar --json` (stdin) into an RFC 5545 `.ics`. Flags: `-o <file>` (else stdout). Stdout is the ICS; a `Wrote N event(s)...` summary goes to stderr. See the ICS recipe below.
+
 ## Safety rules
 
 - **Confirm before writing.** `add`, `edit`, `rename`, `remove`, `category remove/rename`, `config set` mutate the CSV. Show the exact command(s) and get approval first, so the user catches wrong targets or amounts before they land. Read-only commands (`list`, `treemap`, `calendar`, `category list`, `config list`) need no confirmation.
@@ -65,15 +71,13 @@ Surface subscriptions worth cutting or downgrading, ranked by annual savings. Th
 
 ## Recipe: export the calendar to an .ics file
 
-Turn upcoming charges into calendar events the user can import into Apple/Google/Outlook calendars.
-
-Use the bundled `scripts/calendar_to_ics.py` helper — it reads `recu calendar --json` on stdin and emits a valid RFC 5545 file (all-day events, CRLF line endings, proper escaping, stable UIDs for clean re-imports). Don't hand-write ICS.
+Turn upcoming charges into calendar events the user can import into Apple/Google/Outlook calendars. Run `scripts/calendar_to_ics.py` (above) — it emits valid RFC 5545 (all-day events, CRLF, proper escaping, stable UIDs for clean re-imports). Don't hand-write ICS.
 
 ```sh
 recu calendar --json | python3 scripts/calendar_to_ics.py -o recu-2026-06.ics
 ```
 
 1. Pick the month: `recu calendar --json` (current), `--next`, or `--month YYYY-MM`. JSON shape is `{ month, currency, total, days: [{ date, charges: [{ id, name, amount }] }] }`.
-2. Pipe it into the helper with `-o <file>.ics` (or omit `-o` to write the ICS to stdout). Each charge becomes one all-day `VEVENT`; the helper prints the event count and path to stderr.
-3. If Python is unavailable, read `scripts/calendar_to_ics.py` and replicate its logic in Node/Bash — port the header, VEVENT shape, UID scheme, escaping, and line folding from the source so the output stays in sync. Don't reconstruct the format from memory.
-4. This is a read-only export — no CSV is touched, so no confirmation needed. Report the output path and event count.
+2. Pipe it into the script with `-o <file>.ics` (omit `-o` to write to stdout). Each charge becomes one all-day `VEVENT`.
+3. Fallback only if Python is unavailable: read `scripts/calendar_to_ics.py` and port its logic (header, VEVENT shape, UID scheme, escaping, line folding) to Node/Bash so output stays in sync. Don't reconstruct the format from memory.
+4. Read-only export — no CSV touched, no confirmation needed. Report the output path and event count (from stderr).
