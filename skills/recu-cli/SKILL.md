@@ -33,7 +33,7 @@ Indices resolve against the _current_ list order, so `recu list` (or `--json`) f
 
 ## Reading & auditing spend
 
-`recu list` for the table, `recu list --json` to compute totals, `recu treemap`/`recu calendar` to visualize. Filter any of them with `--category`, `--min`, `--max`. Ended expenses are hidden unless `--all`; mark a stopped subscription with `--end <date>` instead of removing it to keep history.
+`recu list` for the table — it already prints monthly/yearly totals and a per-category breakdown, in the configured display currency (`recu config list` to check). Use `recu list --json` for raw per-item fields, not totals (it has none, and skips currency conversion). `recu treemap`/`recu calendar` to visualize. Filter any of them with `--category`, `--min`, `--max`. Ended expenses are hidden unless `--all`; mark a stopped subscription with `--end <date>` instead of removing it to keep history.
 
 ## Recipe: import from an external source
 
@@ -57,14 +57,18 @@ Source may be a bank statement, an app export (CSV/JSON), or a screenshot.
 
 Surface subscriptions worth cutting or downgrading, ranked by annual savings. The CSV has **no usage data**, so never claim something is "unused", flag candidates by cost and redundancy, then let the user confirm what they actually use.
 
-1. `recu list --json` for the full set. Amounts are raw at their `interval`; normalize to monthly to compare (weekly ×52/12, quarterly ÷3, yearly ÷12), or lean on `--min`/`--max` which already filter by monthly cost.
-2. Flag candidates from signals the data _does_ support:
+1. First `recu config list` for a display currency:
+   - **Set** → the plain `recu list` table already converts every amount to it, normalizes to monthly, and prints per-category and grand totals. Read that instead of recomputing.
+   - **Not set** → totals across mixed currencies are meaningless. Ask the user which currency to report in, then `recu config set currency <iso>` (confirm the command first — it's a write). Never guess exchange rates.
+   - **`--json` is raw** regardless: amounts stay at their stored currency and `interval`, no conversion or totals.
+2. `recu list --json` only when you need per-item fields. Amounts are raw at their `interval`; normalize to monthly to compare (weekly ×52/12, quarterly ÷3, yearly ÷12), or lean on `--min`/`--max` which already filter by monthly cost.
+3. Flag candidates from signals the data _does_ support:
    - **Redundant** — several entries serving the same purpose.
    - **Expensive** — biggest monthly/annual hits; small per-charge yearly bills add up.
    - **Stale-looking** — old `start_date` on something the user may have forgotten.
-3. Ask the user which flagged ones they still use — don't guess. Pair the question with each item's annualized cost so the trade-off is concrete.
-4. Present a ranked table: name, monthly, **annual savings if cut**, and the reason flagged. Total the savings.
-5. Apply only confirmed choices:
+4. Ask the user which flagged ones they still use — don't guess. Pair the question with each item's annualized cost so the trade-off is concrete.
+5. Present a ranked table: name, monthly, **annual savings if cut**, and the reason flagged. Total the savings.
+6. Apply only confirmed choices:
    - Cancelled → `recu edit <target> --end <today>` to stop it but keep history (prefer over `remove`).
    - Downgraded to a cheaper tier → `recu edit <target> -a <amount>`.
      Confirm the exact commands first, run them, then `recu list` to show the new total. Mention `recu undo` reverses the last change.
