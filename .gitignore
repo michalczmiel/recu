@@ -7,3 +7,5 @@
 *.seq
 
 npm/recu-*/
+
+__pycache__
