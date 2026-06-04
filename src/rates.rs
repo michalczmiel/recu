@@ -33,7 +33,9 @@ fn cache_path() -> io::Result<PathBuf> {
 fn read_cache(path: &Path, base: &str) -> Option<ExchangeRateCache> {
     let content = std::fs::read_to_string(path).ok()?;
     let cache: ExchangeRateCache = serde_json::from_str(&content).ok()?;
-    if cache.base != base {
+    // Currencies are stored lowercase internally but the cache/API use
+    // uppercase ISO codes; compare case-insensitively so the cache is hit.
+    if !cache.base.eq_ignore_ascii_case(base) {
         return None;
     }
     let age = Utc::now().signed_duration_since(cache.fetched_at);
@@ -120,6 +122,24 @@ pub fn rates_for(out: &mut impl io::Write, target: Option<&str>) -> Option<HashM
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn read_cache_matches_base_case_insensitively() {
+        // Regression: a lowercase query must hit an uppercase-base cache,
+        // otherwise every call refetches over the network.
+        let path = std::env::temp_dir().join(format!("recu-rates-test-{}.json", std::process::id()));
+        let cache = ExchangeRateCache {
+            base: "PLN".to_string(),
+            rates: HashMap::from([("USD".to_string(), 0.25)]),
+            fetched_at: Utc::now(),
+        };
+        std::fs::write(&path, serde_json::to_string(&cache).unwrap()).unwrap();
+
+        let hit = read_cache(&path, "pln");
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(hit.expect("lowercase query hits uppercase-base cache").base, "PLN");
+    }
 
     #[test]
     fn rates_for_returns_none_on_error() {
