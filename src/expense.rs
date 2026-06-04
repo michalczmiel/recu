@@ -174,6 +174,54 @@ pub fn extra_key_union<'a>(expenses: impl IntoIterator<Item = &'a Expense>) -> V
 mod tests {
     use super::*;
 
+    fn assert_close(got: f64, expected: f64) {
+        assert!((got - expected).abs() < 1e-9, "{got} != {expected}");
+    }
+
+    #[test]
+    fn convert_uses_rate_for_known_currency() {
+        // Stored currencies are lowercase; the rates map is uppercase. 1 USD =
+        // 0.25 PLN-equivalent rate, so 10 USD -> 40 in the target.
+        let rates = HashMap::from([("USD".to_string(), 0.25)]);
+        assert_close(convert(10.0, Some("usd"), Some(&rates), Some("pln")), 40.0);
+    }
+
+    #[test]
+    fn convert_same_currency_is_identity_despite_case() {
+        // Regression: expense already in the target currency must not convert,
+        // even though one side is lowercase and the other uppercase.
+        let rates = HashMap::from([("PLN".to_string(), 4.0)]);
+        assert_close(convert(10.0, Some("usd"), Some(&rates), Some("USD")), 10.0);
+        assert_close(convert(10.0, Some("USD"), Some(&rates), Some("usd")), 10.0);
+    }
+
+    #[test]
+    fn convert_unknown_currency_passes_through() {
+        let rates = HashMap::from([("USD".to_string(), 0.25)]);
+        assert_close(convert(10.0, Some("eur"), Some(&rates), Some("pln")), 10.0);
+        assert_close(convert(10.0, Some("usd"), None, Some("pln")), 10.0);
+    }
+
+    #[test]
+    fn display_currency_picks_target_when_convertible() {
+        let rates = HashMap::from([("USD".to_string(), 0.25)]);
+        let pln = find_currency("pln");
+        // Convertible via rate, or already the target -> show in target.
+        assert_eq!(
+            display_currency(Some("usd"), Some(&rates), Some("pln"), pln),
+            pln
+        );
+        assert_eq!(
+            display_currency(Some("pln"), Some(&rates), Some("pln"), pln),
+            pln
+        );
+        // Unknown currency -> keep original.
+        assert_eq!(
+            display_currency(Some("eur"), Some(&rates), Some("pln"), pln),
+            find_currency("eur")
+        );
+    }
+
     #[test]
     fn format_amount_symbol_first() {
         let cur = iso::Currency::find("USD").expect("USD is a valid currency code");
@@ -330,22 +378,36 @@ pub fn find_currency(code: &str) -> Option<&'static iso::Currency> {
     iso::Currency::find(&code.to_ascii_uppercase())
 }
 
+/// Rate to divide an expense in `expense_currency` by to express it in `target`:
+/// `Some(1.0)` when it's already the target currency, `Some(rate)` when a rate is
+/// known, `None` when conversion isn't possible (no rates, no target, or no rate
+/// for the currency).
+///
+/// Reconciles case at lookup: expenses and the target are stored lowercase,
+/// while the rates map uses uppercase ISO codes.
+fn conversion_rate(
+    expense_currency: Option<&str>,
+    rates: Option<&HashMap<String, f64>>,
+    target: Option<&str>,
+) -> Option<f64> {
+    let (rates, target, exp) = (rates?, target?, expense_currency?);
+    if exp.eq_ignore_ascii_case(target) {
+        return Some(1.0);
+    }
+    rates.get(exp.to_ascii_uppercase().as_str()).copied()
+}
+
 pub fn convert(
     amount: f64,
     expense_currency: Option<&str>,
     rates: Option<&HashMap<String, f64>>,
     target: Option<&str>,
 ) -> f64 {
-    if let (Some(rates_map), Some(target_code), Some(exp_cur)) = (rates, target, expense_currency) {
-        let exp_upper = exp_cur.to_ascii_uppercase();
-        if exp_upper == target_code {
-            return amount;
-        }
-        if let Some(&rate) = rates_map.get(exp_upper.as_str()) {
-            return amount / rate;
-        }
+    match conversion_rate(expense_currency, rates, target) {
+        // Guard against a zero/degenerate rate (corrupted cache) producing inf.
+        Some(rate) if rate != 0.0 => amount / rate,
+        _ => amount,
     }
-    amount
 }
 
 pub fn display_currency(
@@ -354,11 +416,8 @@ pub fn display_currency(
     target: Option<&str>,
     target_cur: Option<&'static iso::Currency>,
 ) -> Option<&'static iso::Currency> {
-    if let (Some(rates_map), Some(target_code), Some(exp_cur)) = (rates, target, expense_currency) {
-        let exp_upper = exp_cur.to_ascii_uppercase();
-        if exp_upper == target_code || rates_map.contains_key(exp_upper.as_str()) {
-            return target_cur;
-        }
+    if conversion_rate(expense_currency, rates, target).is_some() {
+        return target_cur;
     }
     expense_currency.and_then(find_currency)
 }

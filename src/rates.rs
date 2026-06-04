@@ -127,18 +127,23 @@ mod tests {
     fn read_cache_matches_base_case_insensitively() {
         // Regression: a lowercase query must hit an uppercase-base cache,
         // otherwise every call refetches over the network.
-        let path = std::env::temp_dir().join(format!("recu-rates-test-{}.json", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("recu-rates-test-{}.json", std::process::id()));
         let cache = ExchangeRateCache {
             base: "PLN".to_string(),
             rates: HashMap::from([("USD".to_string(), 0.25)]),
             fetched_at: Utc::now(),
         };
-        std::fs::write(&path, serde_json::to_string(&cache).unwrap()).unwrap();
+        let json = serde_json::to_string(&cache).expect("serialize cache");
+        std::fs::write(&path, json).expect("write temp cache");
 
         let hit = read_cache(&path, "pln");
         let _ = std::fs::remove_file(&path);
 
-        assert_eq!(hit.expect("lowercase query hits uppercase-base cache").base, "PLN");
+        assert_eq!(
+            hit.expect("lowercase query hits uppercase-base cache").base,
+            "PLN"
+        );
     }
 
     #[test]
